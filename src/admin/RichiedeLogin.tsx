@@ -45,13 +45,5 @@ export default function RichiedeLogin() {
   if (caricamento) return <p className="p-8 text-center">Caricamento...</p>
   if (senzaSessione || !contesto) return <Navigate to="/login" replace />
 
-  if (!contesto.struttura) {
-    return (
-      <div className="p-8 text-center">
-        <p>Nessuna struttura associata al tuo account.</p>
-      </div>
-    )
-  }
-
   return <Outlet context={contesto} />
 }

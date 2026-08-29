@@ -1,7 +1,12 @@
+import CreaStruttura from './CreaStruttura'
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { SEZIONI } from '../sezioni'
 import type { ContestoHost } from './RichiedeLogin'
+
+  if (!struttura) {
+    return <CreaStruttura />
+  }
 
 export default function Admin() {
   const { session, struttura } = useOutletContext<ContestoHost>()

@@ -1,21 +1,6 @@
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
-
-const SEZIONI = [
-  { chiave: 'casa', icona: '🏠', etichetta: 'Casa & Wi-Fi' },
-  { chiave: 'piscina', icona: '🏊', etichetta: 'Piscina' },
-  { chiave: 'spiagge', icona: '🏖️', etichetta: 'Spiagge' },
-  { chiave: 'mangiare', icona: '🍝', etichetta: 'Dove Mangiare' },
-  { chiave: 'vicinanze', icona: '🛒', etichetta: 'Nelle Vicinanze' },
-  { chiave: 'visitare', icona: '🏛️', etichetta: 'Cosa Visitare' },
-  { chiave: 'divertimento', icona: '🎡', etichetta: 'Svago e Attività' },
-  { chiave: 'gite', icona: '🗺️', etichetta: 'Gite e Escursioni' },
-  { chiave: 'trasporti', icona: '🚌', etichetta: 'Trasporti' },
-  { chiave: 'differenziata', icona: '♻️', etichetta: 'Differenziata' },
-  { chiave: 'regole', icona: '📋', etichetta: 'Regole Casa' },
-  { chiave: 'emergenze', icona: '🚨', etichetta: 'Emergenze' },
-  { chiave: 'contatti', icona: '📞', etichetta: 'Contatti' },
-]
+import { SEZIONI } from './sezioni'
 
 export default function Home() {
   const struttura = useOutletContext<StrutturaRow>()

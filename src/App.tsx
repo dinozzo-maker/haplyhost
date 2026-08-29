@@ -8,6 +8,7 @@ import Login from './admin/Login'
 import RichiedeLogin from './admin/RichiedeLogin'
 import Admin from './admin/Admin'
 import GestisciSezione from './admin/GestisciSezione'
+import GestisciPagina from './admin/GestisciPagina'
 import { SEZIONI } from './sezioni'
 
 function App() {
@@ -18,6 +19,9 @@ function App() {
         <Route index element={<Admin />} />
         {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
           <Route key={s.chiave} path={s.chiave} element={<GestisciSezione sezione={s.chiave} etichetta={s.etichetta} />} />
+        ))}
+        {SEZIONI.filter((s) => s.tipo === 'testo').map((s) => (
+          <Route key={s.chiave} path={s.chiave} element={<GestisciPagina chiave={s.chiave} etichetta={s.etichetta} />} />
         ))}
       </Route>
       <Route path="/:slug" element={<Struttura />}>

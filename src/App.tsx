@@ -4,11 +4,20 @@ import Home from './Home'
 import SezionePage from './SezionePage'
 import PaginaStatica from './PaginaStatica'
 import Gennarino from './Gennarino'
+import Login from './admin/Login'
+import RichiedeLogin from './admin/RichiedeLogin'
+import Admin from './admin/Admin'
+import GestisciSezione from './admin/GestisciSezione'
 import { SEZIONI } from './sezioni'
 
 function App() {
   return (
     <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/admin" element={<RichiedeLogin />}>
+        <Route index element={<Admin />} />
+        <Route path="spiagge" element={<GestisciSezione sezione="spiagge" etichetta="Spiagge" />} />
+      </Route>
       <Route path="/:slug" element={<Struttura />}>
         <Route index element={<Home />} />
         {SEZIONI.filter((s) => s.tipo === 'testo').map((s) => (

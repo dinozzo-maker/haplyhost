@@ -1,0 +1,32 @@
+import { Link, useOutletContext, useParams } from 'react-router-dom'
+import type { StrutturaRow } from './Struttura'
+
+const SEZIONI = [
+  { chiave: 'spiagge', icona: '🏖️', etichetta: 'Spiagge' },
+  { chiave: 'ristoranti', icona: '🍝', etichetta: 'Ristoranti' },
+]
+
+export default function Home() {
+  const struttura = useOutletContext<StrutturaRow>()
+  const { slug } = useParams()
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold text-center mb-1">{struttura.nome}</h1>
+      <p className="text-center text-gray-500 mb-6">{struttura.citta}</p>
+
+      <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+        {SEZIONI.map((s) => (
+          <Link
+            key={s.chiave}
+            to={`/${slug}/${s.chiave}`}
+            className="bg-white rounded-2xl shadow p-6 flex flex-col items-center gap-2 hover:shadow-md transition"
+          >
+            <span className="text-3xl">{s.icona}</span>
+            <span className="font-medium">{s.etichetta}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import type { ContestoHost } from './RichiedeLogin'
 
 export default function GestisciPagina({ chiave, etichetta }: { chiave: string; etichetta: string }) {
+  const { struttura } = useOutletContext<ContestoHost>()
   const [titolo, setTitolo] = useState('')
   const [contenuto, setContenuto] = useState('')
   const [caricamento, setCaricamento] = useState(true)
@@ -11,12 +13,6 @@ export default function GestisciPagina({ chiave, etichetta }: { chiave: string; 
 
   useEffect(() => {
     async function carica() {
-      const { data: struttura } = await supabase
-        .from('strutture')
-        .select('id')
-        .eq('slug', 'villavirginia')
-        .single()
-
       if (!struttura) { setCaricamento(false); return }
 
       const { data } = await supabase
@@ -31,26 +27,19 @@ export default function GestisciPagina({ chiave, etichetta }: { chiave: string; 
       setCaricamento(false)
     }
     carica()
-  }, [chiave, etichetta])
+  }, [chiave, etichetta, struttura])
 
   async function salva() {
+    if (!struttura) return
     setSalvataggio(true)
     setSalvato(false)
 
-    const { data: struttura } = await supabase
-      .from('strutture')
-      .select('id')
-      .eq('slug', 'villavirginia')
-      .single()
-
-    if (struttura) {
-      await supabase
-        .from('pagine')
-        .upsert(
-          { struttura_id: struttura.id, chiave, titolo, contenuto },
-          { onConflict: 'struttura_id,chiave' }
-        )
-    }
+    await supabase
+      .from('pagine')
+      .upsert(
+        { struttura_id: struttura.id, chiave, titolo, contenuto },
+        { onConflict: 'struttura_id,chiave' }
+      )
 
     setSalvataggio(false)
     setSalvato(true)

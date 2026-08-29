@@ -1,15 +1,15 @@
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import type { Session } from '@supabase/supabase-js'
 import { SEZIONI } from '../sezioni'
+import type { ContestoHost } from './RichiedeLogin'
 
 export default function Admin() {
-  const session = useOutletContext<Session>()
+  const { session, struttura } = useOutletContext<ContestoHost>()
 
   return (
     <div className="max-w-sm mx-auto p-6">
       <h1 className="text-xl font-bold mb-2">Sei dentro, {session.user.email}</h1>
-      <p className="text-sm text-gray-500 mb-6">Pannello host — Villa Virginia</p>
+      <p className="text-sm text-gray-500 mb-6">Pannello host — {struttura?.nome}</p>
 
       <p className="text-xs font-medium text-gray-400 mb-2">ELENCHI</p>
       <div className="flex flex-col gap-2 mb-6">

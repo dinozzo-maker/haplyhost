@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import type { ContestoHost } from './RichiedeLogin'
 
 type LuogoRow = {
   id: string
@@ -30,7 +31,9 @@ type PropostaRow = {
 }
 
 export default function GestisciSezione({ sezione, etichetta }: { sezione: string; etichetta: string }) {
-  const [strutturaId, setStrutturaId] = useState<string | null>(null)
+  const { struttura } = useOutletContext<ContestoHost>()
+  const strutturaId = struttura?.id ?? null
+
   const [luoghi, setLuoghi] = useState<LuogoRow[]>([])
   const [proposte, setProposte] = useState<PropostaRow[]>([])
   const [caricamento, setCaricamento] = useState(true)
@@ -59,20 +62,12 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
   useEffect(() => {
     async function carica() {
-      const { data: struttura } = await supabase
-        .from('strutture')
-        .select('id')
-        .eq('slug', 'villavirginia')
-        .single()
-
-      if (!struttura) { setCaricamento(false); return }
-
-      setStrutturaId(struttura.id)
-      await caricaTutto(struttura.id)
+      if (!strutturaId) { setCaricamento(false); return }
+      await caricaTutto(strutturaId)
       setCaricamento(false)
     }
     carica()
-  }, [sezione])
+  }, [sezione, strutturaId])
 
   async function toggle(id: string, nuovoValore: boolean) {
     setLuoghi(luoghi.map(l => l.id === id ? { ...l, attivo: nuovoValore } : l))
@@ -142,7 +137,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
       <button
         onClick={cercaNuovi}
-        disabled={cercando}
+        disabled={cercando || !strutturaId}
         className="w-full bg-green-600 text-white rounded-lg py-2 text-sm mb-4 disabled:opacity-50"
       >
         {cercando ? 'Gennarino sta cercando online...' : '🔍 Cerca nuovi luoghi'}

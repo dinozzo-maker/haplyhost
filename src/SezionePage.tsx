@@ -8,6 +8,8 @@ type LuogoRow = {
   nome: string
   descrizione: string
   distanza: string
+  maps: string
+  telefono: string
 }
 
 export default function SezionePage() {
@@ -20,7 +22,7 @@ export default function SezionePage() {
     async function carica() {
       const { data } = await supabase
         .from('luoghi')
-        .select('id, nome, descrizione, distanza')
+        .select('id, nome, descrizione, distanza, maps, telefono')
         .eq('struttura_id', struttura.id)
         .eq('sezione', sezione)
         .eq('attivo', true)
@@ -46,6 +48,21 @@ export default function SezionePage() {
             <h2 className="font-semibold">{l.nome}</h2>
             {l.distanza && <p className="text-sm text-gray-500">{l.distanza}</p>}
             <p className="text-sm mt-1">{l.descrizione}</p>
+
+            {(l.telefono || l.maps) && (
+              <div className="flex gap-3 mt-3">
+                {l.telefono && (
+                  <a href={`tel:${l.telefono}`} className="text-sm text-blue-600 font-medium">
+                    📞 Chiama
+                  </a>
+                )}
+                {l.maps && (
+                  <a href={l.maps} target="_blank" rel="noreferrer" className="text-sm text-blue-600 font-medium">
+                    📍 Mappa
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

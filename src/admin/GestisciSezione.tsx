@@ -6,12 +6,26 @@ type LuogoRow = {
   id: string
   nome: string
   descrizione: string
+  distanza: string
+  maps: string
+  telefono: string
   attivo: boolean
+}
+
+type Bozza = {
+  nome: string
+  descrizione: string
+  distanza: string
+  maps: string
+  telefono: string
 }
 
 export default function GestisciSezione({ sezione, etichetta }: { sezione: string; etichetta: string }) {
   const [luoghi, setLuoghi] = useState<LuogoRow[]>([])
   const [caricamento, setCaricamento] = useState(true)
+  const [modificaId, setModificaId] = useState<string | null>(null)
+  const [bozza, setBozza] = useState<Bozza>({ nome: '', descrizione: '', distanza: '', maps: '', telefono: '' })
+  const [salvataggio, setSalvataggio] = useState(false)
 
   useEffect(() => {
     async function carica() {
@@ -25,7 +39,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
       const { data } = await supabase
         .from('luoghi')
-        .select('id, nome, descrizione, attivo')
+        .select('id, nome, descrizione, distanza, maps, telefono, attivo')
         .eq('struttura_id', struttura.id)
         .eq('sezione', sezione)
         .order('ordine')
@@ -41,6 +55,25 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     await supabase.from('luoghi').update({ attivo: nuovoValore }).eq('id', id)
   }
 
+  function apriModifica(l: LuogoRow) {
+    setModificaId(l.id)
+    setBozza({
+      nome: l.nome,
+      descrizione: l.descrizione || '',
+      distanza: l.distanza || '',
+      maps: l.maps || '',
+      telefono: l.telefono || '',
+    })
+  }
+
+  async function salva(id: string) {
+    setSalvataggio(true)
+    await supabase.from('luoghi').update(bozza).eq('id', id)
+    setLuoghi(luoghi.map(l => l.id === id ? { ...l, ...bozza } : l))
+    setSalvataggio(false)
+    setModificaId(null)
+  }
+
   return (
     <div className="max-w-sm mx-auto p-6">
       <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
@@ -50,17 +83,76 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
       <div className="flex flex-col gap-2">
         {luoghi.map((l) => (
-          <div key={l.id} className="bg-white shadow rounded-xl p-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="font-medium text-sm">{l.nome}</p>
-              <p className="text-xs text-gray-500 line-clamp-1">{l.descrizione}</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={l.attivo}
-              onChange={(e) => toggle(l.id, e.target.checked)}
-              className="w-5 h-5 accent-blue-600 shrink-0"
-            />
+          <div key={l.id} className="bg-white shadow rounded-xl p-3">
+            {modificaId === l.id ? (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs text-gray-500">Nome</label>
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  value={bozza.nome}
+                  onChange={(e) => setBozza({ ...bozza, nome: e.target.value })}
+                />
+                <label className="text-xs text-gray-500">Descrizione</label>
+                <textarea
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  rows={3}
+                  value={bozza.descrizione}
+                  onChange={(e) => setBozza({ ...bozza, descrizione: e.target.value })}
+                />
+                <label className="text-xs text-gray-500">Distanza</label>
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  value={bozza.distanza}
+                  onChange={(e) => setBozza({ ...bozza, distanza: e.target.value })}
+                />
+                <label className="text-xs text-gray-500">Link Google Maps</label>
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  value={bozza.maps}
+                  onChange={(e) => setBozza({ ...bozza, maps: e.target.value })}
+                />
+                <label className="text-xs text-gray-500">Telefono</label>
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  value={bozza.telefono}
+                  onChange={(e) => setBozza({ ...bozza, telefono: e.target.value })}
+                />
+
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => salva(l.id)}
+                    disabled={salvataggio}
+                    className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50"
+                  >
+                    {salvataggio ? 'Salvo...' : 'Salva'}
+                  </button>
+                  <button
+                    onClick={() => setModificaId(null)}
+                    className="flex-1 border rounded-lg py-2 text-sm"
+                  >
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">{l.nome}</p>
+                  <p className="text-xs text-gray-500 line-clamp-1">{l.descrizione}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button onClick={() => apriModifica(l)} className="text-xs text-blue-600">
+                    Modifica
+                  </button>
+                  <input
+                    type="checkbox"
+                    checked={l.attivo}
+                    onChange={(e) => toggle(l.id, e.target.checked)}
+                    className="w-5 h-5 accent-blue-600"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

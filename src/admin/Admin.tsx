@@ -1,6 +1,7 @@
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { Session } from '@supabase/supabase-js'
+import { SEZIONI } from '../sezioni'
 
 export default function Admin() {
   const session = useOutletContext<Session>()
@@ -11,9 +12,11 @@ export default function Admin() {
       <p className="text-sm text-gray-500 mb-6">Pannello host — Villa Virginia</p>
 
       <div className="flex flex-col gap-2 mb-6">
-        <Link to="/admin/spiagge" className="bg-white shadow rounded-xl p-3 text-sm font-medium">
-          Gestisci Spiagge
-        </Link>
+        {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
+          <Link key={s.chiave} to={`/admin/${s.chiave}`} className="bg-white shadow rounded-xl p-3 text-sm font-medium">
+            Gestisci {s.etichetta}
+          </Link>
+        ))}
       </div>
 
       <button onClick={() => supabase.auth.signOut()} className="text-sm text-red-600">

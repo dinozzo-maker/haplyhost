@@ -16,7 +16,9 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/admin" element={<RichiedeLogin />}>
         <Route index element={<Admin />} />
-        <Route path="spiagge" element={<GestisciSezione sezione="spiagge" etichetta="Spiagge" />} />
+        {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
+          <Route key={s.chiave} path={s.chiave} element={<GestisciSezione sezione={s.chiave} etichetta={s.etichetta} />} />
+        ))}
       </Route>
       <Route path="/:slug" element={<Struttura />}>
         <Route index element={<Home />} />

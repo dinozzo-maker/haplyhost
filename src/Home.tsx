@@ -2,8 +2,19 @@ import { Link, useOutletContext, useParams } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
 
 const SEZIONI = [
+  { chiave: 'casa', icona: '🏠', etichetta: 'Casa & Wi-Fi' },
+  { chiave: 'piscina', icona: '🏊', etichetta: 'Piscina' },
   { chiave: 'spiagge', icona: '🏖️', etichetta: 'Spiagge' },
-  { chiave: 'ristoranti', icona: '🍝', etichetta: 'Ristoranti' },
+  { chiave: 'mangiare', icona: '🍝', etichetta: 'Dove Mangiare' },
+  { chiave: 'vicinanze', icona: '🛒', etichetta: 'Nelle Vicinanze' },
+  { chiave: 'visitare', icona: '🏛️', etichetta: 'Cosa Visitare' },
+  { chiave: 'divertimento', icona: '🎡', etichetta: 'Svago e Attività' },
+  { chiave: 'gite', icona: '🗺️', etichetta: 'Gite e Escursioni' },
+  { chiave: 'trasporti', icona: '🚌', etichetta: 'Trasporti' },
+  { chiave: 'differenziata', icona: '♻️', etichetta: 'Differenziata' },
+  { chiave: 'regole', icona: '📋', etichetta: 'Regole Casa' },
+  { chiave: 'emergenze', icona: '🚨', etichetta: 'Emergenze' },
+  { chiave: 'contatti', icona: '📞', etichetta: 'Contatti' },
 ]
 
 export default function Home() {
@@ -11,19 +22,19 @@ export default function Home() {
   const { slug } = useParams()
 
   return (
-    <div className="p-6">
+    <div className="max-w-sm mx-auto p-6">
       <h1 className="text-2xl font-bold text-center mb-1">{struttura.nome}</h1>
       <p className="text-center text-gray-500 mb-6">{struttura.citta}</p>
 
-      <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+      <div className="grid grid-cols-3 gap-3">
         {SEZIONI.map((s) => (
           <Link
             key={s.chiave}
             to={`/${slug}/${s.chiave}`}
-            className="bg-white rounded-2xl shadow p-6 flex flex-col items-center gap-2 hover:shadow-md transition"
+            className="aspect-square bg-white rounded-2xl shadow p-3 flex flex-col items-center justify-center gap-1 hover:shadow-md transition"
           >
-            <span className="text-3xl">{s.icona}</span>
-            <span className="font-medium">{s.etichetta}</span>
+            <span className="text-2xl">{s.icona}</span>
+            <span className="font-medium text-center text-xs">{s.etichetta}</span>
           </Link>
         ))}
       </div>

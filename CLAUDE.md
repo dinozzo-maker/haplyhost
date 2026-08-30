@@ -49,7 +49,9 @@ haplyhost/
 │   ├── PaginaStatica.tsx    ← pagina generica per sezioni tipo 'testo' — legge `pagine` filtrando su struttura_id+chiave
 │   ├── Gennarino.tsx        ← UI chat ospiti, chiama /api/gennarino, storico conversazione in stato React (nessuna persistenza)
 │   └── admin/
-│       ├── Login.tsx            ← login via magic link email (Supabase OTP, nessuna password)
+│       ├── Login.tsx            ← login via magic link email (Supabase OTP, nessuna password). `shouldCreateUser: false`:
+│       │                          si accede solo con un'email GIÀ esistente in Supabase Auth. Le nuove email si
+│       │                          abilitano a mano (Dashboard Supabase → Authentication → Users → Invite / Add user).
 │       ├── RichiedeLogin.tsx    ← guardia di autenticazione: verifica sessione E risolve la struttura di cui l'utente è owner_user_id, passa entrambi con <Outlet context>
 │       ├── Admin.tsx            ← dashboard host: bottoni "Gestisci X" / "Modifica X" generati da sezioni.ts. Se l'host non ha ancora una struttura, mostra <CreaStruttura /> invece del pannello
 │       ├── CreaStruttura.tsx    ← form onboarding (nome, indirizzo, link) → POST /api/importa-casa
@@ -156,27 +158,28 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 - Pannello host: login magic-link, gestione on/off + modifica testi su tutte le sezioni elenco, editor per tutte le pagine testuali
 - Scout: ricerca online di nuovi luoghi con flusso di approvazione/rifiuto
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
-- "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa`. Testato con successo anche con un annuncio Airbnb.
+- "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
+- **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
+- Gennarino ora include nella knowledge base anche `descrizione_casa`, `host_telefono`, `max_ospiti` (prima `descrizione_casa` non era usata da nessuno). Verificato: risponde con i dettagli della casa presi da `descrizione_casa`.
 
-**Implementato, in attesa del test di produzione:**
-- **"Modifica Casa"**: `src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`,
-  con rotta `/admin/modifica-casa` e pulsante nel pannello. L'host modifica tutti i dati della struttura e può
-  rigenerare la descrizione da un nuovo link. Da provare su `haplyhost.vercel.app` dopo il push: caricamento
-  campi già pieni, salvataggio, e rigenerazione da link.
-- Difetti corretti nello stesso lavoro: `importa-casa.js` ora salva anche `citta` (ricavata dall'AI nello stesso
-  passaggio della descrizione) e `attivo=true`; `gennarino.js` ora passa a Claude anche
-  `descrizione_casa`, `host_telefono` e `max_ospiti` (prima `descrizione_casa` non era usata da nessuno).
-- Villa Virginia (verificato 30/08/2026): `descrizione_casa` piena e corretta, `max_ospiti=6`, `citta="Paestum"`,
-  `nome="Villa Virginia"`. Vuoti da compilare dall'host: `host_nome`, `host_telefono`, `checkin`, `checkout`.
-- Follow-up consigliati non ancora fatti:
-  1. Aggiungere la colonna `strutture.link_riferimento` (ALTER TABLE) e reintrodurla nel codice (ModificaCasa
-     SELECT, importa-casa INSERT, aggiorna-casa UPDATE) per ricordare l'ultimo link usato.
-  2. Policy RLS `strutture` SELECT per `authenticated` dove `owner_user_id = auth.uid()`, così l'host vede
-     sempre la propria struttura anche se `attivo=false` (oggi `RichiedeLogin` la trova solo grazie alla
-     policy pubblica `attivo=true`).
-  3. Creare `supabase/migrations/` e tracciarci i due ALTER/CREATE POLICY qui sopra.
+**Debiti tecnici aperti:**
+- Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
+- Nessuna policy RLS `strutture` SELECT per `authenticated` scoped su `owner_user_id`: oggi l'host trova la propria struttura solo grazie alla policy pubblica `attivo=true`. Se una struttura viene spenta, l'host non la vede più nel pannello.
+- Ancora nessuna cartella `supabase/migrations/` — i due punti sopra sarebbero le prime migrazioni da tracciare.
 
 **Non ancora iniziato:**
+- **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` oggi permette solo toggle/modifica di luoghi esistenti e accetta/rifiuta proposte Scout — manca un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Gap fondamentale, frontend puro.
+- **Link "vedi la guida"** dal pannello host verso `/:slug` (lo slug è già in `RichiedeLogin` context). Banale.
+- **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
+- **Onboarding v2 / creazione host**:
+  - GATE DI BASE FATTO: `Login.tsx` ora ha `shouldCreateUser: false` → non ci si registra da soli, si accede solo con
+    un'email già presente in Supabase Auth. Per abilitare un host oggi: Dashboard Supabase → Authentication → Users → Invite.
+  - DA FARE: (a) pagina "Invita host" nel pannello, visibile solo all'admin della piattaforma (serve definire chi è l'admin —
+    probabilmente una env `ADMIN_EMAIL`), che genera il link di invito da mandare (`supabase.auth.admin.generateLink` o
+    `inviteUserByEmail`, lato `/api`); (b) alla prima installazione l'host sceglie quali delle 13 sezioni includere nella guida
+    (serve `strutture.sezioni_attive` jsonb o simile — oggi le 13 tessere sono sempre tutte visibili da `sezioni.ts`);
+    (c) opzionale: struttura pre-compilata nell'invito, e/o Scout di partenza solo per 2-3 sezioni chiave lanciato una alla
+    volta dal frontend (NON 7 in fila: ogni Scout = Claude + web search, 15-40s e costo reale, sfora il timeout serverless).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
 - Multilingua: `luoghi.traduzioni` ha già dati reali in 5 lingue importati da V1; manca il selettore lingua e la logica di lettura nel frontend; `pagine` ha solo italiano
 - Visualizzazione dei sotto-blocchi "Aperitivi" e "Stellati" dentro la pagina "Dove Mangiare" (dati presenti in `luoghi` con quelle sezioni, nessuna UI dedicata — oggi sarebbero raggiungibili solo con un URL manuale tipo `/villavirginia/aperitivi`, non linkato da nessuna parte)

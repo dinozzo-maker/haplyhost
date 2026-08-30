@@ -8,12 +8,22 @@ export default function Login() {
 
   async function invia() {
     setErrore('')
+    // shouldCreateUser: false → si può accedere solo con un'email già abilitata come host.
+    // Le nuove email vengono autorizzate a mano dall'admin della piattaforma (vedi CLAUDE.md).
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/admin` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/admin`,
+        shouldCreateUser: false,
+      },
     })
     if (error) {
-      setErrore('Errore: ' + error.message)
+      const m = error.message.toLowerCase()
+      if (m.includes('not allowed') || m.includes('disabled') || m.includes('signup')) {
+        setErrore(`L'email ${email} non è abilitata come host. Se hai acquistato Haplyhost, scrivici per l'attivazione.`)
+      } else {
+        setErrore('Errore: ' + error.message)
+      }
     } else {
       setInviata(true)
     }
@@ -22,7 +32,7 @@ export default function Login() {
   if (inviata) {
     return (
       <div className="max-w-sm mx-auto p-6 text-center">
-        <p>Ti abbiamo mandato un link di accesso a <strong>{email}</strong>. Apri l'email e clicca sul link per entrare.</p>
+        <p>Se <strong>{email}</strong> è un account host abilitato, riceverai un link di accesso. Apri l'email e clicca sul link per entrare.</p>
       </div>
     )
   }

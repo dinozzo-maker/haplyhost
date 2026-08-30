@@ -33,7 +33,9 @@ haplyhost/
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`
 │   ├── scout.js             ← cerca online nuovi luoghi candidati per una sezione, li salva in `proposte`
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
-│   └── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
+│   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
+│   └── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco host autorizzati, POST autorizza un'email
+│                              + genera il link di invito (supabase.auth.admin.generateLink). Legge/scrive tabella `host_autorizzati` con service role.
 ├── lib/
 │   └── genera-descrizione-casa.js  ← codice condiviso da importa-casa.js e aggiorna-casa.js: legge il link, chiede a Claude {descrizione, citta}.
 │                                     Sta FUORI da api/ apposta, così Vercel non lo tratta come un endpoint serverless.
@@ -53,8 +55,11 @@ haplyhost/
 │       │                          si accede solo con un'email GIÀ esistente in Supabase Auth. Le nuove email si
 │       │                          abilitano a mano (Dashboard Supabase → Authentication → Users → Invite / Add user).
 │       ├── RichiedeLogin.tsx    ← guardia di autenticazione: verifica sessione E risolve la struttura di cui l'utente è owner_user_id, passa entrambi con <Outlet context>
-│       ├── Admin.tsx            ← dashboard host: bottoni "Gestisci X" / "Modifica X" generati da sezioni.ts. Se l'host non ha ancora una struttura, mostra <CreaStruttura /> invece del pannello
+│       ├── Admin.tsx            ← dashboard host: bottoni "Gestisci X" / "Modifica X" generati da sezioni.ts. Se l'host non ha ancora una struttura, mostra <CreaStruttura /> invece del pannello.
+│       │                          Sezione "PIATTAFORMA" con link a /admin/invita-host mostrata solo se email utente === VITE_ADMIN_EMAIL
 │       ├── CreaStruttura.tsx    ← form onboarding (nome, indirizzo, link) → POST /api/importa-casa
+│       ├── InvitaHost.tsx       ← rotta /admin/invita-host, SOLO superadmin: form (email, nome riferimento, piano, note) → POST /api/host-autorizzati
+│       │                          → mostra il link di invito da copiare e mandare. Sotto, l'elenco degli host già autorizzati.
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
 │       │                          su `strutture` (RLS owner). Riquadro separato "rigenera descrizione da un link" → POST /api/aggiorna-casa
@@ -118,6 +123,13 @@ proposte (   -- output di Scout, in attesa di approvazione host
   sezione text, nome text, descrizione text, distanza text, maps text, telefono text,
   creato_il timestamptz
 )
+
+host_autorizzati (   -- email autorizzate dal superadmin a diventare host (vedi supabase/migrations/0001)
+  email text pk, nome_riferimento text, piano text,   -- piano: 'guida' | 'concierge' | 'portfolio'
+  note text, autorizzato_il timestamptz default now(),
+  registrato_il timestamptz   -- popolato quando l'host crea la struttura (Incremento B, non ancora fatto)
+  -- RLS on, zero policy: solo server-side con service role, via api/host-autorizzati.js
+)
 ```
 
 **Policy RLS attuali (stato finale, non cronologia):**
@@ -128,7 +140,10 @@ proposte (   -- output di Scout, in attesa di approvazione host
 - `proposte`: solo la policy scoped per `authenticated` come sopra, nessun accesso pubblico
 - `soggiorni`: SELECT pubblico solo per la riga dove `current_date` è tra `checkin` e `checkout` (privacy: non si vedono soggiorni passati/futuri)
 
-⚠️ Non esiste ancora un file di migrazioni versionato nel repo — lo schema sopra è la fonte di verità scritta, ma è consigliabile creare una cartella `supabase/migrations/` e cominciare a tracciarci gli `ALTER TABLE` da qui in avanti, invece di eseguire SQL ad-hoc perso nella cronologia di chat.
+⚠️ `supabase/migrations/` esiste da `0001_host_autorizzati.sql`, ma è solo l'inizio: lo schema sopra
+resta la fonte di verità scritta, e i debiti tecnici (colonna `link_riferimento`, policy RLS
+`strutture` per owner) NON sono ancora tracciati come migrazioni. Da qui in avanti ogni `ALTER TABLE`
+/ `CREATE POLICY` va messo in un file numerato lì dentro, non eseguito ad-hoc e perso nella chat.
 
 ## Variabili d'ambiente
 
@@ -138,6 +153,7 @@ proposte (   -- output di Scout, in attesa di approvazione host
 | `VITE_SUPABASE_ANON_KEY` | `.env.local` + Vercel (tutti gli env, tipo Config) | client Supabase browser |
 | `SUPABASE_SERVICE_ROLE_KEY` | solo Vercel (tipo Secret) | usata in tutte le `/api/*.js` che bypassano RLS |
 | `ANTHROPIC_API_KEY` | solo Vercel (tipo Secret) | condivisa da gennarino.js, scout.js, importa-casa.js, aggiorna-casa.js |
+| `VITE_ADMIN_EMAIL` | `.env.local` + Vercel (tutti gli env, tipo Config) | email del superadmin. Frontend (`import.meta.env`) per mostrare la sezione "Invita host"; `api/host-autorizzati.js` (`process.env`) come vera guardia |
 
 I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard Vercel — non richiederli/riscriverli qui.
 
@@ -162,6 +178,11 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
 - Gennarino ora include nella knowledge base anche `descrizione_casa`, `host_telefono`, `max_ospiti` (prima `descrizione_casa` non era usata da nessuno). Verificato: risponde con i dettagli della casa presi da `descrizione_casa`.
 
+**Implementato, in attesa del test di produzione:**
+- **Gate registrazione host** (già pubblicato): `Login.tsx` con `shouldCreateUser: false` — si accede solo con email già in Supabase Auth. Un'email sconosciuta riceve un messaggio, non il link.
+- **Invito host dal superadmin**: tabella `host_autorizzati` + `api/host-autorizzati.js` + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email e genera il link di invito da mandare. **Prima del test in prod**: creare la tabella (`supabase/migrations/0001_host_autorizzati.sql`, sostituendo `EMAIL_DEL_SUPERADMIN`) e aggiungere `VITE_ADMIN_EMAIL` su Vercel.
+- Incremento B non ancora fatto: `importa-casa.js` non verifica `host_autorizzati` né popola `registrato_il` — oggi il vero blocco è solo `shouldCreateUser: false` a livello di login.
+
 **Debiti tecnici aperti:**
 - Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
 - Nessuna policy RLS `strutture` SELECT per `authenticated` scoped su `owner_user_id`: oggi l'host trova la propria struttura solo grazie alla policy pubblica `attivo=true`. Se una struttura viene spenta, l'host non la vede più nel pannello.
@@ -171,15 +192,13 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 - **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` oggi permette solo toggle/modifica di luoghi esistenti e accetta/rifiuta proposte Scout — manca un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Gap fondamentale, frontend puro.
 - **Link "vedi la guida"** dal pannello host verso `/:slug` (lo slug è già in `RichiedeLogin` context). Banale.
 - **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
-- **Onboarding v2 / creazione host**:
-  - GATE DI BASE FATTO: `Login.tsx` ora ha `shouldCreateUser: false` → non ci si registra da soli, si accede solo con
-    un'email già presente in Supabase Auth. Per abilitare un host oggi: Dashboard Supabase → Authentication → Users → Invite.
-  - DA FARE: (a) pagina "Invita host" nel pannello, visibile solo all'admin della piattaforma (serve definire chi è l'admin —
-    probabilmente una env `ADMIN_EMAIL`), che genera il link di invito da mandare (`supabase.auth.admin.generateLink` o
-    `inviteUserByEmail`, lato `/api`); (b) alla prima installazione l'host sceglie quali delle 13 sezioni includere nella guida
-    (serve `strutture.sezioni_attive` jsonb o simile — oggi le 13 tessere sono sempre tutte visibili da `sezioni.ts`);
-    (c) opzionale: struttura pre-compilata nell'invito, e/o Scout di partenza solo per 2-3 sezioni chiave lanciato una alla
-    volta dal frontend (NON 7 in fila: ogni Scout = Claude + web search, 15-40s e costo reale, sfora il timeout serverless).
+- **Onboarding v2** (il gate + la pagina "Invita host" sono fatti, vedi sopra — qui resta il seguito):
+  - (a) Incremento B: `importa-casa.js` verifica `host_autorizzati` e popola `registrato_il`; stato "registrato" mostrato in InvitaHost.
+  - (b) alla prima installazione l'host sceglie quali delle 13 sezioni includere nella guida (serve `strutture.sezioni_attive`
+    jsonb o simile — oggi le 13 tessere sono sempre tutte visibili da `sezioni.ts`).
+  - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo
+    per 2-3 sezioni chiave lanciato una alla volta dal frontend (NON 7 in fila: ogni Scout = Claude + web search, 15-40s e
+    costo reale, sfora il timeout serverless).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
 - Multilingua: `luoghi.traduzioni` ha già dati reali in 5 lingue importati da V1; manca il selettore lingua e la logica di lettura nel frontend; `pagine` ha solo italiano
 - Visualizzazione dei sotto-blocchi "Aperitivi" e "Stellati" dentro la pagina "Dove Mangiare" (dati presenti in `luoghi` con quelle sezioni, nessuna UI dedicata — oggi sarebbero raggiungibili solo con un URL manuale tipo `/villavirginia/aperitivi`, non linkato da nessuna parte)

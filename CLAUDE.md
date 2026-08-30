@@ -32,7 +32,7 @@ haplyhost/
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`
 │   ├── scout.js             ← cerca online nuovi luoghi candidati per una sezione, li salva in `proposte`
-│   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true, link_riferimento
+│   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
 │   └── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
 ├── lib/
 │   └── genera-descrizione-casa.js  ← codice condiviso da importa-casa.js e aggiorna-casa.js: legge il link, chiede a Claude {descrizione, citta}.
@@ -79,8 +79,9 @@ strutture (
   host_nome text, host_telefono text, descrizione_casa text,
   regole text,            -- probabilmente vestigiale: il contenuto "Regole Casa" reale vive in pagine.chiave='regole'
   attivo boolean, creato_il timestamptz,
-  owner_user_id uuid references auth.users(id),   -- aggiunta successiva, per multi-tenant admin
-  link_riferimento text   -- aggiunta successiva, link usato da "Casa da un link"
+  owner_user_id uuid references auth.users(id)   -- aggiunta successiva, per multi-tenant admin
+  -- ⚠️ link_riferimento: documentata in passato ma NON presente nel DB reale (verificato 30/08/2026).
+  --    Il codice NON deve leggerla/scriverla finché non viene aggiunta con un ALTER TABLE.
 )
 
 strutture_segreti (
@@ -160,14 +161,20 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 **Implementato, in attesa del test di produzione:**
 - **"Modifica Casa"**: `src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`,
   con rotta `/admin/modifica-casa` e pulsante nel pannello. L'host modifica tutti i dati della struttura e può
-  rigenerare la descrizione da un nuovo link. Il salvataggio dei campi è testato in locale; la rigenerazione da
-  link (API) va provata su `haplyhost.vercel.app` dopo il push.
+  rigenerare la descrizione da un nuovo link. Da provare su `haplyhost.vercel.app` dopo il push: caricamento
+  campi già pieni, salvataggio, e rigenerazione da link.
 - Difetti corretti nello stesso lavoro: `importa-casa.js` ora salva anche `citta` (ricavata dall'AI nello stesso
-  passaggio della descrizione), `link_riferimento` e `attivo=true`; `gennarino.js` ora passa a Claude anche
+  passaggio della descrizione) e `attivo=true`; `gennarino.js` ora passa a Claude anche
   `descrizione_casa`, `host_telefono` e `max_ospiti` (prima `descrizione_casa` non era usata da nessuno).
-- Follow-up consigliato non ancora fatto: aggiungere una policy RLS `strutture` SELECT per `authenticated` dove
-  `owner_user_id = auth.uid()`, così l'host vede sempre la propria struttura anche se `attivo=false`. Oggi
-  `RichiedeLogin` la trova solo grazie alla policy pubblica `attivo=true`.
+- Villa Virginia (verificato 30/08/2026): `descrizione_casa` piena e corretta, `max_ospiti=6`, `citta="Paestum"`,
+  `nome="Villa Virginia"`. Vuoti da compilare dall'host: `host_nome`, `host_telefono`, `checkin`, `checkout`.
+- Follow-up consigliati non ancora fatti:
+  1. Aggiungere la colonna `strutture.link_riferimento` (ALTER TABLE) e reintrodurla nel codice (ModificaCasa
+     SELECT, importa-casa INSERT, aggiorna-casa UPDATE) per ricordare l'ultimo link usato.
+  2. Policy RLS `strutture` SELECT per `authenticated` dove `owner_user_id = auth.uid()`, così l'host vede
+     sempre la propria struttura anche se `attivo=false` (oggi `RichiedeLogin` la trova solo grazie alla
+     policy pubblica `attivo=true`).
+  3. Creare `supabase/migrations/` e tracciarci i due ALTER/CREATE POLICY qui sopra.
 
 **Non ancora iniziato:**
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)

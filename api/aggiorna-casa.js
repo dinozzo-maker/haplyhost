@@ -51,7 +51,6 @@ export default async function handler(req, res) {
     .update({
       descrizione_casa: descrizione,
       citta: cittaFinale,
-      link_riferimento: link,
     })
     .eq('id', struttura_id)
 

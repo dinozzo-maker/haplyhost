@@ -51,7 +51,7 @@ export default function ModificaCasa() {
 
       const { data, error } = await supabase
         .from('strutture')
-        .select('nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti, link_riferimento')
+        .select('nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti')
         .eq('id', struttura.id)
         .single()
 
@@ -72,7 +72,6 @@ export default function ModificaCasa() {
         checkout: data.checkout ?? '',
         max_ospiti: data.max_ospiti != null ? String(data.max_ospiti) : '',
       })
-      setLink(data.link_riferimento ?? '')
       setCaricamento(false)
     }
     carica()

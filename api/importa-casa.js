@@ -63,7 +63,6 @@ export default async function handler(req, res) {
       citta: citta || null,
       owner_user_id: userId,
       descrizione_casa: descrizione,
-      link_riferimento: link || null,
       attivo: true,
     })
     .select('id, slug, nome')

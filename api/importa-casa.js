@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { generaDescrizioneCasa } from '../lib/genera-descrizione-casa.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -8,7 +9,7 @@ const supabase = createClient(
 function generaSlugBase(nome) {
   return nome
     .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD').replace(/\p{Mn}/gu, '')
     .replace(/[^a-z0-9]+/g, '')
     .slice(0, 40) || 'struttura'
 }
@@ -22,16 +23,6 @@ async function trovaSlugLibero(base) {
     contatore += 1
     slug = `${base}${contatore}`
   }
-}
-
-function pulisciHtml(html) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 12000)
 }
 
 export default async function handler(req, res) {
@@ -59,47 +50,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Hai già una struttura registrata su questo account' })
   }
 
-  let testoPagina = ''
-  if (link) {
-    try {
-      const pagina = await fetch(link, { headers: { 'user-agent': 'Mozilla/5.0' } })
-      const html = await pagina.text()
-      testoPagina = pulisciHtml(html)
-    } catch (err) {
-      console.error('Errore lettura link:', err)
-    }
-  }
-
-  let descrizione = ''
-  try {
-    const prompt = testoPagina
-      ? `Scrivi una descrizione accogliente in italiano (massimo 500 caratteri) per una casa vacanze chiamata "${nome}", a ${indirizzo}. Usa queste informazioni trovate online, se utili:\n\n${testoPagina}\n\nSe le informazioni non bastano, scrivi una descrizione generica ma onesta basata solo sul nome e l'indirizzo. Rispondi SOLO con il testo della descrizione, niente altro.`
-      : `Scrivi una breve descrizione accogliente in italiano (massimo 500 caratteri) per una casa vacanze chiamata "${nome}", a ${indirizzo}. Rispondi SOLO con il testo della descrizione, niente altro.`
-
-    const risposta = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-5',
-        max_tokens: 400,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-    const dati = await risposta.json()
-    descrizione = (dati?.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
-  } catch (err) {
-    console.error('Errore Claude:', err)
-  }
+  const { descrizione, citta } = await generaDescrizioneCasa({ nome, indirizzo, link })
 
   const slug = await trovaSlugLibero(generaSlugBase(nome))
 
   const { data: nuovaStruttura, error: erroreCreazione } = await supabase
     .from('strutture')
-    .insert({ slug, nome, indirizzo, owner_user_id: userId, descrizione_casa: descrizione })
+    .insert({
+      slug,
+      nome,
+      indirizzo,
+      citta: citta || null,
+      owner_user_id: userId,
+      descrizione_casa: descrizione,
+      link_riferimento: link || null,
+      attivo: true,
+    })
     .select('id, slug, nome')
     .single()
 

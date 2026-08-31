@@ -31,7 +31,9 @@ haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`
-│   ├── scout.js             ← cerca online nuovi luoghi candidati per una sezione, li salva in `proposte`
+│   ├── scout.js             ← cerca online nuovi luoghi per una sezione, li salva in `proposte`. Claude Sonnet 5 + tool
+│   │                          `web_search_20260209` (la versione vecchia `_20250305` dava 500 su Sonnet 5). Gestisce
+│   │                          `pause_turn`, estrae il primo array JSON dal testo, e rimanda l'errore vero di Anthropic al frontend.
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
 │   └── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
@@ -174,8 +176,8 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 - Routing multi-struttura da slug, con le 13 tessere della griglia (7 elenco + 6 testo)
 - Contenuti reali di Villa Virginia importati da StayFlow V1 (55 luoghi + 6 pagine testuali)
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
-- Pannello host: login magic-link, gestione on/off + modifica testi su tutte le sezioni elenco, editor per tutte le pagine testuali
-- Scout: ricerca online di nuovi luoghi con flusso di approvazione/rifiuto
+- Pannello host: login magic-link, gestione on/off + modifica testi su tutte le sezioni elenco (con distanza visibile in lista), editor per tutte le pagine testuali, link "Vedi la guida degli ospiti" (apre `/:slug` in nuova scheda)
+- Scout: ricerca online di nuovi luoghi con flusso di approvazione/rifiuto; errori ed esito ("nessun nuovo luogo") ora mostrati nel pannello
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
@@ -193,7 +195,6 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 
 **Non ancora iniziato:**
 - **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` oggi permette solo toggle/modifica di luoghi esistenti e accetta/rifiuta proposte Scout — manca un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Gap fondamentale, frontend puro.
-- **Link "vedi la guida"** dal pannello host verso `/:slug` (lo slug è già in `RichiedeLogin` context). Banale.
 - **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
 - **Onboarding v2** (il gate + la pagina "Invita host" sono fatti, vedi sopra — qui resta il seguito):
   - (a) Incremento B: `importa-casa.js` verifica `host_autorizzati` e popola `registrato_il`; stato "registrato" mostrato in InvitaHost.

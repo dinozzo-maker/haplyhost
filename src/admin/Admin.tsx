@@ -19,9 +19,19 @@ export default function Admin() {
       <h1 className="text-xl font-bold mb-2">Sei dentro, {session.user.email}</h1>
       <p className="text-sm text-gray-500 mb-6">Pannello host — {struttura?.nome}</p>
 
-      <Link to="/admin/modifica-casa" className="block bg-white shadow rounded-xl p-3 text-sm font-medium mb-6">
-        ⚙️ Modifica dati della casa
-      </Link>
+      <div className="flex flex-col gap-2 mb-6">
+        <Link to="/admin/modifica-casa" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
+          ⚙️ Modifica dati della casa
+        </Link>
+        <a
+          href={`/${struttura.slug}`}
+          target="_blank"
+          rel="noreferrer"
+          className="block bg-white shadow rounded-xl p-3 text-sm font-medium"
+        >
+          👀 Vedi la guida degli ospiti
+        </a>
+      </div>
 
       {isSuperadmin && (
         <>

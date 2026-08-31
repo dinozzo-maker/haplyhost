@@ -41,6 +41,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const [bozza, setBozza] = useState<Bozza>({ nome: '', descrizione: '', distanza: '', maps: '', telefono: '' })
   const [salvataggio, setSalvataggio] = useState(false)
   const [cercando, setCercando] = useState(false)
+  const [esitoScout, setEsitoScout] = useState('')
 
   async function caricaTutto(id: string) {
     const { data: dl } = await supabase
@@ -96,13 +97,22 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   async function cercaNuovi() {
     if (!strutturaId) return
     setCercando(true)
+    setEsitoScout('')
     try {
-      await fetch('/api/scout', {
+      const res = await fetch('/api/scout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ struttura_id: strutturaId, sezione }),
       })
+      const dati = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setEsitoScout(dati.error || 'La ricerca non è riuscita, riprova.')
+      } else if (dati.trovati === 0) {
+        setEsitoScout('Nessun nuovo luogo trovato questa volta.')
+      }
       await caricaTutto(strutturaId)
+    } catch {
+      setEsitoScout('Errore di connessione durante la ricerca.')
     } finally {
       setCercando(false)
     }
@@ -142,6 +152,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       >
         {cercando ? 'Gennarino sta cercando online...' : '🔍 Cerca nuovi luoghi'}
       </button>
+      {esitoScout && <p className="text-sm text-gray-600 -mt-2 mb-4">{esitoScout}</p>}
 
       {proposte.length > 0 && (
         <div className="mb-6">
@@ -197,6 +208,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-medium text-sm">{l.nome}</p>
+                  {l.distanza && <p className="text-xs text-gray-400">{l.distanza}</p>}
                   <p className="text-xs text-gray-500 line-clamp-1">{l.descrizione}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

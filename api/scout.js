@@ -5,6 +5,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+// INTERRUTTORE: le ricerche online (Scout) sono disattivate per contenere i costi AI.
+// Per riattivarle: mettere true e fare push.
+const RICERCHE_ATTIVE = false
+
 const CATEGORIE = {
   spiagge: 'spiagge e lidi',
   mangiare: 'ristoranti, pizzerie e trattorie',
@@ -18,6 +22,10 @@ const CATEGORIE = {
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Metodo non permesso' })
+  }
+
+  if (!RICERCHE_ATTIVE) {
+    return res.status(503).json({ error: 'Le ricerche online sono temporaneamente disattivate.' })
   }
 
   const { struttura_id, sezione } = req.body
@@ -70,9 +78,11 @@ Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato es
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-5',
-        max_tokens: 8000,
-        tools: [{ type: 'web_search_20260209', name: 'web_search' }],
+        // Haiku per contenere i costi ("per ora"). Con Haiku (non famiglia 4.6+) la ricerca
+        // web usa la variante base web_search_20250305. max_uses limita le ricerche a pagamento.
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 3000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
         messages: msgs,
       }),
     })

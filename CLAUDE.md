@@ -21,8 +21,8 @@ Modello di business: piani Guida (14€/mese), Concierge (29€/mese), Portfolio
 - **Backend/DB**: Supabase (Postgres + Auth + RLS) — progetto separato dalla V1
 - **Deploy**: Vercel, progetto `haplyhost`, collegato a GitHub `dinozzo-maker/haplyhost` (repo privata), auto-deploy su push a `main`. **Piano Hobby** (gratuito ma per uso non commerciale — va aggiornato a Pro prima di fatturare al primo cliente vero)
 - **AI**: Anthropic API chiamata via `fetch` diretta a `https://api.anthropic.com/v1/messages` (non l'SDK ufficiale — mantenere questo pattern per coerenza), header `x-api-key` + `anthropic-version: 2023-06-01`.
-  - `claude-haiku-4-5-20251001` per Gennarino (chat ospiti, economico/veloce)
-  - `claude-sonnet-5` per Scout e per la generazione descrizioni ("Casa da un link"), con tool `web_search_20250305` dove serve ricerca online
+  - `claude-haiku-4-5-20251001` per Gennarino (chat ospiti) e per Scout (`scout.js`, scelto "per ora" per contenere i costi — vedi "Stato attuale"). Con Haiku la ricerca web è la variante base `web_search_20250305`.
+  - `claude-sonnet-5` per la generazione descrizioni ("Casa da un link" / "Rigenera"), in `lib/genera-descrizione-casa.js`
 
 ## Struttura del repository
 
@@ -31,9 +31,10 @@ haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`
-│   ├── scout.js             ← cerca online nuovi luoghi per una sezione, li salva in `proposte`. Claude Sonnet 5 + tool
-│   │                          `web_search_20260209` (la versione vecchia `_20250305` dava 500 su Sonnet 5). Gestisce
-│   │                          `pause_turn`, estrae il primo array JSON dal testo, e rimanda l'errore vero di Anthropic al frontend.
+│   ├── scout.js             ← cerca online nuovi luoghi per una sezione, li salva in `proposte`. ⛔ DISATTIVATO:
+│   │                          `RICERCHE_ATTIVE = false` (anche in GestisciSezione.tsx) → l'endpoint torna 503 senza
+│   │                          chiamare l'AI. Quando riattivato: Haiku 4.5 + `web_search_20250305` con `max_uses: 5`,
+│   │                          gestisce `pause_turn`, estrae il primo array JSON, rimanda l'errore vero di Anthropic.
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
 │   └── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
@@ -170,6 +171,25 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 - Su Supabase SQL Editor può comparire un popup "Potential issue detected... enable RLS?": scegliere **"Run without RLS"** per script che fanno solo INSERT/UPDATE su tabelle esistenti; **"Run and enable RLS"** solo quando lo script contiene dei veri `CREATE TABLE`.
 - Incidente noto: quel popup ha causato l'esecuzione doppia di uno script di import, duplicando 55 righe in `luoghi` — dopo un import massivo, controllare sempre il conteggio righe atteso.
 
+## Costi AI (incidente 31/08/2026)
+
+L'account Anthropic è andato a saldo negativo (−0,37 USD) → tutte le funzioni AI ferme per qualche
+ora (Gennarino V1 e V2, Scout, generazione descrizioni). Causa: account con poco credito iniziale +
+una giornata di sviluppo pesante su Claude Sonnet 5 (Scout con ricerca web, "Casa da un link",
+"Rigenera", retry). La V1 "StayFlow" (ancora live) è un consumo di sfondo minore, non la causa.
+
+Mitigazioni fatte:
+- Scout passato a Haiku 4.5 + `web_search` con `max_uses: 5` (`scout.js`).
+- **Scout completamente disattivato** (`RICERCHE_ATTIVE = false` in `scout.js` e `GestisciSezione.tsx`):
+  l'endpoint torna 503 senza chiamare l'AI, il pulsante nel pannello è nascosto. Da riattivare quando
+  i costi sono sotto controllo (flag → true in entrambi i file + push).
+
+Mitigazioni da fare (in ordine): ricarica automatica + tetto di spesa sulla Console; workspace/chiave
+API separati per sviluppo vs produzione; cache del prompt + tetto a `domanda`/`storico` in
+`gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero a ogni messaggio, e
+`storico` è illimitato e controllato dal chiamante su un endpoint pubblico); cache 24h su
+`/api/consiglio` della V1.
+
 ## Stato attuale (fine agosto 2026)
 
 **Funzionante e pubblicato:**
@@ -177,7 +197,7 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 - Contenuti reali di Villa Virginia importati da StayFlow V1 (55 luoghi + 6 pagine testuali)
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
 - Pannello host: login magic-link, gestione on/off + modifica testi su tutte le sezioni elenco (con distanza visibile in lista), editor per tutte le pagine testuali, link "Vedi la guida degli ospiti" (apre `/:slug` in nuova scheda)
-- Scout: ricerca online di nuovi luoghi con flusso di approvazione/rifiuto; errori ed esito ("nessun nuovo luogo") ora mostrati nel pannello
+- Scout: ricerca online di nuovi luoghi con flusso di approvazione/rifiuto (⛔ oggi DISATTIVATO per costi — vedi "Costi AI"). Errori/esito mostrati nel pannello quando attivo.
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.

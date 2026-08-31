@@ -3,6 +3,10 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { ContestoHost } from './RichiedeLogin'
 
+// INTERRUTTORE: le ricerche online (Scout) sono disattivate per contenere i costi AI.
+// Per riattivarle: mettere true QUI e anche in api/scout.js (RICERCHE_ATTIVE), poi push.
+const RICERCHE_ATTIVE = false
+
 type LuogoRow = {
   id: string
   nome: string
@@ -145,14 +149,20 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
       <h1 className="text-xl font-bold mt-2 mb-4">Gestisci {etichetta}</h1>
 
-      <button
-        onClick={cercaNuovi}
-        disabled={cercando || !strutturaId}
-        className="w-full bg-green-600 text-white rounded-lg py-2 text-sm mb-4 disabled:opacity-50"
-      >
-        {cercando ? 'Gennarino sta cercando online...' : '🔍 Cerca nuovi luoghi'}
-      </button>
-      {esitoScout && <p className="text-sm text-gray-600 -mt-2 mb-4">{esitoScout}</p>}
+      {RICERCHE_ATTIVE ? (
+        <>
+          <button
+            onClick={cercaNuovi}
+            disabled={cercando || !strutturaId}
+            className="w-full bg-green-600 text-white rounded-lg py-2 text-sm mb-4 disabled:opacity-50"
+          >
+            {cercando ? 'Gennarino sta cercando online...' : '🔍 Cerca nuovi luoghi'}
+          </button>
+          {esitoScout && <p className="text-sm text-gray-600 -mt-2 mb-4">{esitoScout}</p>}
+        </>
+      ) : (
+        <p className="text-sm text-gray-400 mb-4">La ricerca automatica di nuovi luoghi è disattivata per ora.</p>
+      )}
 
       {proposte.length > 0 && (
         <div className="mb-6">

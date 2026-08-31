@@ -34,8 +34,9 @@ haplyhost/
 │   ├── scout.js             ← cerca online nuovi luoghi candidati per una sezione, li salva in `proposte`
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
-│   └── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco host autorizzati, POST autorizza un'email
-│                              + genera il link di invito (supabase.auth.admin.generateLink). Legge/scrive tabella `host_autorizzati` con service role.
+│   └── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
+│                              di invito (supabase.auth.admin.generateLink), DELETE rimuove dall'elenco e prova a eliminare
+│                              l'account Auth (fallisce di proposito se l'host ha già una struttura). Service role, tabella `host_autorizzati`.
 ├── lib/
 │   └── genera-descrizione-casa.js  ← codice condiviso da importa-casa.js e aggiorna-casa.js: legge il link, chiede a Claude {descrizione, citta}.
 │                                     Sta FUORI da api/ apposta, così Vercel non lo tratta come un endpoint serverless.
@@ -86,7 +87,8 @@ strutture (
   host_nome text, host_telefono text, descrizione_casa text,
   regole text,            -- probabilmente vestigiale: il contenuto "Regole Casa" reale vive in pagine.chiave='regole'
   attivo boolean, creato_il timestamptz,
-  owner_user_id uuid references auth.users(id)   -- aggiunta successiva, per multi-tenant admin
+  owner_user_id uuid references auth.users(id) on delete set null   -- ON DELETE SET NULL da migration 0002:
+  --   cancellare un utente Auth NON cancella/blocca la sua struttura (diventa senza proprietario)
   -- ⚠️ link_riferimento: documentata in passato ma NON presente nel DB reale (verificato 30/08/2026).
   --    Il codice NON deve leggerla/scriverla finché non viene aggiunta con un ALTER TABLE.
 )
@@ -140,10 +142,11 @@ host_autorizzati (   -- email autorizzate dal superadmin a diventare host (vedi 
 - `proposte`: solo la policy scoped per `authenticated` come sopra, nessun accesso pubblico
 - `soggiorni`: SELECT pubblico solo per la riga dove `current_date` è tra `checkin` e `checkout` (privacy: non si vedono soggiorni passati/futuri)
 
-⚠️ `supabase/migrations/` esiste da `0001_host_autorizzati.sql`, ma è solo l'inizio: lo schema sopra
-resta la fonte di verità scritta, e i debiti tecnici (colonna `link_riferimento`, policy RLS
-`strutture` per owner) NON sono ancora tracciati come migrazioni. Da qui in avanti ogni `ALTER TABLE`
-/ `CREATE POLICY` va messo in un file numerato lì dentro, non eseguito ad-hoc e perso nella chat.
+`supabase/migrations/`: `0001_host_autorizzati.sql` (tabella host autorizzati),
+`0002_strutture_owner_on_delete_set_null.sql` (FK owner_user_id → SET NULL). Lo schema sopra resta
+la fonte di verità scritta; restano NON tracciati come migrazioni la colonna `link_riferimento` e la
+policy RLS `strutture` per owner. Da qui in avanti ogni `ALTER TABLE` / `CREATE POLICY` va messo in
+un file numerato lì dentro, non eseguito ad-hoc e perso nella chat.
 
 ## Variabili d'ambiente
 
@@ -178,15 +181,15 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
 - Gennarino ora include nella knowledge base anche `descrizione_casa`, `host_telefono`, `max_ospiti` (prima `descrizione_casa` non era usata da nessuno). Verificato: risponde con i dettagli della casa presi da `descrizione_casa`.
 
-**Implementato, in attesa del test di produzione:**
-- **Gate registrazione host** (già pubblicato): `Login.tsx` con `shouldCreateUser: false` — si accede solo con email già in Supabase Auth. Un'email sconosciuta riceve un messaggio, non il link.
-- **Invito host dal superadmin**: tabella `host_autorizzati` + `api/host-autorizzati.js` + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email e genera il link di invito da mandare. **Prima del test in prod**: creare la tabella (`supabase/migrations/0001_host_autorizzati.sql`, sostituendo `EMAIL_DEL_SUPERADMIN`) e aggiungere `VITE_ADMIN_EMAIL` su Vercel.
-- Incremento B non ancora fatto: `importa-casa.js` non verifica `host_autorizzati` né popola `registrato_il` — oggi il vero blocco è solo `shouldCreateUser: false` a livello di login.
+**Gate registrazione host + invito superadmin (pubblicato, testato in prod 31/08/2026):**
+- `Login.tsx` con `shouldCreateUser: false` — si accede solo con email già in Supabase Auth. Email sconosciuta → messaggio, non il link.
+- **Invito host**: tabella `host_autorizzati` + `api/host-autorizzati.js` (GET/POST/DELETE) + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link "PIATTAFORMA" nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email, genera il link di invito, e può rimuovere un host dall'elenco (il "Rimuovi" prova anche a eliminare l'account Auth, salta se ha già una struttura).
+- Serve `VITE_ADMIN_EMAIL` su Vercel + `.env.local` = email del superadmin (oggi `bernardinocalifano@gmail.com`, che possiede Villa Virginia).
+- **Incremento B non ancora fatto**: `importa-casa.js` non verifica `host_autorizzati` né popola `registrato_il` — oggi il vero blocco è solo `shouldCreateUser: false` a livello di login.
 
 **Debiti tecnici aperti:**
-- Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
+- Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` (in una migration) + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
 - Nessuna policy RLS `strutture` SELECT per `authenticated` scoped su `owner_user_id`: oggi l'host trova la propria struttura solo grazie alla policy pubblica `attivo=true`. Se una struttura viene spenta, l'host non la vede più nel pannello.
-- Ancora nessuna cartella `supabase/migrations/` — i due punti sopra sarebbero le prime migrazioni da tracciare.
 
 **Non ancora iniziato:**
 - **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` oggi permette solo toggle/modifica di luoghi esistenti e accetta/rifiuta proposte Scout — manca un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Gap fondamentale, frontend puro.

@@ -92,5 +92,44 @@ export default async function handler(req, res) {
     return res.status(200).json({ link })
   }
 
+  if (req.method === 'DELETE') {
+    const emailPulita = (req.body?.email || '').trim().toLowerCase()
+    if (!emailPulita) {
+      return res.status(400).json({ error: 'Email mancante' })
+    }
+    if (emailPulita === (process.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()) {
+      return res.status(400).json({ error: 'Non puoi rimuovere il superadmin' })
+    }
+
+    const { error: erroreDelete } = await supabase
+      .from('host_autorizzati')
+      .delete()
+      .eq('email', emailPulita)
+
+    if (erroreDelete) {
+      console.error(erroreDelete)
+      return res.status(500).json({ error: "Errore nel rimuovere l'host" })
+    }
+
+    // Prova a eliminare anche l'account Supabase. Fallisce se l'host ha già creato
+    // una struttura (FK): in quel caso resta l'account, ma non è più autorizzato.
+    let nota = ''
+    try {
+      const { data: lista } = await supabase.auth.admin.listUsers({ page: 1, perPage: 200 })
+      const utente = lista?.users?.find((u) => u.email?.toLowerCase() === emailPulita)
+      if (utente) {
+        const { error } = await supabase.auth.admin.deleteUser(utente.id)
+        if (error) {
+          nota = "Rimosso dall'elenco autorizzati. L'account Supabase esiste ancora (ha già una struttura): eliminalo a mano se serve."
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      nota = "Rimosso dall'elenco autorizzati, ma non ho potuto controllare l'account Supabase."
+    }
+
+    return res.status(200).json({ ok: true, nota })
+  }
+
   return res.status(405).json({ error: 'Metodo non permesso' })
 }

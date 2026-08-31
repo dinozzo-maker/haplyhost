@@ -37,6 +37,7 @@ export default function InvitaHost() {
   const [errore, setErrore] = useState('')
   const [link, setLink] = useState('')
   const [copiato, setCopiato] = useState(false)
+  const [rimozione, setRimozione] = useState('')
 
   async function token() {
     const { data } = await supabase.auth.getSession()
@@ -121,6 +122,32 @@ export default function InvitaHost() {
     }
   }
 
+  async function rimuovi(emailDaRimuovere: string) {
+    if (!window.confirm(`Rimuovere ${emailDaRimuovere} dagli host autorizzati?`)) return
+    setRimozione(emailDaRimuovere)
+    try {
+      const res = await fetch('/api/host-autorizzati', {
+        method: 'DELETE',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${await token()}`,
+        },
+        body: JSON.stringify({ email: emailDaRimuovere }),
+      })
+      const dati = await res.json()
+      if (!res.ok) {
+        setErroreLista(dati.error || 'Non riesco a rimuovere questo host.')
+      } else if (dati.nota) {
+        setErroreLista(dati.nota)
+      }
+      await caricaLista()
+    } catch {
+      setErroreLista('Errore di connessione durante la rimozione.')
+    } finally {
+      setRimozione('')
+    }
+  }
+
   if (!isSuperadmin) {
     return (
       <div className="max-w-sm mx-auto p-6">
@@ -202,8 +229,21 @@ export default function InvitaHost() {
       <div className="flex flex-col gap-2">
         {lista.map((h) => (
           <div key={h.email} className="bg-white shadow rounded-xl p-3">
-            <p className="font-medium text-sm">{h.email}</p>
-            {h.nome_riferimento && <p className="text-xs text-gray-500">{h.nome_riferimento}</p>}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-medium text-sm break-all">{h.email}</p>
+                {h.nome_riferimento && <p className="text-xs text-gray-500">{h.nome_riferimento}</p>}
+              </div>
+              {h.email.toLowerCase() !== ADMIN_EMAIL && (
+                <button
+                  onClick={() => rimuovi(h.email)}
+                  disabled={rimozione === h.email}
+                  className="text-xs text-red-600 shrink-0 disabled:opacity-50"
+                >
+                  {rimozione === h.email ? '...' : 'Rimuovi'}
+                </button>
+              )}
+            </div>
             <p className="text-xs text-gray-400 mt-1">
               {h.piano ? h.piano[0].toUpperCase() + h.piano.slice(1) : 'nessun piano'}
               {' · '}

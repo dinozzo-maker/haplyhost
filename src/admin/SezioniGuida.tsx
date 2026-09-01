@@ -3,11 +3,8 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { SEZIONI } from '../sezioni'
 import type { Sezione } from '../sezioni'
+import { useSezioni } from '../useSezioni'
 import type { ContestoHost } from './RichiedeLogin'
-
-// In Fase 1 le sezioni disponibili sono solo quelle di sistema. In Fase 2 questa
-// lista diventerà SEZIONI + sezioni custom caricate dal DB.
-const sezioniDisponibili: Sezione[] = SEZIONI
 
 const GRUPPI: { titolo: string; tipo: Sezione['tipo'] }[] = [
   { titolo: 'ELENCHI', tipo: 'elenco' },
@@ -17,6 +14,7 @@ const GRUPPI: { titolo: string; tipo: Sezione['tipo'] }[] = [
 
 export default function SezioniGuida() {
   const { struttura } = useOutletContext<ContestoHost>()
+  const { tutte: sezioniDisponibili } = useSezioni()
 
   const [attive, setAttive] = useState<Set<string>>(new Set())
   const [caricamento, setCaricamento] = useState(true)
@@ -43,8 +41,8 @@ export default function SezioniGuida() {
       }
 
       const salvate: string[] | null = data?.sezioni_attive ?? null
-      // null = tutte attive
-      setAttive(new Set(salvate ?? sezioniDisponibili.map((s) => s.chiave)))
+      // null = tutte le sezioni di sistema attive; le custom partono spente.
+      setAttive(new Set(salvate ?? SEZIONI.map((s) => s.chiave)))
       setCaricamento(false)
     }
     carica()

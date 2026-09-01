@@ -1,6 +1,6 @@
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { SEZIONI } from '../sezioni'
+import { useSezioni } from '../useSezioni'
 import type { ContestoHost } from './RichiedeLogin'
 import CreaStruttura from './CreaStruttura'
 
@@ -8,6 +8,7 @@ const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowe
 
 export default function Admin() {
   const { session, struttura } = useOutletContext<ContestoHost>()
+  const { tutte: SEZIONI } = useSezioni()
   const isSuperadmin = !!ADMIN_EMAIL && session.user.email?.toLowerCase() === ADMIN_EMAIL
 
   if (!struttura) {
@@ -39,9 +40,14 @@ export default function Admin() {
       {isSuperadmin && (
         <>
           <p className="text-xs font-medium text-gray-400 mb-2">PIATTAFORMA</p>
-          <Link to="/admin/invita-host" className="block bg-white shadow rounded-xl p-3 text-sm font-medium mb-6">
-            👤 Invita un nuovo host
-          </Link>
+          <div className="flex flex-col gap-2 mb-6">
+            <Link to="/admin/invita-host" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
+              👤 Invita un nuovo host
+            </Link>
+            <Link to="/admin/sezioni-extra" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
+              🧩 Sezioni della piattaforma
+            </Link>
+          </div>
         </>
       )}
 

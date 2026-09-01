@@ -1,14 +1,19 @@
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
-import { SEZIONI } from './sezioni'
+import { CHIAVI_BUILTIN } from './sezioni'
+import { useSezioni } from './useSezioni'
 
 export default function Home() {
   const struttura = useOutletContext<StrutturaRow>()
   const { slug } = useParams()
+  const { tutte } = useSezioni()
 
-  // sezioni_attive è la lista delle chiavi da mostrare; null = mostra tutto.
+  // sezioni_attive: lista esplicita delle chiavi da mostrare.
+  // null = mostra tutte le sezioni DI SISTEMA (le custom vanno comunque attivate a mano).
   const attive = struttura.sezioni_attive
-  const visibili = SEZIONI.filter((s) => !attive || attive.includes(s.chiave))
+  const visibili = tutte.filter((s) =>
+    attive ? attive.includes(s.chiave) : CHIAVI_BUILTIN.has(s.chiave)
+  )
 
   return (
     <div className="max-w-sm mx-auto p-6">

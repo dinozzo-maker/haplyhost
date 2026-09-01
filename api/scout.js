@@ -191,7 +191,16 @@ export default async function handler(req, res) {
     ...(giaProposti || []).map(p => p.nome),
   ]
 
-  const categoria = CATEGORIE[sezione] || sezione
+  // Sezioni di sistema: categoria dalla mappa. Sezioni custom (sezioni_extra): categoria dal DB.
+  let categoria = CATEGORIE[sezione]
+  if (!categoria) {
+    const { data: extra } = await supabase
+      .from('sezioni_extra')
+      .select('categoria, etichetta')
+      .eq('chiave', sezione)
+      .maybeSingle()
+    categoria = extra?.categoria || extra?.etichetta || sezione
+  }
 
   try {
     const cerca = MOTORE_SCOUT === 'claude' ? cercaConClaude : cercaConGemini

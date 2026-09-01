@@ -42,20 +42,24 @@ haplyhost/
 │   │                          uniti alla descrizione) | 'claude' (fallback spento: Haiku + web_search_20250305).
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
-│   └── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
-│                              di invito (supabase.auth.admin.generateLink), DELETE rimuove dall'elenco e prova a eliminare
-│                              l'account Auth (fallisce di proposito se l'host ha già una struttura). Service role, tabella `host_autorizzati`.
+│   ├── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
+│   │                          di invito (supabase.auth.admin.generateLink), DELETE rimuove dall'elenco e prova a eliminare
+│   │                          l'account Auth (fallisce di proposito se l'host ha già una struttura). Service role, tabella `host_autorizzati`.
+│   └── sezioni-extra.js     ← SOLO superadmin: POST crea una sezione custom (genera slug da etichetta, rifiuta collisioni con
+│                              le 14 di sistema / rotte riservate), DELETE la elimina. Tabella `sezioni_extra`, service role.
 ├── lib/
 │   └── genera-descrizione-casa.js  ← codice condiviso da importa-casa.js e aggiorna-casa.js: legge il link, chiede a Claude {descrizione, citta}.
 │                                     Sta FUORI da api/ apposta, così Vercel non lo tratta come un endpoint serverless.
 ├── src/
 │   ├── main.tsx             ← entry point: BrowserRouter + StrictMode
-│   ├── App.tsx              ← TUTTE le rotte sono generate qui a partire da sezioni.ts (non aggiungere rotte a mano per le sezioni)
+│   ├── App.tsx              ← TUTTE le rotte generate da `useSezioni().tutte` (14 di sistema + custom). Non aggiungere rotte a mano per le sezioni
 │   ├── supabaseClient.ts    ← client Supabase con anon key (sicuro lato browser)
-│   ├── sezioni.ts           ← FONTE UNICA DI VERITÀ per le 14 voci della griglia: {chiave, icona, etichetta, tipo, descrizione?}.
+│   ├── sezioni.ts           ← le 14 sezioni DI SISTEMA: {chiave, icona, etichetta, tipo, descrizione?} + `CHIAVI_BUILTIN` (Set).
 │   │                          tipo: 'elenco' (lista da tabella luoghi) | 'testo' (pagina da tabella pagine) | 'chat' (Gennarino)
+│   ├── useSezioni.ts        ← hook: `SEZIONI` + righe di `sezioni_extra` (cache di modulo, 1 fetch/sessione, degrada se tabella assente).
+│   │                          `invalidaCacheSezioni()` dopo crea/elimina. Usato da App, Home, Admin, SezioniGuida.
 │   ├── Struttura.tsx        ← rotta layout su /:slug — risolve lo slug in una riga `strutture` (incl. `sezioni_attive`), <Outlet context>
-│   ├── Home.tsx             ← griglia delle tessere: SEZIONI filtrate per `struttura.sezioni_attive` (NULL = tutte)
+│   ├── Home.tsx             ← griglia: `useSezioni()` filtrato per `sezioni_attive` (lista esplicita) o `CHIAVI_BUILTIN` (se NULL: solo sistema, custom escluse)
 │   ├── SezionePage.tsx      ← pagina generica per sezioni tipo 'elenco' — legge `luoghi` filtrando su struttura_id+sezione+attivo
 │   ├── PaginaStatica.tsx    ← pagina generica per sezioni tipo 'testo' — legge `pagine` filtrando su struttura_id+chiave
 │   ├── Gennarino.tsx        ← UI chat ospiti, chiama /api/gennarino, storico conversazione in stato React (nessuna persistenza)
@@ -64,16 +68,18 @@ haplyhost/
 │       │                          si accede solo con un'email GIÀ esistente in Supabase Auth. Le nuove email si
 │       │                          abilitano a mano (Dashboard Supabase → Authentication → Users → Invite / Add user).
 │       ├── RichiedeLogin.tsx    ← guardia di autenticazione: verifica sessione E risolve la struttura di cui l'utente è owner_user_id, passa entrambi con <Outlet context>
-│       ├── Admin.tsx            ← dashboard host: bottoni "Gestisci X" / "Modifica X" generati da sezioni.ts. Se l'host non ha ancora una struttura, mostra <CreaStruttura /> invece del pannello.
-│       │                          Sezione "PIATTAFORMA" con link a /admin/invita-host mostrata solo se email utente === VITE_ADMIN_EMAIL
+│       ├── Admin.tsx            ← dashboard host: bottoni "Gestisci X" / "Modifica X" generati da `useSezioni()`. Se l'host non ha ancora una struttura, mostra <CreaStruttura />.
+│       │                          Sezione "PIATTAFORMA" (solo se email === VITE_ADMIN_EMAIL): link a /admin/invita-host e /admin/sezioni-extra
 │       ├── CreaStruttura.tsx    ← form onboarding (nome, indirizzo, link) → POST /api/importa-casa
 │       ├── InvitaHost.tsx       ← rotta /admin/invita-host, SOLO superadmin: form (email, nome riferimento, piano, note) → POST /api/host-autorizzati
 │       │                          → mostra il link di invito da copiare e mandare. Sotto, l'elenco degli host già autorizzati.
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
 │       │                          su `strutture` (RLS owner). Riquadro separato "rigenera descrizione da un link" → POST /api/aggiorna-casa
-│       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: 14 spunte "mostra nella guida" → UPDATE `strutture.sezioni_attive`.
-│       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = mostra tutto.
+│       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: spunte "mostra nella guida" (sistema + custom) → UPDATE `strutture.sezioni_attive`.
+│       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
+│       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona, descrizione,
+│       │                          tipo testo|elenco, categoria per Scout se elenco) → POST/DELETE /api/sezioni-extra.
 │       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco luoghi con toggle attivo/spento,
 │       │                          modifica inline (nome/descrizione/distanza/maps/telefono) + "Elimina questo luogo" (DELETE, dentro la
 │       │                          modifica), pulsante "Cerca nuovi luoghi" (Scout) + lista proposte da Accettare/Rifiutare
@@ -82,7 +88,7 @@ haplyhost/
 
 ## Pattern architetturali importanti
 
-1. **`sezioni.ts` è l'unica fonte di verità** per le sezioni della griglia. `App.tsx`, `Home.tsx` e `Admin.tsx` generano rotte/bottoni iterando su quell'array. Per aggiungere una sezione nuova: basta una riga in `sezioni.ts`, non serve toccare le rotte a mano.
+1. **Le sezioni si iterano da `useSezioni().tutte`**, non da `SEZIONI` direttamente. `SEZIONI` (in `sezioni.ts`) sono le 14 di sistema; `useSezioni()` le unisce alle righe di `sezioni_extra` (custom del superadmin). `App.tsx`, `Home.tsx`, `Admin.tsx`, `SezioniGuida.tsx` generano rotte/bottoni da `tutte`. Una sezione di sistema nuova = una riga in `sezioni.ts`; una sezione custom = riga in `sezioni_extra` (dalla pagina `/admin/sezioni-extra`). Non toccare le rotte a mano.
 2. **Multi-tenancy lato host**: `RichiedeLogin.tsx` risolve `struttura` a partire da `owner_user_id = auth.uid()` e la passa via `Outlet context` a tutte le pagine `/admin/*`. Nessun componente admin deve cercare una struttura per slug fisso — oggi ogni host ha **una sola struttura** (nessuna tabella ponte per host multi-proprietà, da aggiungere se servirà).
 3. **Multi-tenancy lato ospite**: `Struttura.tsx` risolve la struttura dallo `:slug` nell'URL, la passa via `Outlet context` a `Home`, `SezionePage`, `PaginaStatica`, `Gennarino`.
 4. **Componenti generici parametrizzati**, non uno per sezione: `GestisciSezione` prende `{sezione, etichetta}`, `GestisciPagina` prende `{chiave, etichetta}`, `PaginaStatica` prende `{chiave}`. Estendere questi invece di crearne di nuovi.
@@ -143,6 +149,15 @@ host_autorizzati (   -- email autorizzate dal superadmin a diventare host (vedi 
   registrato_il timestamptz   -- popolato quando l'host crea la struttura (Incremento B, non ancora fatto)
   -- RLS on, zero policy: solo server-side con service role, via api/host-autorizzati.js
 )
+
+sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di sistema (migration 0004)
+  chiave text pk,   -- slug generato dall'etichetta
+  icona text default '📄', etichetta text, descrizione text,
+  tipo text default 'testo',   -- 'testo' (usa pagine) | 'elenco' (usa luoghi + Scout)
+  categoria text,   -- solo per 'elenco': termine di ricerca per Scout
+  ordine int default 100, creato_il timestamptz default now()
+  -- RLS on: SELECT pubblico (serve a ogni guida); scrittura solo via api/sezioni-extra.js con service role
+)
 ```
 
 **Policy RLS attuali (stato finale, non cronologia):**
@@ -152,13 +167,16 @@ host_autorizzati (   -- email autorizzate dal superadmin a diventare host (vedi 
 - `pagine`: SELECT pubblico senza restrizioni **+** policy `for all` per `authenticated` scoped come sopra
 - `proposte`: solo la policy scoped per `authenticated` come sopra, nessun accesso pubblico
 - `soggiorni`: SELECT pubblico solo per la riga dove `current_date` è tra `checkin` e `checkout` (privacy: non si vedono soggiorni passati/futuri)
+- `sezioni_extra`: SELECT pubblico senza restrizioni; nessuna policy di scrittura (solo service role via API)
 
-`supabase/migrations/`: `0001_host_autorizzati.sql` (tabella host autorizzati),
-`0002_strutture_owner_on_delete_set_null.sql` (FK owner_user_id → SET NULL),
-`0003_strutture_sezioni_attive.sql` (colonna `sezioni_attive`). Lo schema sopra resta
-la fonte di verità scritta; restano NON tracciati come migrazioni la colonna `link_riferimento` e la
-policy RLS `strutture` per owner. Da qui in avanti ogni `ALTER TABLE` / `CREATE POLICY` va messo in
-un file numerato lì dentro, non eseguito ad-hoc e perso nella chat.
+`supabase/migrations/`: `0001_host_autorizzati.sql`, `0002_strutture_owner_on_delete_set_null.sql`
+(FK owner_user_id → SET NULL), `0003_strutture_sezioni_attive.sql` (colonna `sezioni_attive`),
+`0004_sezioni_extra.sql` (tabella sezioni custom). Lo schema sopra resta la fonte di verità scritta;
+restano NON tracciati la colonna `link_riferimento` e la policy RLS `strutture` per owner. Da qui in
+avanti ogni `ALTER TABLE` / `CREATE POLICY` va in un file numerato lì dentro. ⚠️ Quando una migration
+aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), lanciare l'SQL
+**prima** del push, o la pagina va in 400. Se invece il codice degrada da solo se la tabella manca
+(es. 0004 via `useSezioni`), l'ordine è meno critico.
 
 ## Variabili d'ambiente
 
@@ -207,6 +225,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - Contenuti reali di Villa Virginia importati da StayFlow V1 (55 luoghi + 6 pagine testuali)
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
 - Pannello host: login magic-link, gestione on/off + modifica/elimina luoghi su tutte le sezioni elenco (con distanza in lista), editor per le pagine testuali, link "Vedi la guida degli ospiti", pagina "Sezioni della guida" (scegli quali tessere mostrare agli ospiti — `strutture.sezioni_attive`)
+- **Sezioni custom del superadmin**: pagina `/admin/sezioni-extra` (solo superadmin) per creare/eliminare sezioni oltre le 14 di sistema, tipo testo o elenco. Vivono in `sezioni_extra`, si uniscono ovunque via `useSezioni()`, nascono spente per tutti gli host. **Prerequisito prod: migration 0004.**
 - Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (uniti alla descrizione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.**
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
@@ -226,10 +245,9 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 **Non ancora iniziato:**
 - **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` ora permette toggle/modifica/**elimina** di luoghi esistenti e accetta/rifiuta proposte Scout — manca ancora un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Frontend puro.
 - **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
-- **Sezioni custom del superadmin (Fase 2 di "Sezioni della guida")**: il superadmin crea sezioni nuove (es. "Per un'occasione
-  speciale") con etichetta/icona/descrizione. Richiede: tabella `sezioni_extra` platform-wide, merge con `SEZIONI` ovunque si
-  itera (App.tsx rotte, Home, Admin, SezioniGuida), routing dinamico in App.tsx, pagina superadmin `/admin/sezioni-extra`.
-  È il pezzo che rende le sezioni dinamiche — piano a sé.
+- **Sezioni custom, follow-up**: modifica di una sezione custom esistente dalla UI (per ora solo elimina+ricrea); riordino da UI
+  (per ora campo `ordine` solo via SQL); assegnare una sezione custom solo a certi host; pulizia righe `pagine`/`luoghi` orfane
+  dopo l'eliminazione di una sezione.
 - **Onboarding v2** (gate + "Invita host" + scelta sezioni host [b] fatti — qui resta il seguito):
   - (a) Incremento B: `importa-casa.js` verifica `host_autorizzati` e popola `registrato_il`; stato "registrato" mostrato in InvitaHost.
   - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo

@@ -24,3 +24,6 @@ export const SEZIONI: Sezione[] = [
   { chiave: 'contatti', icona: '📞', etichetta: 'Contatti', tipo: 'testo' },
   { chiave: 'gennarino', icona: '🤵', etichetta: 'Chiedi a Gennarino', tipo: 'chat' },
 ]
+
+// Chiavi delle sezioni di sistema — usate per distinguerle dalle sezioni custom (sezioni_extra).
+export const CHIAVI_BUILTIN = new Set(SEZIONI.map((s) => s.chiave))

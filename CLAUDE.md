@@ -52,10 +52,10 @@ haplyhost/
 │   ├── main.tsx             ← entry point: BrowserRouter + StrictMode
 │   ├── App.tsx              ← TUTTE le rotte sono generate qui a partire da sezioni.ts (non aggiungere rotte a mano per le sezioni)
 │   ├── supabaseClient.ts    ← client Supabase con anon key (sicuro lato browser)
-│   ├── sezioni.ts           ← FONTE UNICA DI VERITÀ per le 13 tessere della home: {chiave, icona, etichetta, tipo}.
+│   ├── sezioni.ts           ← FONTE UNICA DI VERITÀ per le 14 voci della griglia: {chiave, icona, etichetta, tipo, descrizione?}.
 │   │                          tipo: 'elenco' (lista da tabella luoghi) | 'testo' (pagina da tabella pagine) | 'chat' (Gennarino)
-│   ├── Struttura.tsx        ← rotta layout su /:slug — risolve lo slug in una riga `strutture`, la passa giù con <Outlet context>
-│   ├── Home.tsx             ← griglia delle 13 tessere, legge SEZIONI da sezioni.ts
+│   ├── Struttura.tsx        ← rotta layout su /:slug — risolve lo slug in una riga `strutture` (incl. `sezioni_attive`), <Outlet context>
+│   ├── Home.tsx             ← griglia delle tessere: SEZIONI filtrate per `struttura.sezioni_attive` (NULL = tutte)
 │   ├── SezionePage.tsx      ← pagina generica per sezioni tipo 'elenco' — legge `luoghi` filtrando su struttura_id+sezione+attivo
 │   ├── PaginaStatica.tsx    ← pagina generica per sezioni tipo 'testo' — legge `pagine` filtrando su struttura_id+chiave
 │   ├── Gennarino.tsx        ← UI chat ospiti, chiama /api/gennarino, storico conversazione in stato React (nessuna persistenza)
@@ -72,6 +72,8 @@ haplyhost/
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
 │       │                          su `strutture` (RLS owner). Riquadro separato "rigenera descrizione da un link" → POST /api/aggiorna-casa
+│       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: 14 spunte "mostra nella guida" → UPDATE `strutture.sezioni_attive`.
+│       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = mostra tutto.
 │       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco luoghi con toggle attivo/spento,
 │       │                          modifica inline (nome/descrizione/distanza/maps/telefono) + "Elimina questo luogo" (DELETE, dentro la
 │       │                          modifica), pulsante "Cerca nuovi luoghi" (Scout) + lista proposte da Accettare/Rifiutare
@@ -94,6 +96,7 @@ strutture (
   lat numeric, lng numeric, checkin text, checkout text, max_ospiti int,
   host_nome text, host_telefono text, descrizione_casa text,
   regole text,            -- probabilmente vestigiale: il contenuto "Regole Casa" reale vive in pagine.chiave='regole'
+  sezioni_attive jsonb,   -- migration 0003: array delle chiavi sezione da mostrare in guida. NULL = tutte
   attivo boolean, creato_il timestamptz,
   owner_user_id uuid references auth.users(id) on delete set null   -- ON DELETE SET NULL da migration 0002:
   --   cancellare un utente Auth NON cancella/blocca la sua struttura (diventa senza proprietario)
@@ -151,7 +154,8 @@ host_autorizzati (   -- email autorizzate dal superadmin a diventare host (vedi 
 - `soggiorni`: SELECT pubblico solo per la riga dove `current_date` è tra `checkin` e `checkout` (privacy: non si vedono soggiorni passati/futuri)
 
 `supabase/migrations/`: `0001_host_autorizzati.sql` (tabella host autorizzati),
-`0002_strutture_owner_on_delete_set_null.sql` (FK owner_user_id → SET NULL). Lo schema sopra resta
+`0002_strutture_owner_on_delete_set_null.sql` (FK owner_user_id → SET NULL),
+`0003_strutture_sezioni_attive.sql` (colonna `sezioni_attive`). Lo schema sopra resta
 la fonte di verità scritta; restano NON tracciati come migrazioni la colonna `link_riferimento` e la
 policy RLS `strutture` per owner. Da qui in avanti ogni `ALTER TABLE` / `CREATE POLICY` va messo in
 un file numerato lì dentro, non eseguito ad-hoc e perso nella chat.
@@ -202,7 +206,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - Routing multi-struttura da slug, con le 13 tessere della griglia (7 elenco + 6 testo)
 - Contenuti reali di Villa Virginia importati da StayFlow V1 (55 luoghi + 6 pagine testuali)
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
-- Pannello host: login magic-link, gestione on/off + modifica testi su tutte le sezioni elenco (con distanza visibile in lista), editor per tutte le pagine testuali, link "Vedi la guida degli ospiti" (apre `/:slug` in nuova scheda)
+- Pannello host: login magic-link, gestione on/off + modifica/elimina luoghi su tutte le sezioni elenco (con distanza in lista), editor per le pagine testuali, link "Vedi la guida degli ospiti", pagina "Sezioni della guida" (scegli quali tessere mostrare agli ospiti — `strutture.sezioni_attive`)
 - Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (uniti alla descrizione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.**
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
@@ -222,13 +226,14 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 **Non ancora iniziato:**
 - **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` ora permette toggle/modifica/**elimina** di luoghi esistenti e accetta/rifiuta proposte Scout — manca ancora un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Frontend puro.
 - **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
-- **Onboarding v2** (il gate + la pagina "Invita host" sono fatti, vedi sopra — qui resta il seguito):
+- **Sezioni custom del superadmin (Fase 2 di "Sezioni della guida")**: il superadmin crea sezioni nuove (es. "Per un'occasione
+  speciale") con etichetta/icona/descrizione. Richiede: tabella `sezioni_extra` platform-wide, merge con `SEZIONI` ovunque si
+  itera (App.tsx rotte, Home, Admin, SezioniGuida), routing dinamico in App.tsx, pagina superadmin `/admin/sezioni-extra`.
+  È il pezzo che rende le sezioni dinamiche — piano a sé.
+- **Onboarding v2** (gate + "Invita host" + scelta sezioni host [b] fatti — qui resta il seguito):
   - (a) Incremento B: `importa-casa.js` verifica `host_autorizzati` e popola `registrato_il`; stato "registrato" mostrato in InvitaHost.
-  - (b) alla prima installazione l'host sceglie quali delle 13 sezioni includere nella guida (serve `strutture.sezioni_attive`
-    jsonb o simile — oggi le 13 tessere sono sempre tutte visibili da `sezioni.ts`).
   - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo
-    per 2-3 sezioni chiave lanciato una alla volta dal frontend (NON 7 in fila: ogni Scout = Claude + web search, 15-40s e
-    costo reale, sfora il timeout serverless).
+    per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
 - Multilingua: `luoghi.traduzioni` ha già dati reali in 5 lingue importati da V1; manca il selettore lingua e la logica di lettura nel frontend; `pagine` ha solo italiano
 - Visualizzazione dei sotto-blocchi "Aperitivi" e "Stellati" dentro la pagina "Dove Mangiare" (dati presenti in `luoghi` con quelle sezioni, nessuna UI dedicata — oggi sarebbero raggiungibili solo con un URL manuale tipo `/villavirginia/aperitivi`, non linkato da nessuna parte)

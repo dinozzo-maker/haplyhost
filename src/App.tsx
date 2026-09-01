@@ -8,6 +8,7 @@ import Login from './admin/Login'
 import RichiedeLogin from './admin/RichiedeLogin'
 import Admin from './admin/Admin'
 import ModificaCasa from './admin/ModificaCasa'
+import SezioniGuida from './admin/SezioniGuida'
 import InvitaHost from './admin/InvitaHost'
 import GestisciSezione from './admin/GestisciSezione'
 import GestisciPagina from './admin/GestisciPagina'
@@ -20,6 +21,7 @@ function App() {
       <Route path="/admin" element={<RichiedeLogin />}>
         <Route index element={<Admin />} />
         <Route path="modifica-casa" element={<ModificaCasa />} />
+        <Route path="sezioni-guida" element={<SezioniGuida />} />
         <Route path="invita-host" element={<InvitaHost />} />
         {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
           <Route key={s.chiave} path={s.chiave} element={<GestisciSezione sezione={s.chiave} etichetta={s.etichetta} />} />

@@ -5,6 +5,7 @@ export type Sezione = {
   icona: string
   etichetta: string
   tipo: TipoSezione
+  descrizione?: string // vuota per le sezioni di sistema; usata dalle sezioni custom (superadmin)
 }
 
 export const SEZIONI: Sezione[] = [

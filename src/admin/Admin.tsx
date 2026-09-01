@@ -23,6 +23,9 @@ export default function Admin() {
         <Link to="/admin/modifica-casa" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
           ⚙️ Modifica dati della casa
         </Link>
+        <Link to="/admin/sezioni-guida" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
+          🧩 Sezioni della guida
+        </Link>
         <a
           href={`/${struttura.slug}`}
           target="_blank"

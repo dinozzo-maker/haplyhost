@@ -60,9 +60,12 @@ Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
     }),
   })
 
-  const dati = await risposta.json()
-  if (!risposta.ok || dati?.error) {
-    throw new Error('Gemini: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
+  const grezzo = await risposta.json().catch(() => null)
+  // L'API Gemini restituisce gli errori dentro un array: [{"error":{...}}].
+  const dati = Array.isArray(grezzo) ? (grezzo[0] || {}) : (grezzo || {})
+  if (!risposta.ok || dati.error) {
+    const dettaglio = dati.error?.message || JSON.stringify(grezzo)?.slice(0, 300) || `HTTP ${risposta.status}`
+    throw new Error('Gemini: ' + dettaglio)
   }
 
   const testo = dati.output_text

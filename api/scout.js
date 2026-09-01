@@ -5,9 +5,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// INTERRUTTORE: le ricerche online (Scout) sono disattivate per contenere i costi AI.
-// Per riattivarle: mettere true e fare push.
-const RICERCHE_ATTIVE = false
+// INTERRUTTORE: false = tutte le ricerche bloccate (l'endpoint torna 503 senza chiamare
+// nessuna AI). Deve restare uguale anche in src/admin/GestisciSezione.tsx.
+const RICERCHE_ATTIVE = true
+
+// MOTORE: 'gemini' (Google Maps grounding, in uso) | 'claude' (ricerca web, fallback spento).
+const MOTORE_SCOUT = 'gemini'
 
 const CATEGORIE = {
   spiagge: 'spiagge e lidi',
@@ -17,6 +20,135 @@ const CATEGORIE = {
   divertimento: 'attività e divertimento (parchi, sport, noleggi)',
   gite: 'gite ed escursioni di mezza giornata o giornata intera',
   trasporti: 'servizi di trasporto (bus, taxi, noleggio auto/bici)',
+}
+
+// Estrae il primo array JSON da un testo, anche se il modello ci mette frasi attorno.
+function estraiArrayJson(testo) {
+  const inizio = testo.indexOf('[')
+  const fine = testo.lastIndexOf(']')
+  if (inizio === -1 || fine <= inizio) return null
+  try {
+    return JSON.parse(testo.slice(inizio, fine + 1))
+  } catch {
+    return null
+  }
+}
+
+// ---- MOTORE GEMINI: Google Maps grounding (Interactions API) ----
+async function cercaConGemini({ struttura, categoria, daEscludere }) {
+  const haCoord = struttura?.lat != null && struttura?.lng != null
+  const tool = haCoord
+    ? { type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }
+    : { type: 'google_maps' }
+
+  const prompt = `Trova fino a 5 ${categoria} reali ed esistenti vicino a questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}. Devono esistere davvero, non inventare nulla.
+${daEscludere.length ? `NON includere questi, già presenti nell'elenco: ${daEscludere.join(', ')}.` : ''}
+Per ciascun posto: nome esatto, una descrizione IN ITALIANO (massimo 200 caratteri, tono caldo per un ospite di casa vacanze), la distanza approssimativa in auto o a piedi da quell'indirizzo, la fascia di prezzo a persona SEMPRE in euro (es. "15-25 €"), la valutazione media Google (es. "4,5"), un link a Google Maps, un numero di telefono.
+Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
+[{"nome":"","descrizione":"","distanza":"","prezzo":"","voto":"","maps":"","telefono":""}]`
+
+  const risposta = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-goog-api-key': process.env.GEMINI_API_KEY,
+    },
+    body: JSON.stringify({
+      model: 'gemini-3.1-flash-lite',
+      input: prompt,
+      tools: [tool],
+    }),
+  })
+
+  const dati = await risposta.json()
+  if (!risposta.ok || dati?.error) {
+    throw new Error('Gemini: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
+  }
+
+  const testo = dati.output_text
+    || dati.steps?.find(s => s.type === 'model_output')?.content?.[0]?.text
+    || ''
+
+  const candidati = estraiArrayJson(testo)
+  if (!candidati) {
+    console.error('Scout/Gemini: nessun JSON valido:', testo.slice(0, 500))
+    throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
+  }
+
+  return candidati.filter(c => c && c.nome).map(c => {
+    const extra = [c.prezzo, c.voto ? `voto ${c.voto}` : ''].filter(Boolean).join(' · ')
+    return {
+      nome: c.nome,
+      descrizione: [c.descrizione || '', extra].filter(Boolean).join(' · '),
+      distanza: c.distanza || '',
+      maps: c.maps || '',
+      telefono: c.telefono || '',
+    }
+  })
+}
+
+// ---- MOTORE CLAUDE: ricerca web (fallback, oggi non selezionato) ----
+async function cercaConClaude({ struttura, categoria, daEscludere }) {
+  const prompt = `Cerca online fino a 5 ${categoria} reali ed esistenti vicino a questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}.
+
+Non includere questi, già presenti nell'elenco: ${daEscludere.join(', ') || 'nessuno'}.
+
+Per ciascun posto scrivi: nome, una breve descrizione in italiano (massimo 200 caratteri, tono amichevole), la distanza approssimativa dall'indirizzo indicato (es. "10 min in auto" o "5 min a piedi"), un link a Google Maps se lo trovi, un numero di telefono se lo trovi.
+
+Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato esatto:
+[{"nome": "...", "descrizione": "...", "distanza": "...", "maps": "...", "telefono": "..."}]`
+
+  const messages = [{ role: 'user', content: prompt }]
+
+  async function chiamaClaude(msgs) {
+    const risposta = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 3000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
+        messages: msgs,
+      }),
+    })
+    const dati = await risposta.json()
+    if (!risposta.ok || dati?.type === 'error') {
+      throw new Error('Anthropic: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
+    }
+    return dati
+  }
+
+  let dati = await chiamaClaude(messages)
+  let continua = 0
+  while (dati.stop_reason === 'pause_turn' && continua < 3) {
+    messages.push({ role: 'assistant', content: dati.content })
+    dati = await chiamaClaude(messages)
+    continua += 1
+  }
+
+  const testo = (dati?.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('\n')
+    .trim()
+
+  const candidati = estraiArrayJson(testo)
+  if (!candidati) {
+    console.error('Scout/Claude: nessun JSON valido:', testo.slice(0, 500))
+    throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
+  }
+
+  return candidati.filter(c => c && c.nome).map(c => ({
+    nome: c.nome,
+    descrizione: c.descrizione || '',
+    distanza: c.distanza || '',
+    maps: c.maps || '',
+    telefono: c.telefono || '',
+  }))
 }
 
 export default async function handler(req, res) {
@@ -35,7 +167,7 @@ export default async function handler(req, res) {
 
   const { data: struttura } = await supabase
     .from('strutture')
-    .select('nome, indirizzo, citta')
+    .select('nome, indirizzo, citta, lat, lng')
     .eq('id', struttura_id)
     .single()
 
@@ -58,86 +190,19 @@ export default async function handler(req, res) {
 
   const categoria = CATEGORIE[sezione] || sezione
 
-  const prompt = `Cerca online fino a 5 ${categoria} reali ed esistenti vicino a questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}.
-
-Non includere questi, già presenti nell'elenco: ${daEscludere.join(', ') || 'nessuno'}.
-
-Per ciascun posto scrivi: nome, una breve descrizione in italiano (massimo 200 caratteri, tono amichevole), la distanza approssimativa dall'indirizzo indicato (es. "10 min in auto" o "5 min a piedi"), un link a Google Maps se lo trovi, un numero di telefono se lo trovi.
-
-Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato esatto:
-[{"nome": "...", "descrizione": "...", "distanza": "...", "maps": "...", "telefono": "..."}]`
-
-  const messages = [{ role: 'user', content: prompt }]
-
-  async function chiamaClaude(msgs) {
-    const risposta = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        // Haiku per contenere i costi ("per ora"). Con Haiku (non famiglia 4.6+) la ricerca
-        // web usa la variante base web_search_20250305. max_uses limita le ricerche a pagamento.
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 3000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
-        messages: msgs,
-      }),
-    })
-    const dati = await risposta.json()
-    if (!risposta.ok || dati?.type === 'error') {
-      throw new Error('Anthropic: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
-    }
-    return dati
-  }
-
   try {
-    let dati = await chiamaClaude(messages)
+    const cerca = MOTORE_SCOUT === 'claude' ? cercaConClaude : cercaConGemini
+    const trovate = await cerca({ struttura, categoria, daEscludere })
 
-    // Con la ricerca web il modello può fermarsi in "pause_turn" dopo 10 ricerche:
-    // si rimanda indietro la conversazione e riprende da solo.
-    let continua = 0
-    while (dati.stop_reason === 'pause_turn' && continua < 3) {
-      messages.push({ role: 'assistant', content: dati.content })
-      dati = await chiamaClaude(messages)
-      continua += 1
-    }
-
-    const testo = (dati?.content || [])
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n')
-      .trim()
-
-    // Estrae il primo array JSON dal testo, anche se il modello ci mette frasi attorno.
-    const inizio = testo.indexOf('[')
-    const fine = testo.lastIndexOf(']')
-    if (inizio === -1 || fine <= inizio) {
-      console.error('Nessun JSON nella risposta Scout:', testo.slice(0, 500))
-      return res.status(500).json({ error: 'La ricerca non ha prodotto risultati, riprova' })
-    }
-
-    let candidati = []
-    try {
-      candidati = JSON.parse(testo.slice(inizio, fine + 1))
-    } catch {
-      console.error('JSON non valido da Scout:', testo.slice(0, 500))
-      return res.status(500).json({ error: 'La risposta non era in formato valido, riprova' })
-    }
-
-    const righe = (candidati || [])
-      .filter(c => c && c.nome)
-      .map(c => ({
-        struttura_id,
-        sezione,
-        nome: c.nome,
-        descrizione: c.descrizione || '',
-        distanza: c.distanza || '',
-        maps: c.maps || '',
-        telefono: c.telefono || '',
-      }))
+    const righe = trovate.map(c => ({
+      struttura_id,
+      sezione,
+      nome: c.nome,
+      descrizione: c.descrizione,
+      distanza: c.distanza,
+      maps: c.maps,
+      telefono: c.telefono,
+    }))
 
     if (righe.length > 0) {
       await supabase.from('proposte').insert(righe)

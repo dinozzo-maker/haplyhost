@@ -20,9 +20,14 @@ Modello di business: piani Guida (14€/mese), Concierge (29€/mese), Portfolio
 - **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS v4 (plugin `@tailwindcss/vite`) + React Router v7 (rotte annidate con `<Outlet context={...}>`)
 - **Backend/DB**: Supabase (Postgres + Auth + RLS) — progetto separato dalla V1
 - **Deploy**: Vercel, progetto `haplyhost`, collegato a GitHub `dinozzo-maker/haplyhost` (repo privata), auto-deploy su push a `main`. **Piano Hobby** (gratuito ma per uso non commerciale — va aggiornato a Pro prima di fatturare al primo cliente vero)
-- **AI**: Anthropic API chiamata via `fetch` diretta a `https://api.anthropic.com/v1/messages` (non l'SDK ufficiale — mantenere questo pattern per coerenza), header `x-api-key` + `anthropic-version: 2023-06-01`.
-  - `claude-haiku-4-5-20251001` per Gennarino (chat ospiti) e per Scout (`scout.js`, scelto "per ora" per contenere i costi — vedi "Stato attuale"). Con Haiku la ricerca web è la variante base `web_search_20250305`.
-  - `claude-sonnet-5` per la generazione descrizioni ("Casa da un link" / "Rigenera"), in `lib/genera-descrizione-casa.js`
+- **AI**: chiamate via `fetch` diretta, mai con SDK ufficiali (mantenere questo pattern per coerenza).
+  - **Anthropic** (`https://api.anthropic.com/v1/messages`, header `x-api-key` + `anthropic-version: 2023-06-01`):
+    `claude-haiku-4-5-20251001` per Gennarino; `claude-sonnet-5` per la generazione descrizioni
+    ("Casa da un link" / "Rigenera") in `lib/genera-descrizione-casa.js`.
+  - **Google Gemini** (`https://generativelanguage.googleapis.com/v1beta/interactions` — la nuova
+    Interactions API, non `generateContent`; header `x-goog-api-key`): `gemini-3.1-flash-lite` +
+    grounding Google Maps per Scout (`scout.js`). Vedi `Skill HaplyHost.md` §8 per i dettagli
+    (dove sta il testo nella risposta, il 429 sul grounding di ricerca, ecc.).
 
 ## Struttura del repository
 
@@ -31,10 +36,10 @@ haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`
-│   ├── scout.js             ← cerca online nuovi luoghi per una sezione, li salva in `proposte`. ⛔ DISATTIVATO:
-│   │                          `RICERCHE_ATTIVE = false` (anche in GestisciSezione.tsx) → l'endpoint torna 503 senza
-│   │                          chiamare l'AI. Quando riattivato: Haiku 4.5 + `web_search_20250305` con `max_uses: 5`,
-│   │                          gestisce `pause_turn`, estrae il primo array JSON, rimanda l'errore vero di Anthropic.
+│   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,
+│   │                          uguale in GestisciSezione.tsx): false → l'endpoint torna 503 senza chiamare AI.
+│   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding, prezzo+voto
+│   │                          uniti alla descrizione) | 'claude' (fallback spento: Haiku + web_search_20250305).
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
 │   └── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
@@ -158,7 +163,8 @@ un file numerato lì dentro, non eseguito ad-hoc e perso nella chat.
 | `VITE_SUPABASE_URL` | `.env.local` + Vercel (tutti gli env, tipo Config) | client Supabase browser |
 | `VITE_SUPABASE_ANON_KEY` | `.env.local` + Vercel (tutti gli env, tipo Config) | client Supabase browser |
 | `SUPABASE_SERVICE_ROLE_KEY` | solo Vercel (tipo Secret) | usata in tutte le `/api/*.js` che bypassano RLS |
-| `ANTHROPIC_API_KEY` | solo Vercel (tipo Secret) | condivisa da gennarino.js, scout.js, importa-casa.js, aggiorna-casa.js |
+| `ANTHROPIC_API_KEY` | solo Vercel (tipo Secret) | gennarino.js, lib/genera-descrizione-casa.js, e scout.js solo se `MOTORE_SCOUT='claude'` |
+| `GEMINI_API_KEY` | `.env.local` + Vercel (tipo Secret) | `scout.js` — motore Scout attuale (Gemini + Maps grounding) |
 | `VITE_ADMIN_EMAIL` | `.env.local` + Vercel (tutti gli env, tipo Config) | email del superadmin. Frontend (`import.meta.env`) per mostrare la sezione "Invita host"; `api/host-autorizzati.js` (`process.env`) come vera guardia |
 
 I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard Vercel — non richiederli/riscriverli qui.
@@ -179,16 +185,16 @@ una giornata di sviluppo pesante su Claude Sonnet 5 (Scout con ricerca web, "Cas
 "Rigenera", retry). La V1 "StayFlow" (ancora live) è un consumo di sfondo minore, non la causa.
 
 Mitigazioni fatte:
-- Scout passato a Haiku 4.5 + `web_search` con `max_uses: 5` (`scout.js`).
-- **Scout completamente disattivato** (`RICERCHE_ATTIVE = false` in `scout.js` e `GestisciSezione.tsx`):
-  l'endpoint torna 503 senza chiamare l'AI, il pulsante nel pannello è nascosto. Da riattivare quando
-  i costi sono sotto controllo (flag → true in entrambi i file + push).
+- Scout **spostato da Claude a Gemini 3.1 Flash-Lite + Google Maps grounding** (`MOTORE_SCOUT='gemini'`
+  in `scout.js`). Costo ~1/10, grounding gratis fino a 5.000/mese. Il motore Claude resta nel file,
+  spento (`MOTORE_SCOUT='claude'`). Scout riattivato (`RICERCHE_ATTIVE = true`).
+- `vercel.json`: `maxDuration: 60` per `api/scout.js` (le chiamate Gemini+grounding durano ~10-18s).
 
-Mitigazioni da fare (in ordine): ricarica automatica + tetto di spesa sulla Console; workspace/chiave
-API separati per sviluppo vs produzione; cache del prompt + tetto a `domanda`/`storico` in
-`gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero a ogni messaggio, e
+Mitigazioni da fare (in ordine): ricarica automatica Anthropic + tetto di spesa sulla Console;
+workspace/chiave API separati per sviluppo vs produzione; cache del prompt + tetto a `domanda`/`storico`
+in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero a ogni messaggio, e
 `storico` è illimitato e controllato dal chiamante su un endpoint pubblico); cache 24h su
-`/api/consiglio` della V1.
+`/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata in chat il 01/09).
 
 ## Stato attuale (fine agosto 2026)
 
@@ -197,7 +203,7 @@ API separati per sviluppo vs produzione; cache del prompt + tetto a `domanda`/`s
 - Contenuti reali di Villa Virginia importati da StayFlow V1 (55 luoghi + 6 pagine testuali)
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
 - Pannello host: login magic-link, gestione on/off + modifica testi su tutte le sezioni elenco (con distanza visibile in lista), editor per tutte le pagine testuali, link "Vedi la guida degli ospiti" (apre `/:slug` in nuova scheda)
-- Scout: ricerca online di nuovi luoghi con flusso di approvazione/rifiuto (⛔ oggi DISATTIVATO per costi — vedi "Costi AI"). Errori/esito mostrati nel pannello quando attivo.
+- Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (uniti alla descrizione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.**
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.

@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Documentazione di lavoro solo locale (non pubblicare) - qualsiasi formato
+Report HaplyHost*
+Skill HaplyHost*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

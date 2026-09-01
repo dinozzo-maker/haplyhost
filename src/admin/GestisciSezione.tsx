@@ -3,9 +3,9 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { ContestoHost } from './RichiedeLogin'
 
-// INTERRUTTORE: le ricerche online (Scout) sono disattivate per contenere i costi AI.
-// Per riattivarle: mettere true QUI e anche in api/scout.js (RICERCHE_ATTIVE), poi push.
-const RICERCHE_ATTIVE = false
+// INTERRUTTORE: deve restare uguale a RICERCHE_ATTIVE in api/scout.js.
+// false = pulsante nascosto e ricerche bloccate.
+const RICERCHE_ATTIVE = true
 
 type LuogoRow = {
   id: string

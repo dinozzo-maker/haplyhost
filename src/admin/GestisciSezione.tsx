@@ -98,6 +98,15 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     setModificaId(null)
   }
 
+  async function elimina(l: LuogoRow) {
+    if (!window.confirm(`Eliminare "${l.nome}" da questa sezione? L'operazione non si può annullare.`)) return
+    setSalvataggio(true)
+    await supabase.from('luoghi').delete().eq('id', l.id)
+    setLuoghi(luoghi.filter(x => x.id !== l.id))
+    setSalvataggio(false)
+    setModificaId(null)
+  }
+
   async function cercaNuovi() {
     if (!strutturaId) return
     setCercando(true)
@@ -213,6 +222,9 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
                     Annulla
                   </button>
                 </div>
+                <button onClick={() => elimina(l)} disabled={salvataggio} className="text-xs text-red-600 mt-2 self-start disabled:opacity-50">
+                  Elimina questo luogo
+                </button>
               </div>
             ) : (
               <div className="flex items-center justify-between gap-3">

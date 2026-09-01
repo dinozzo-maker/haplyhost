@@ -73,8 +73,8 @@ haplyhost/
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
 │       │                          su `strutture` (RLS owner). Riquadro separato "rigenera descrizione da un link" → POST /api/aggiorna-casa
 │       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco luoghi con toggle attivo/spento,
-│       │                          modifica inline (nome/descrizione/distanza/maps/telefono), pulsante "Cerca nuovi luoghi" (chiama Scout)
-│       │                          + lista proposte da Accettare/Rifiutare
+│       │                          modifica inline (nome/descrizione/distanza/maps/telefono) + "Elimina questo luogo" (DELETE, dentro la
+│       │                          modifica), pulsante "Cerca nuovi luoghi" (Scout) + lista proposte da Accettare/Rifiutare
 │       └── GestisciPagina.tsx   ← UNICO componente riusato per tutte e 6 le sezioni 'testo': editor titolo+contenuto su `pagine`
 ```
 
@@ -220,7 +220,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - Nessuna policy RLS `strutture` SELECT per `authenticated` scoped su `owner_user_id`: oggi l'host trova la propria struttura solo grazie alla policy pubblica `attivo=true`. Se una struttura viene spenta, l'host non la vede più nel pannello.
 
 **Non ancora iniziato:**
-- **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` oggi permette solo toggle/modifica di luoghi esistenti e accetta/rifiuta proposte Scout — manca un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Gap fondamentale, frontend puro.
+- **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` ora permette toggle/modifica/**elimina** di luoghi esistenti e accetta/rifiuta proposte Scout — manca ancora un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Frontend puro.
 - **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
 - **Onboarding v2** (il gate + la pagina "Invita host" sono fatti, vedi sopra — qui resta il seguito):
   - (a) Incremento B: `importa-casa.js` verifica `host_autorizzati` e popola `registrato_il`; stato "registrato" mostrato in InvitaHost.

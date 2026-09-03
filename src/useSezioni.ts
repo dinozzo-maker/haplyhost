@@ -6,12 +6,17 @@ import type { Sezione, TipoSezione } from './sezioni'
 // Le sezioni custom (tabella sezioni_extra) si aggiungono alle 14 di sistema.
 // Cache + promise in-flight a livello di modulo: una sola fetch per sessione anche
 // se più componenti chiamano useSezioni() insieme.
+// I consumatori montati si registrano in `abbonati`: invalidaCacheSezioni() li
+// riallinea tutti, così dopo una crea/elimina le rotte generate in App.tsx si
+// aggiornano senza bisogno di ricaricare la pagina.
 let cache: Sezione[] | null = null
 let inflight: Promise<Sezione[]> | null = null
+const abbonati = new Set<() => void>()
 
 export function invalidaCacheSezioni() {
   cache = null
   inflight = null
+  abbonati.forEach((sincronizza) => sincronizza())
 }
 
 function mappa(r: {
@@ -42,6 +47,7 @@ async function caricaCustom(): Promise<Sezione[]> {
       // alle sole sezioni di sistema.
       const risultato: Sezione[] = error || !data ? [] : data.map(mappa)
       cache = risultato
+      inflight = null
       return risultato
     })()
   }
@@ -53,15 +59,28 @@ export function useSezioni(): { tutte: Sezione[]; caricamento: boolean } {
   const [caricamento, setCaricamento] = useState(cache === null)
 
   useEffect(() => {
-    if (cache !== null) return
     let vivo = true
-    caricaCustom().then((c) => {
-      if (!vivo) return
-      setCustom(c)
-      setCaricamento(false)
-    })
+
+    function sincronizza() {
+      if (cache !== null) {
+        setCustom(cache)
+        setCaricamento(false)
+        return
+      }
+      setCaricamento(true)
+      caricaCustom().then((c) => {
+        if (vivo) {
+          setCustom(c)
+          setCaricamento(false)
+        }
+      })
+    }
+
+    sincronizza()
+    abbonati.add(sincronizza)
     return () => {
       vivo = false
+      abbonati.delete(sincronizza)
     }
   }, [])
 

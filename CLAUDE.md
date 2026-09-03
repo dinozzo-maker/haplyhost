@@ -61,7 +61,8 @@ haplyhost/
 │   │                          + `filtraVisibili(tutte, sezioni_attive)` (filtro guida, usato da Home/TabBar/GennarinoFab).
 │   │                          tipo: 'elenco' (lista da tabella luoghi) | 'testo' (pagina da tabella pagine) | 'chat' (Gennarino)
 │   ├── useSezioni.ts        ← hook: `SEZIONI` + righe di `sezioni_extra` (cache di modulo, 1 fetch/sessione, degrada se tabella assente).
-│   │                          `invalidaCacheSezioni()` dopo crea/elimina. Usato da App, Home, Admin, SezioniGuida.
+│   │                          `invalidaCacheSezioni()` dopo crea/elimina RIALLINEA tutti i consumatori montati (pub/sub interno):
+│   │                          serve perché App.tsx genera le rotte da qui e non si rimonta. Usato da App, Home, Admin, SezioniGuida.
 │   ├── Struttura.tsx        ← rotta layout su /:slug — risolve lo slug in `strutture` (incl. `sezioni_attive`, `accento`, `copertina_url`).
 │   │                          Rende `.g-shell` (con --g-accent inline) + <Outlet context> + <GennarinoFab> + <TabBar>
 │   ├── TabBar.tsx           ← barra fissa in basso della guida: Home + prime 2 sezioni 'elenco' visibili + Gennarino
@@ -98,7 +99,7 @@ haplyhost/
 
 ## Pattern architetturali importanti
 
-1. **Le sezioni si iterano da `useSezioni().tutte`**, non da `SEZIONI` direttamente. `SEZIONI` (in `sezioni.ts`) sono le 14 di sistema; `useSezioni()` le unisce alle righe di `sezioni_extra` (custom del superadmin). `App.tsx`, `Home.tsx`, `Admin.tsx`, `SezioniGuida.tsx` generano rotte/bottoni da `tutte`. Una sezione di sistema nuova = una riga in `sezioni.ts`; una sezione custom = riga in `sezioni_extra` (dalla pagina `/admin/sezioni-extra`). Non toccare le rotte a mano.
+1. **Le sezioni si iterano da `useSezioni().tutte`**, non da `SEZIONI` direttamente. `SEZIONI` (in `sezioni.ts`) sono le 14 di sistema; `useSezioni()` le unisce alle righe di `sezioni_extra` (custom del superadmin). `App.tsx`, `Home.tsx`, `Admin.tsx`, `SezioniGuida.tsx` generano rotte/bottoni da `tutte`. Una sezione di sistema nuova = una riga in `sezioni.ts`; una sezione custom = riga in `sezioni_extra` (dalla pagina `/admin/sezioni-extra`). Non toccare le rotte a mano. `App.tsx` ha una rotta `*` sotto `/admin` che tiene gli URL `/admin/...` sconosciuti dentro il pannello (loading → redirect a `/admin`) invece di farli cadere sulla rotta ospite `/:slug`.
 2. **Multi-tenancy lato host**: `RichiedeLogin.tsx` risolve `struttura` a partire da `owner_user_id = auth.uid()` e la passa via `Outlet context` a tutte le pagine `/admin/*`. Nessun componente admin deve cercare una struttura per slug fisso — oggi ogni host ha **una sola struttura** (nessuna tabella ponte per host multi-proprietà, da aggiungere se servirà).
 3. **Multi-tenancy lato ospite**: `Struttura.tsx` risolve la struttura dallo `:slug` nell'URL, la passa via `Outlet context` a `Home`, `SezionePage`, `PaginaStatica`, `Gennarino`.
 4. **Componenti generici parametrizzati**, non uno per sezione: `GestisciSezione` prende `{sezione, etichetta}`, `GestisciPagina` prende `{chiave, etichetta}`, `PaginaStatica` prende `{chiave}`. Estendere questi invece di crearne di nuovi.

@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import Struttura from './Struttura'
 import Home from './Home'
 import SezionePage from './SezionePage'
@@ -16,7 +16,7 @@ import GestisciPagina from './admin/GestisciPagina'
 import { useSezioni } from './useSezioni'
 
 function App() {
-  const { tutte: SEZIONI } = useSezioni()
+  const { tutte: SEZIONI, caricamento } = useSezioni()
 
   return (
     <Routes>
@@ -33,6 +33,12 @@ function App() {
         {SEZIONI.filter((s) => s.tipo === 'testo').map((s) => (
           <Route key={s.chiave} path={s.chiave} element={<GestisciPagina chiave={s.chiave} etichetta={s.etichetta} />} />
         ))}
+        {/* URL /admin sconosciuto: resta nel pannello. Se le sezioni custom stanno
+            ancora caricando, aspetta; poi o la rotta compare, o si torna al pannello. */}
+        <Route
+          path="*"
+          element={caricamento ? <p className="p-8 text-center">Caricamento...</p> : <Navigate to="/admin" replace />}
+        />
       </Route>
       <Route path="/:slug" element={<Struttura />}>
         <Route index element={<Home />} />

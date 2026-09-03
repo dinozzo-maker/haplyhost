@@ -22,12 +22,14 @@ Modello di business: piani Guida (14€/mese), Concierge (29€/mese), Portfolio
 - **Deploy**: Vercel, progetto `haplyhost`, collegato a GitHub `dinozzo-maker/haplyhost` (repo privata), auto-deploy su push a `main`. **Piano Hobby** (gratuito ma per uso non commerciale — va aggiornato a Pro prima di fatturare al primo cliente vero)
 - **AI**: chiamate via `fetch` diretta, mai con SDK ufficiali (mantenere questo pattern per coerenza).
   - **Anthropic** (`https://api.anthropic.com/v1/messages`, header `x-api-key` + `anthropic-version: 2023-06-01`):
-    `claude-haiku-4-5-20251001` per Gennarino; `claude-sonnet-5` per la generazione descrizioni
-    ("Casa da un link" / "Rigenera") in `lib/genera-descrizione-casa.js`.
-  - **Google Gemini** (`https://generativelanguage.googleapis.com/v1beta/interactions` — la nuova
-    Interactions API, non `generateContent`; header `x-goog-api-key`): `gemini-3.1-flash-lite` +
-    grounding Google Maps per Scout (`scout.js`). Vedi `Skill HaplyHost.md` §8 per i dettagli
-    (dove sta il testo nella risposta, il 429 sul grounding di ricerca, ecc.).
+    `claude-haiku-4-5-20251001` per `api/traduci-guida.js`; `claude-sonnet-5` per la generazione
+    descrizioni ("Casa da un link" / "Rigenera") in `lib/genera-descrizione-casa.js`. Gennarino può
+    tornarci con `MOTORE_GENNARINO='claude'` (fallback spento).
+  - **Google Gemini** (`gemini-3.1-flash-lite`, header `x-goog-api-key`): due endpoint diversi —
+    Scout usa la **Interactions API** (`/v1beta/interactions`) per il grounding Google Maps;
+    **Gennarino** (`api/gennarino.js`, `MOTORE_GENNARINO='gemini'`) usa **`generateContent`**
+    (`/v1beta/models/<m>:generateContent`) perché serve chat multi-turno + `systemInstruction` e il
+    frontend manda tutto lo storico. Vedi `Skill HaplyHost.md` §8.
 
 ## Struttura del repository
 
@@ -35,9 +37,10 @@ Modello di business: piani Guida (14€/mese), Concierge (29€/mese), Portfolio
 haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
-│   ├── gennarino.js         ← chat AI ospiti: legge struttura (incl. `note_gennarino`) + luoghi + pagine, chiama Claude, logga su `domande`.
-│   │                          DUE chiamate Haiku: 1) piccola, riconosce la lingua dell'ospite (dalle ultime righe della chat);
-│   │                          2) la risposta, con quella lingua come vincolo secco. `lang` dal body = ripiego. Strip `*`/`#` markdown.
+│   ├── gennarino.js         ← chat AI ospiti: legge struttura (incl. `note_gennarino`) + luoghi + pagine, logga su `domande`.
+│   │                          DUE chiamate a `MODELLO_GEMINI` (`generateContent`; interruttore `MOTORE_GENNARINO`): 1) piccola,
+│   │                          riconosce la lingua dell'ospite; 2) la risposta, con quella lingua come vincolo. Carattere napoletano
+│   │                          nel system prompt (con esempi). `lang` dal body = ripiego. Strip `*`/`#` markdown.
 │   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni (en/fr/de/es) → `pagine.traduzioni` /
 │   │                          `luoghi.traduzioni`. Chiamate a lotti di 4. `vercel.json` maxDuration 60. Pulsante in ModificaCasa.
 │   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,
@@ -229,8 +232,8 @@ aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), l
 | `VITE_SUPABASE_URL` | `.env.local` + Vercel (tutti gli env, tipo Config) | client Supabase browser |
 | `VITE_SUPABASE_ANON_KEY` | `.env.local` + Vercel (tutti gli env, tipo Config) | client Supabase browser |
 | `SUPABASE_SERVICE_ROLE_KEY` | solo Vercel (tipo Secret) | usata in tutte le `/api/*.js` che bypassano RLS |
-| `ANTHROPIC_API_KEY` | solo Vercel (tipo Secret) | gennarino.js, lib/genera-descrizione-casa.js, e scout.js solo se `MOTORE_SCOUT='claude'` |
-| `GEMINI_API_KEY` | `.env.local` + Vercel (tipo Secret) | `scout.js` — motore Scout attuale (Gemini + Maps grounding) |
+| `ANTHROPIC_API_KEY` | solo Vercel (tipo Secret) | `lib/genera-descrizione-casa.js`, `api/traduci-guida.js`; `gennarino.js`/`scout.js` solo se il rispettivo `MOTORE_*='claude'` |
+| `GEMINI_API_KEY` | `.env.local` + Vercel (tipo Secret) | `scout.js` (Interactions + Maps grounding) e `gennarino.js` (generateContent) |
 | `VITE_ADMIN_EMAIL` | `.env.local` + Vercel (tutti gli env, tipo Config) | email del superadmin. Frontend (`import.meta.env`) per mostrare la sezione "Invita host"; `api/host-autorizzati.js` (`process.env`) come vera guardia |
 
 I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard Vercel — non richiederli/riscriverli qui.

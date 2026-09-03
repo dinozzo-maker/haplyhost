@@ -233,7 +233,8 @@ aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), l
 | `VITE_SUPABASE_ANON_KEY` | `.env.local` + Vercel (tutti gli env, tipo Config) | client Supabase browser |
 | `SUPABASE_SERVICE_ROLE_KEY` | solo Vercel (tipo Secret) | usata in tutte le `/api/*.js` che bypassano RLS |
 | `ANTHROPIC_API_KEY` | solo Vercel (tipo Secret) | `lib/genera-descrizione-casa.js`, `api/traduci-guida.js`; `gennarino.js`/`scout.js` solo se il rispettivo `MOTORE_*='claude'` |
-| `GEMINI_API_KEY` | `.env.local` + Vercel (tipo Secret) | `scout.js` (Interactions + Maps grounding) e `gennarino.js` (generateContent) |
+| `GEMINI_API_KEY` | `.env.local` + Vercel (tipo Secret) | `scout.js` (Interactions + Maps grounding); ripiego per `gennarino.js` |
+| `GEMINI_API_KEY_GENNARINO` | solo Vercel (tipo Secret) | chiave Gemini dedicata a `gennarino.js` (`generateContent`). Se assente → usa `GEMINI_API_KEY` |
 | `VITE_ADMIN_EMAIL` | `.env.local` + Vercel (tutti gli env, tipo Config) | email del superadmin. Frontend (`import.meta.env`) per mostrare la sezione "Invita host"; `api/host-autorizzati.js` (`process.env`) come vera guardia |
 
 I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard Vercel — non richiederli/riscriverli qui.

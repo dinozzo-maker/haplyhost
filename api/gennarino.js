@@ -21,7 +21,11 @@ async function chiamaGemini({ system, messages, max_tokens, temperature = 0.7 })
     `https://generativelanguage.googleapis.com/v1beta/models/${MODELLO_GEMINI}:generateContent`,
     {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+      headers: {
+        'content-type': 'application/json',
+        // Chiave dedicata a Gennarino; ripiego su quella condivisa (Scout) se non impostata.
+        'x-goog-api-key': process.env.GEMINI_API_KEY_GENNARINO || process.env.GEMINI_API_KEY,
+      },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents,

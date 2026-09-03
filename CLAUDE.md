@@ -90,8 +90,9 @@ haplyhost/
 │       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona via
 │       │                          selettore emoji, descrizione, tipo testo|elenco, categoria per Scout se elenco) → POST/DELETE /api/sezioni-extra.
 │       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco luoghi con toggle attivo/spento,
-│       │                          modifica inline (nome/descrizione/distanza/prezzo/voto/maps/telefono) + "Elimina questo luogo" (DELETE,
-│       │                          dentro la modifica), pulsante "Cerca nuovi luoghi" (Scout) + lista proposte da Accettare/Rifiutare
+│       │                          modifica inline + "Elimina questo luogo" (DELETE, dentro la modifica), "+ Aggiungi un luogo a mano"
+│       │                          (INSERT), "Cerca nuovi luoghi" (Scout) + proposte da Accettare/Rifiutare. Campi condivisi modifica/nuovo:
+│       │                          <CampiLuogo> (nome/descrizione/distanza/prezzo/voto/maps/telefono)
 │       └── GestisciPagina.tsx   ← UNICO componente riusato per tutte e 6 le sezioni 'testo': editor titolo+contenuto su `pagine`
 ```
 
@@ -245,7 +246,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - Routing multi-struttura da slug, con le 13 tessere della griglia (7 elenco + 6 testo)
 - Contenuti reali di Villa Virginia importati da StayFlow V1 (55 luoghi + 6 pagine testuali)
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
-- Pannello host: login magic-link, gestione on/off + modifica/elimina luoghi su tutte le sezioni elenco (con distanza in lista), editor per le pagine testuali, link "Vedi la guida degli ospiti", pagina "Sezioni della guida" (scegli quali tessere mostrare agli ospiti — `strutture.sezioni_attive`)
+- Pannello host: login magic-link, gestione on/off + modifica/elimina/**aggiungi a mano** luoghi su tutte le sezioni elenco (con distanza in lista), editor per le pagine testuali, link "Vedi la guida degli ospiti", pagina "Sezioni della guida" (scegli quali tessere mostrare agli ospiti — `strutture.sezioni_attive`)
 - **Sezioni custom del superadmin**: pagina `/admin/sezioni-extra` (solo superadmin) per creare/eliminare sezioni oltre le 14 di sistema, tipo testo o elenco. Vivono in `sezioni_extra`, si uniscono ovunque via `useSezioni()`, nascono spente per tutti gli host. **Prerequisito prod: migration 0004.**
 - Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (colonne `proposte.prezzo`/`voto`, copiati nel luogo all'accettazione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.**
 - **Reskin della guida ospiti** (migration 0005): design system "g-*" in `src/index.css` (spirito StayFlow: Nunito, hero, griglia emoji, barra in basso `TabBar`, FAB `GennarinoFab`, modalità chiara/scura). Due leve per l'host in ModificaCasa: colore d'accento (`strutture.accento`, 5 preset, iniettato come `--g-accent` inline sullo `.g-shell`) e foto di copertina (`strutture.copertina_url`, link incollato — upload diretto rimandato). Schede luogo con pastiglie prezzo/voto. Verificato in locale 03/09/2026 (guida ospiti); le 2 modifiche admin passano tsc/build, da verificare con login. Il pannello admin resta su Tailwind grezzo (reskin editoriale rimandato). "Il consiglio di oggi" e il selettore lingua: rimandati.
@@ -265,7 +266,6 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - Nessuna policy RLS `strutture` SELECT per `authenticated` scoped su `owner_user_id`: oggi l'host trova la propria struttura solo grazie alla policy pubblica `attivo=true`. Se una struttura viene spenta, l'host non la vede più nel pannello.
 
 **Non ancora iniziato:**
-- **Aggiunta manuale di un luogo** dal pannello: `GestisciSezione.tsx` ora permette toggle/modifica/**elimina** di luoghi esistenti e accetta/rifiuta proposte Scout — manca ancora un pulsante "aggiungi luogo a mano" (INSERT su `luoghi`). Frontend puro.
 - **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
 - **Sezioni custom, follow-up**: modifica di una sezione custom esistente dalla UI (per ora solo elimina+ricrea); riordino da UI
   (per ora campo `ordine` solo via SQL); assegnare una sezione custom solo a certi host; pulizia righe `pagine`/`luoghi` orfane

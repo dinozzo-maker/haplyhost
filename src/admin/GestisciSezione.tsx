@@ -29,6 +29,8 @@ type Bozza = {
   telefono: string
 }
 
+const BOZZA_VUOTA: Bozza = { nome: '', descrizione: '', distanza: '', prezzo: '', voto: '', maps: '', telefono: '' }
+
 type PropostaRow = {
   id: string
   nome: string
@@ -40,6 +42,34 @@ type PropostaRow = {
   telefono: string
 }
 
+// Campi condivisi dal form di modifica e da quello di aggiunta manuale.
+function CampiLuogo({ bozza, setBozza }: { bozza: Bozza; setBozza: (b: Bozza) => void }) {
+  return (
+    <>
+      <label className="text-xs text-gray-500">Nome</label>
+      <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.nome} onChange={(e) => setBozza({ ...bozza, nome: e.target.value })} />
+      <label className="text-xs text-gray-500">Descrizione</label>
+      <textarea className="border rounded-lg px-3 py-2 text-sm" rows={3} value={bozza.descrizione} onChange={(e) => setBozza({ ...bozza, descrizione: e.target.value })} />
+      <label className="text-xs text-gray-500">Distanza</label>
+      <input className="border rounded-lg px-3 py-2 text-sm" placeholder="es. 🚶 5 min a piedi" value={bozza.distanza} onChange={(e) => setBozza({ ...bozza, distanza: e.target.value })} />
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="text-xs text-gray-500">Fascia di prezzo</label>
+          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="es. 15-25 €" value={bozza.prezzo} onChange={(e) => setBozza({ ...bozza, prezzo: e.target.value })} />
+        </div>
+        <div className="w-24">
+          <label className="text-xs text-gray-500">Voto Google</label>
+          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="4,5" value={bozza.voto} onChange={(e) => setBozza({ ...bozza, voto: e.target.value })} />
+        </div>
+      </div>
+      <label className="text-xs text-gray-500">Link Google Maps</label>
+      <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.maps} onChange={(e) => setBozza({ ...bozza, maps: e.target.value })} />
+      <label className="text-xs text-gray-500">Telefono</label>
+      <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.telefono} onChange={(e) => setBozza({ ...bozza, telefono: e.target.value })} />
+    </>
+  )
+}
+
 export default function GestisciSezione({ sezione, etichetta }: { sezione: string; etichetta: string }) {
   const { struttura } = useOutletContext<ContestoHost>()
   const strutturaId = struttura?.id ?? null
@@ -48,7 +78,8 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const [proposte, setProposte] = useState<PropostaRow[]>([])
   const [caricamento, setCaricamento] = useState(true)
   const [modificaId, setModificaId] = useState<string | null>(null)
-  const [bozza, setBozza] = useState<Bozza>({ nome: '', descrizione: '', distanza: '', prezzo: '', voto: '', maps: '', telefono: '' })
+  const [nuovo, setNuovo] = useState(false)
+  const [bozza, setBozza] = useState<Bozza>(BOZZA_VUOTA)
   const [salvataggio, setSalvataggio] = useState(false)
   const [cercando, setCercando] = useState(false)
   const [esitoScout, setEsitoScout] = useState('')
@@ -86,6 +117,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   }
 
   function apriModifica(l: LuogoRow) {
+    setNuovo(false)
     setModificaId(l.id)
     setBozza({
       nome: l.nome,
@@ -98,12 +130,39 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     })
   }
 
+  function apriNuovo() {
+    setModificaId(null)
+    setBozza(BOZZA_VUOTA)
+    setNuovo(true)
+  }
+
   async function salva(id: string) {
     setSalvataggio(true)
     await supabase.from('luoghi').update(bozza).eq('id', id)
     setLuoghi(luoghi.map(l => l.id === id ? { ...l, ...bozza } : l))
     setSalvataggio(false)
     setModificaId(null)
+  }
+
+  async function aggiungiLuogo() {
+    if (!strutturaId || !bozza.nome.trim()) return
+    setSalvataggio(true)
+    await supabase.from('luoghi').insert({
+      struttura_id: strutturaId,
+      sezione,
+      nome: bozza.nome.trim(),
+      descrizione: bozza.descrizione,
+      distanza: bozza.distanza,
+      prezzo: bozza.prezzo,
+      voto: bozza.voto,
+      maps: bozza.maps,
+      telefono: bozza.telefono,
+      attivo: true,
+      ordine: 999,
+    })
+    setSalvataggio(false)
+    setNuovo(false)
+    await caricaTutto(strutturaId)
   }
 
   async function elimina(l: LuogoRow) {
@@ -212,32 +271,40 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
       {caricamento && <p>Caricamento...</p>}
 
+      {nuovo ? (
+        <div className="bg-white shadow rounded-xl p-3 mb-4 flex flex-col gap-2">
+          <p className="text-xs font-medium text-gray-400">NUOVO LUOGO</p>
+          <CampiLuogo bozza={bozza} setBozza={setBozza} />
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={aggiungiLuogo}
+              disabled={salvataggio || !bozza.nome.trim()}
+              className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50"
+            >
+              {salvataggio ? 'Aggiungo...' : 'Aggiungi'}
+            </button>
+            <button onClick={() => setNuovo(false)} className="flex-1 border rounded-lg py-2 text-sm">
+              Annulla
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={apriNuovo}
+          disabled={!strutturaId}
+          className="w-full border border-blue-600 text-blue-600 rounded-lg py-2 text-sm mb-4 disabled:opacity-50"
+        >
+          + Aggiungi un luogo a mano
+        </button>
+      )}
+
       <p className="text-xs font-medium text-gray-400 mb-2">GIÀ PRESENTI</p>
       <div className="flex flex-col gap-2">
         {luoghi.map((l) => (
           <div key={l.id} className="bg-white shadow rounded-xl p-3">
             {modificaId === l.id ? (
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-gray-500">Nome</label>
-                <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.nome} onChange={(e) => setBozza({ ...bozza, nome: e.target.value })} />
-                <label className="text-xs text-gray-500">Descrizione</label>
-                <textarea className="border rounded-lg px-3 py-2 text-sm" rows={3} value={bozza.descrizione} onChange={(e) => setBozza({ ...bozza, descrizione: e.target.value })} />
-                <label className="text-xs text-gray-500">Distanza</label>
-                <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.distanza} onChange={(e) => setBozza({ ...bozza, distanza: e.target.value })} />
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-500">Fascia di prezzo</label>
-                    <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="es. 15-25 €" value={bozza.prezzo} onChange={(e) => setBozza({ ...bozza, prezzo: e.target.value })} />
-                  </div>
-                  <div className="w-24">
-                    <label className="text-xs text-gray-500">Voto Google</label>
-                    <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="4,5" value={bozza.voto} onChange={(e) => setBozza({ ...bozza, voto: e.target.value })} />
-                  </div>
-                </div>
-                <label className="text-xs text-gray-500">Link Google Maps</label>
-                <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.maps} onChange={(e) => setBozza({ ...bozza, maps: e.target.value })} />
-                <label className="text-xs text-gray-500">Telefono</label>
-                <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.telefono} onChange={(e) => setBozza({ ...bozza, telefono: e.target.value })} />
+                <CampiLuogo bozza={bozza} setBozza={setBozza} />
                 <div className="flex gap-2 mt-2">
                   <button onClick={() => salva(l.id)} disabled={salvataggio} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50">
                     {salvataggio ? 'Salvo...' : 'Salva'}

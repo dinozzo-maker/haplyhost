@@ -108,19 +108,19 @@ export default async function handler(req, res) {
         'una pagina informativa della guida per gli ospiti di una casa vacanze'
       )
       if (trad) {
-        await supabase.from('pagine').update({ traduzioni: trad }).eq('id', p.id)
+        await supabase.from('pagine').update({ traduzioni: trad, da_tradurre: false }).eq('id', p.id)
         nPagine += 1
       }
     })
 
-    // Luoghi: solo quelli senza traduzioni.
+    // Luoghi: quelli senza traduzioni + quelli modificati dopo l'ultima traduzione (da_tradurre).
     const { data: luoghi } = await supabase
       .from('luoghi')
-      .select('id, descrizione, categoria, distanza, traduzioni')
+      .select('id, descrizione, categoria, distanza, traduzioni, da_tradurre')
       .eq('struttura_id', struttura_id)
 
     const daFare = (luoghi || []).filter(
-      (l) => !l.traduzioni || Object.keys(l.traduzioni).length === 0
+      (l) => l.da_tradurre === true || !l.traduzioni || Object.keys(l.traduzioni).length === 0
     )
 
     let nLuoghi = 0
@@ -131,7 +131,7 @@ export default async function handler(req, res) {
       if (l.distanza) campi.distanza = l.distanza
       const trad = await traduci(campi, 'una scheda di un luogo consigliato agli ospiti')
       if (trad) {
-        await supabase.from('luoghi').update({ traduzioni: trad }).eq('id', l.id)
+        await supabase.from('luoghi').update({ traduzioni: trad, da_tradurre: false }).eq('id', l.id)
         nLuoghi += 1
       }
     })

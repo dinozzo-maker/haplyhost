@@ -37,7 +37,8 @@ export default function GestisciPagina({ chiave, etichetta }: { chiave: string; 
     await supabase
       .from('pagine')
       .upsert(
-        { struttura_id: struttura.id, chiave, titolo, contenuto },
+        // da_tradurre: il testo è cambiato, le traduzioni EN/FR/DE/ES vanno rifatte
+        { struttura_id: struttura.id, chiave, titolo, contenuto, da_tradurre: true },
         { onConflict: 'struttura_id,chiave' }
       )
 
@@ -75,7 +76,11 @@ export default function GestisciPagina({ chiave, etichetta }: { chiave: string; 
         {salvataggio ? 'Salvo...' : 'Salva'}
       </button>
 
-      {salvato && <p className="text-sm text-green-600 mt-2 text-center">Salvato ✓</p>}
+      {salvato && (
+        <p className="text-sm text-green-600 mt-2 text-center">
+          Salvato ✓ — poi rilancia <Link to="/admin/traduzioni" className="underline">Traduzioni della guida</Link>
+        </p>
+      )}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useSezioni } from '../useSezioni'
@@ -10,6 +11,25 @@ export default function Admin() {
   const { session, struttura } = useOutletContext<ContestoHost>()
   const { tutte: SEZIONI } = useSezioni()
   const isSuperadmin = !!ADMIN_EMAIL && session.user.email?.toLowerCase() === ADMIN_EMAIL
+  const [daTradurre, setDaTradurre] = useState(0)
+
+  useEffect(() => {
+    const sid = struttura?.id
+    if (!sid) return
+    let vivo = true
+    ;(async () => {
+      try {
+        const [p, l] = await Promise.all([
+          supabase.from('pagine').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('da_tradurre', true),
+          supabase.from('luoghi').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('da_tradurre', true),
+        ])
+        if (vivo) setDaTradurre((p.count ?? 0) + (l.count ?? 0))
+      } catch {
+        if (vivo) setDaTradurre(0)
+      }
+    })()
+    return () => { vivo = false }
+  }, [struttura])
 
   if (!struttura) {
     return <CreaStruttura />
@@ -19,6 +39,16 @@ export default function Admin() {
     <div className="max-w-sm mx-auto p-6">
       <h1 className="text-xl font-bold mb-2">Sei dentro, {session.user.email}</h1>
       <p className="text-sm text-gray-500 mb-6">Pannello host — {struttura?.nome}</p>
+
+      {daTradurre > 0 && (
+        <Link
+          to="/admin/traduzioni"
+          className="block bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-3 text-sm mb-4"
+        >
+          ⚠️ Hai modificato {daTradurre} test{daTradurre === 1 ? 'o' : 'i'} dopo l'ultima traduzione.
+          Rilancia "Traduzioni della guida".
+        </Link>
+      )}
 
       <div className="flex flex-col gap-2 mb-6">
         <Link to="/admin/modifica-casa" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">

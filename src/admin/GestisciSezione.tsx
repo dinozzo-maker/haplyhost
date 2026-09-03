@@ -138,7 +138,8 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
   async function salva(id: string) {
     setSalvataggio(true)
-    await supabase.from('luoghi').update(bozza).eq('id', id)
+    // da_tradurre: il testo è cambiato, va rifatta la traduzione
+    await supabase.from('luoghi').update({ ...bozza, da_tradurre: true }).eq('id', id)
     setLuoghi(luoghi.map(l => l.id === id ? { ...l, ...bozza } : l))
     setSalvataggio(false)
     setModificaId(null)
@@ -159,6 +160,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       telefono: bozza.telefono,
       attivo: true,
       ordine: 999,
+      da_tradurre: true,
     })
     setSalvataggio(false)
     setNuovo(false)
@@ -212,6 +214,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       telefono: p.telefono,
       attivo: true,
       ordine: 999,
+      da_tradurre: true,
     })
     await supabase.from('proposte').delete().eq('id', p.id)
     await caricaTutto(strutturaId)

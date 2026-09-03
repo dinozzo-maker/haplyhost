@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { ContestoHost } from './RichiedeLogin'
@@ -7,6 +7,25 @@ export default function TraduciGuida() {
   const { struttura } = useOutletContext<ContestoHost>()
   const [traducendo, setTraducendo] = useState(false)
   const [esito, setEsito] = useState('')
+  const [daTradurre, setDaTradurre] = useState(0)
+
+  useEffect(() => {
+    const sid = struttura?.id
+    if (!sid) return
+    let vivo = true
+    ;(async () => {
+      try {
+        const [p, l] = await Promise.all([
+          supabase.from('pagine').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('da_tradurre', true),
+          supabase.from('luoghi').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('da_tradurre', true),
+        ])
+        if (vivo) setDaTradurre((p.count ?? 0) + (l.count ?? 0))
+      } catch {
+        if (vivo) setDaTradurre(0)
+      }
+    })()
+    return () => { vivo = false }
+  }, [struttura])
 
   async function traduci() {
     if (!struttura) return
@@ -30,6 +49,7 @@ export default function TraduciGuida() {
         return
       }
       setEsito(`Tradotte ${dati.pagine} pagine e ${dati.luoghi} luoghi ✓`)
+      setDaTradurre(0)
     } catch {
       setEsito('Errore di connessione, riprova.')
     } finally {
@@ -60,6 +80,13 @@ export default function TraduciGuida() {
         Rilancialo ogni volta che modifichi un testo: le traduzioni non si aggiornano da sole.
         Ci vuole circa un minuto.
       </p>
+
+      {daTradurre > 0 && (
+        <p className="bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-3 text-sm mb-3">
+          Ci sono {daTradurre} test{daTradurre === 1 ? 'o' : 'i'} modificat{daTradurre === 1 ? 'o' : 'i'}
+          {' '}dopo l'ultima traduzione.
+        </p>
+      )}
 
       <button
         onClick={traduci}

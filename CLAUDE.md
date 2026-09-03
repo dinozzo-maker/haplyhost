@@ -41,8 +41,8 @@ haplyhost/
 │   │                          DUE chiamate a `MODELLO_GEMINI` (`generateContent`; interruttore `MOTORE_GENNARINO`): 1) piccola,
 │   │                          riconosce la lingua dell'ospite; 2) la risposta, con quella lingua come vincolo. Carattere napoletano
 │   │                          nel system prompt (con esempi). `lang` dal body = ripiego. Strip `*`/`#` markdown.
-│   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni (en/fr/de/es) → `pagine.traduzioni` /
-│   │                          `luoghi.traduzioni`. Chiamate a lotti di 4. `vercel.json` maxDuration 60. Pulsante in ModificaCasa.
+│   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni O con `da_tradurre=true` (en/fr/de/es)
+│   │                          → `*.traduzioni`, e azzera `da_tradurre`. Lotti di 4. `vercel.json` maxDuration 60. Pulsante in `/admin/traduzioni`.
 │   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,
 │   │                          uguale in GestisciSezione.tsx): false → l'endpoint torna 503 senza chiamare AI.
 │   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding; prezzo e voto
@@ -112,8 +112,9 @@ haplyhost/
 │       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco luoghi con toggle attivo/spento,
 │       │                          modifica inline + "Elimina questo luogo" (DELETE, dentro la modifica), "+ Aggiungi un luogo a mano"
 │       │                          (INSERT), "Cerca nuovi luoghi" (Scout) + proposte da Accettare/Rifiutare. Campi condivisi modifica/nuovo:
-│       │                          <CampiLuogo> (nome/descrizione/distanza/prezzo/voto/maps/telefono)
-│       └── GestisciPagina.tsx   ← UNICO componente riusato per tutte e 6 le sezioni 'testo': editor titolo+contenuto su `pagine`
+│       │                          <CampiLuogo> (nome/descrizione/distanza/prezzo/voto/maps/telefono). Salva/aggiungi/accetta → `da_tradurre=true`
+│       └── GestisciPagina.tsx   ← UNICO componente riusato per tutte e 6 le sezioni 'testo': editor titolo+contenuto su `pagine`.
+│                                  Salva → upsert con `da_tradurre=true` + ricorda di rilanciare "Traduzioni della guida"
 ```
 
 ## Pattern architetturali importanti
@@ -172,6 +173,7 @@ domande (id uuid pk, struttura_id, domanda, risposta, lang default 'it', creato_
 pagine (
   id uuid pk, struttura_id uuid references strutture(id) on delete cascade,
   chiave text, titolo text, contenuto text, traduzioni jsonb,   -- traduzioni: { en:{titolo,contenuto}, fr:{...}, ... }, popolato da api/traduci-guida.js
+  da_tradurre boolean default false,   -- migration 0009: true se il testo è cambiato dopo l'ultima traduzione (come luoghi.da_tradurre)
   unique (struttura_id, chiave)
 )
 
@@ -200,7 +202,7 @@ sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di
 ```
 
 **Policy RLS attuali (stato finale, non cronologia):**
-- `strutture`: SELECT pubblico (anon+authenticated) dove `attivo=true`; UPDATE per `authenticated` dove `owner_user_id = auth.uid()`
+- `strutture`: SELECT pubblico (anon+authenticated) dove `attivo=true` **+** SELECT per `authenticated` dove `owner_user_id = auth.uid()` (migration 0010 — così l'host vede la propria struttura anche se `attivo=false`); UPDATE per `authenticated` dove `owner_user_id = auth.uid()`
 - `strutture_segreti`: RLS on, zero policy — accesso solo server-side con service role
 - `luoghi`: SELECT pubblico dove `attivo=true` **+** una policy `for all` per `authenticated` scoped a `struttura_id in (select id from strutture where owner_user_id = auth.uid())`
 - `pagine`: SELECT pubblico senza restrizioni **+** policy `for all` per `authenticated` scoped come sopra
@@ -218,7 +220,9 @@ lanciata su Supabase 03/09/2026), `0006_storage_copertine.sql` (bucket Storage p
 + policy su `storage.objects`: INSERT/UPDATE/DELETE per `authenticated`, SELECT pubblico; per il
 pulsante "Carica foto" in ModificaCasa), `0007_note_gennarino.sql` (colonna `strutture.note_gennarino`,
 letta da `api/gennarino.js` — SQL prima del push), `0008_domande_lettura_host.sql` (RLS su `domande` +
-policy SELECT per l'host, per la pagina `/admin/domande`). Lo schema sopra resta la fonte di verità scritta;
+policy SELECT per l'host, per la pagina `/admin/domande`), `0009_pagine_da_tradurre.sql` (colonna
+`pagine.da_tradurre` + azzera i flag vestigiali di `luoghi.da_tradurre`), `0010_strutture_select_owner.sql`
+(policy SELECT `strutture` per l'owner). Lo schema sopra resta la fonte di verità scritta;
 restano NON tracciati la colonna `link_riferimento` e la policy RLS `strutture` per owner. Da qui in
 avanti ogni `ALTER TABLE` / `CREATE POLICY` va in un file numerato lì dentro. ⚠️ Quando una migration
 aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), lanciare l'SQL
@@ -291,7 +295,6 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 
 **Debiti tecnici aperti:**
 - Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` (in una migration) + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
-- Nessuna policy RLS `strutture` SELECT per `authenticated` scoped su `owner_user_id`: oggi l'host trova la propria struttura solo grazie alla policy pubblica `attivo=true`. Se una struttura viene spenta, l'host non la vede più nel pannello.
 
 **Non ancora iniziato:**
 - **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
@@ -303,7 +306,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
   - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo
     per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
-- Multilingua, follow-up: traduzione delle etichette delle sezioni **custom** (`sezioni_extra`, oggi solo italiano); segnale di "traduzione da rifare" quando l'host modifica una pagina/luogo già tradotto (oggi si rilancia "Traduci la guida" a mano e riscrive tutto).
+- Multilingua, follow-up: traduzione delle etichette delle sezioni **custom** (`sezioni_extra`, oggi solo italiano). Il segnale "traduzione da rifare" è fatto (`da_tradurre` su pagine+luoghi → avviso ambra in `/admin` e in `/admin/traduzioni`; `traduci-guida.js` lo azzera).
 - Ottimizzazione foto di copertina: l'upload (`ModificaCasa` → bucket `copertine`) non ridimensiona l'immagine — un JPEG da telefono può essere pesante. Client-side resize (canvas) prima dell'upload, tetto attuale 5 MB. Le trasformazioni immagine di Supabase richiedono il piano Pro. Pulizia dei file orfani non fatta.
 - Visualizzazione dei sotto-blocchi "Aperitivi" e "Stellati" dentro la pagina "Dove Mangiare" (dati presenti in `luoghi` con quelle sezioni, nessuna UI dedicata — oggi sarebbero raggiungibili solo con un URL manuale tipo `/villavirginia/aperitivi`, non linkato da nessuna parte)
 - **Reskin del pannello admin**: la guida ospiti è riskinnata (design system `g-*`); l'admin resta su Tailwind grezzo. Serve un impianto grafico dedicato più sobrio/editoriale (mockup "v2" già approvato a voce), separato da `g-*`.

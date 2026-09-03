@@ -75,6 +75,17 @@ export function conNome(template: string, nome: string): string {
   return template.replace('%s', nome)
 }
 
+// Frasi che, in una pagina di testo, diventano un link "chiama" (tel:).
+// La parola "WhatsApp" è gestita a parte (è uguale in tutte le lingue).
+// Ordine: le più lunghe prima, per il match.
+export const FRASI_TELEFONO: Record<Lingua, string[]> = {
+  it: ['telefonicamente', 'al telefono', 'per telefono', 'via telefono'],
+  en: ['by telephone', 'by phone', 'over the phone', 'on the phone'],
+  fr: ['par téléphone', 'au téléphone'],
+  de: ['telefonisch', 'per telefon', 'am telefon'],
+  es: ['por teléfono', 'al teléfono'],
+}
+
 // ---- dizionario dei testi fissi della guida ----
 const IT = {
   tornaHome: 'Torna alla home',

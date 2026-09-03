@@ -324,10 +324,14 @@ export default function ModificaCasa() {
 
       <label className="text-xs text-gray-500">Telefono host</label>
       <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
+        className="w-full border rounded-lg px-3 py-2 text-sm mb-1"
         value={dati.host_telefono}
         onChange={(e) => aggiorna('host_telefono', e.target.value)}
+        placeholder="+39 333 1234567"
       />
+      <p className="text-xs text-gray-400 mb-3">
+        Con il prefisso internazionale (+39…): la guida lo usa per i link "WhatsApp" e "Chiama".
+      </p>
 
       <div className="flex gap-3 mb-3">
         <div className="flex-1">

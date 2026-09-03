@@ -263,6 +263,17 @@
   line-height: 1.65;
   color: var(--g-ink);
 }
+.g-prose a,
+.g-link {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--g-accent-l);
+  color: var(--g-accent-d);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
 
 /* --- Gennarino --- */
 .g-hint {

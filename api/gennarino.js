@@ -64,7 +64,7 @@ export default async function handler(req, res) {
   const [{ data: struttura }, { data: luoghi }, { data: pagine }, linguaRisposta] = await Promise.all([
     supabase
       .from('strutture')
-      .select('nome, indirizzo, citta, checkin, checkout, host_nome, host_telefono, max_ospiti, descrizione_casa')
+      .select('nome, indirizzo, citta, checkin, checkout, host_nome, host_telefono, max_ospiti, descrizione_casa, note_gennarino')
       .eq('id', struttura_id)
       .single(),
     supabase
@@ -120,7 +120,10 @@ LUOGHI CONSIGLIATI:
 ${elencoLuoghi}
 
 INFORMAZIONI DELLA CASA:
-${elencoPagine}`
+${elencoPagine}
+
+NOTE PRATICHE DELLA CASA (scritte dall'host):
+${struttura?.note_gennarino || 'Nessuna nota pratica aggiuntiva.'}`
 
   try {
     const grezzo = await chiamaClaude({

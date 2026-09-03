@@ -35,7 +35,7 @@ Modello di business: piani Guida (14€/mese), Concierge (29€/mese), Portfolio
 haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
-│   ├── gennarino.js         ← chat AI ospiti: legge struttura + luoghi + pagine, chiama Claude, logga su `domande`.
+│   ├── gennarino.js         ← chat AI ospiti: legge struttura (incl. `note_gennarino`) + luoghi + pagine, chiama Claude, logga su `domande`.
 │   │                          DUE chiamate Haiku: 1) piccola, riconosce la lingua dell'ospite (dalle ultime righe della chat);
 │   │                          2) la risposta, con quella lingua come vincolo secco. `lang` dal body = ripiego. Strip `*`/`#` markdown.
 │   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni (en/fr/de/es) → `pagine.traduzioni` /
@@ -97,6 +97,8 @@ haplyhost/
 │       │                          su `strutture` (RLS owner). Blocco "Aspetto della guida": 5 preset colore (`accento`) + foto
 │       │                          copertina — "Carica foto" (upload su Storage bucket `copertine`, salva SUBITO `copertina_url`)
 │       │                          o link incollato (in `<details>`, staged). Riquadro "Rigenera la descrizione" → POST /api/aggiorna-casa
+│       ├── NoteGennarino.tsx     ← rotta /admin/note (link nel pannello): textarea `strutture.note_gennarino` → UPDATE diretto.
+│       │                          Info pratiche libere per Gennarino, NON una sezione della guida
 │       ├── TraduciGuida.tsx      ← rotta /admin/traduzioni (link nel pannello): pulsante "Traduci la guida" → POST /api/traduci-guida
 │       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: spunte "mostra nella guida" (sistema + custom) → UPDATE `strutture.sezioni_attive`.
 │       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
@@ -128,6 +130,7 @@ strutture (
   sezioni_attive jsonb,   -- migration 0003: array delle chiavi sezione da mostrare in guida. NULL = tutte
   accento text,           -- migration 0005: colore d'accento della guida (hex). NULL = teal di default
   copertina_url text,     -- migration 0005: link immagine hero. NULL = gradiente dal colore accento
+  note_gennarino text,    -- migration 0007: testo libero dell'host, solo per il prompt di Gennarino (non è una sezione guida)
   attivo boolean, creato_il timestamptz,
   owner_user_id uuid references auth.users(id) on delete set null   -- ON DELETE SET NULL da migration 0002:
   --   cancellare un utente Auth NON cancella/blocca la sua struttura (diventa senza proprietario)
@@ -207,7 +210,8 @@ sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di
 + `strutture.copertina_url`, `luoghi.prezzo` + `luoghi.voto`, `proposte.prezzo` + `proposte.voto`;
 lanciata su Supabase 03/09/2026), `0006_storage_copertine.sql` (bucket Storage pubblico `copertine`
 + policy su `storage.objects`: INSERT/UPDATE/DELETE per `authenticated`, SELECT pubblico; per il
-pulsante "Carica foto" in ModificaCasa). Lo schema sopra resta la fonte di verità scritta;
+pulsante "Carica foto" in ModificaCasa), `0007_note_gennarino.sql` (colonna `strutture.note_gennarino`,
+letta da `api/gennarino.js` — SQL prima del push). Lo schema sopra resta la fonte di verità scritta;
 restano NON tracciati la colonna `link_riferimento` e la policy RLS `strutture` per owner. Da qui in
 avanti ogni `ALTER TABLE` / `CREATE POLICY` va in un file numerato lì dentro. ⚠️ Quando una migration
 aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), lanciare l'SQL

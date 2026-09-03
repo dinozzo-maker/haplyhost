@@ -8,6 +8,7 @@ import Login from './admin/Login'
 import RichiedeLogin from './admin/RichiedeLogin'
 import Admin from './admin/Admin'
 import ModificaCasa from './admin/ModificaCasa'
+import NoteGennarino from './admin/NoteGennarino'
 import TraduciGuida from './admin/TraduciGuida'
 import SezioniGuida from './admin/SezioniGuida'
 import SezioniExtra from './admin/SezioniExtra'
@@ -25,6 +26,7 @@ function App() {
       <Route path="/admin" element={<RichiedeLogin />}>
         <Route index element={<Admin />} />
         <Route path="modifica-casa" element={<ModificaCasa />} />
+        <Route path="note" element={<NoteGennarino />} />
         <Route path="traduzioni" element={<TraduciGuida />} />
         <Route path="sezioni-guida" element={<SezioniGuida />} />
         <Route path="sezioni-extra" element={<SezioniExtra />} />

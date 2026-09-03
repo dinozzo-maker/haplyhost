@@ -35,9 +35,9 @@ Modello di business: piani Guida (14€/mese), Concierge (29€/mese), Portfolio
 haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
-│   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`.
-│   │                          Risponde nella LINGUA DELLA DOMANDA (direttiva con esempi in cima + promemoria in fondo); `lang` dal body è
-│   │                          solo il ripiego per messaggi ambigui. Strip di `*`/`#` markdown dalla risposta (Haiku ogni tanto lo infila).
+│   ├── gennarino.js         ← chat AI ospiti: legge struttura + luoghi + pagine, chiama Claude, logga su `domande`.
+│   │                          DUE chiamate Haiku: 1) piccola, riconosce la lingua dell'ospite (dalle ultime righe della chat);
+│   │                          2) la risposta, con quella lingua come vincolo secco. `lang` dal body = ripiego. Strip `*`/`#` markdown.
 │   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni (en/fr/de/es) → `pagine.traduzioni` /
 │   │                          `luoghi.traduzioni`. Chiamate a lotti di 4. `vercel.json` maxDuration 60. Pulsante in ModificaCasa.
 │   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,

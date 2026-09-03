@@ -7,7 +7,38 @@ const supabase = createClient(
 
 const NOMI_LINGUA = { it: 'italiano', en: 'inglese', fr: 'francese', de: 'tedesco', es: 'spagnolo' }
 
-async function chiamaClaude({ system, messages, max_tokens }) {
+// MOTORE: 'gemini' (Flash-Lite, in uso — come Scout, costo ~1/10) | 'claude' (Haiku, fallback spento).
+const MOTORE_GENNARINO = 'gemini'
+const MODELLO_GEMINI = 'gemini-3.1-flash-lite'
+
+// Helper con firma uniforme { system, messages[{role:'user'|'assistant', content}], max_tokens, temperature }.
+async function chiamaGemini({ system, messages, max_tokens, temperature = 0.7 }) {
+  const contents = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: String(m.content) }],
+  }))
+  const risposta = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODELLO_GEMINI}:generateContent`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents,
+        generationConfig: { maxOutputTokens: max_tokens, temperature },
+      }),
+    }
+  )
+  const grezzo = await risposta.json().catch(() => null)
+  // L'API Gemini restituisce gli errori dentro un array: [{"error":{...}}].
+  const dati = Array.isArray(grezzo) ? (grezzo[0] || {}) : (grezzo || {})
+  if (!risposta.ok || dati.error) {
+    throw new Error('Gemini: ' + (dati.error?.message || `HTTP ${risposta.status}`))
+  }
+  return (dati.candidates?.[0]?.content?.parts || []).map(p => p.text).filter(Boolean).join('')
+}
+
+async function chiamaClaude({ system, messages, max_tokens, temperature }) {
   const risposta = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -15,14 +46,24 @@ async function chiamaClaude({ system, messages, max_tokens }) {
       'x-api-key': process.env.ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
     },
-    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens, system, messages }),
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens,
+      system,
+      messages,
+      ...(temperature != null ? { temperature } : {}),
+    }),
   })
   const dati = await risposta.json()
   return dati?.content?.[0]?.text || ''
 }
 
+function chiamaAI(opts) {
+  return MOTORE_GENNARINO === 'claude' ? chiamaClaude(opts) : chiamaGemini(opts)
+}
+
 // Chiamata piccola e dedicata: riconosce in che lingua scrive l'ospite.
-// In isolamento (senza il contesto tutto-italiano di Gennarino) Haiku la azzecca.
+// In isolamento (senza il contesto tutto-italiano di Gennarino) il modello la azzecca.
 // Guarda le ultime righe della chat, così anche un "ok" dopo domande in francese
 // resta francese. `fallback` = lingua della guida, per casi davvero ambigui.
 async function rilevaLinguaDomanda(messaggi, fallback) {
@@ -31,18 +72,18 @@ async function rilevaLinguaDomanda(messaggi, fallback) {
     .map(m => `${m.role === 'user' ? 'Ospite' : 'Gennarino'}: ${String(m.content).slice(0, 300)}`)
     .join('\n')
   try {
-    const parola = (
-      await chiamaClaude({
+    const grezzo = (
+      await chiamaAI({
         system:
           'Ti mando le ultime righe di una chat tra un ospite e un concierge. In che lingua sta scrivendo l\'Ospite? Guarda soprattutto l\'ULTIMA riga dell\'Ospite; se è corta usala comunque se riconoscibile ("merci"/"bonjour" = francese, "grazie"/"ciao" = italiano, "thanks"/"hi" = inglese, "danke"/"hallo" = tedesco, "gracias"/"hola" = spagnolo), altrimenti guarda le righe prima. Rispondi con UNA sola parola tra: italiano, inglese, francese, tedesco, spagnolo, incerto. Niente altro.',
         messages: [{ role: 'user', content: ultime }],
-        max_tokens: 8,
+        max_tokens: 20,
+        temperature: 0,
       })
-    )
-      .toLowerCase()
-      .trim()
+    ).toLowerCase()
     const mappa = { italiano: 'it', inglese: 'en', francese: 'fr', tedesco: 'de', spagnolo: 'es' }
-    return mappa[parola] || fallback
+    const trovata = Object.keys(mappa).find(k => grezzo.includes(k))
+    return trovata ? mappa[trovata] : fallback
   } catch {
     return fallback
   }
@@ -142,13 +183,13 @@ NOTE PRATICHE DELLA CASA (scritte dall'host):
 ${struttura?.note_gennarino || 'Nessuna nota pratica aggiuntiva.'}`
 
   try {
-    const grezzo = await chiamaClaude({
+    const grezzo = await chiamaAI({
       system: systemPrompt,
       messages: [...storico, { role: 'user', content: domanda }],
       max_tokens: 500,
     })
 
-    // Rete di sicurezza: Haiku ogni tanto infila **grassetto** o titoli markdown
+    // Rete di sicurezza: il modello ogni tanto infila **grassetto** o titoli markdown
     // nonostante il prompt lo vieti. Li togliamo qui (Gennarino parla a voce).
     const testo = (grezzo || 'Scusa, non sono riuscito a rispondere. Riprova tra poco.')
       .replace(/\*+/g, '')

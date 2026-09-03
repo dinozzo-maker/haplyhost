@@ -49,6 +49,10 @@ export default function ModificaCasa() {
   const [salvato, setSalvato] = useState(false)
   const [errore, setErrore] = useState('')
 
+  // Foto di copertina: caricamento file su Supabase Storage
+  const [caricamentoFoto, setCaricamentoFoto] = useState(false)
+  const [fotoEsito, setFotoEsito] = useState('') // '' | 'ok' | messaggio d'errore
+
   // Riquadro separato: rigenera la descrizione da un nuovo link
   const [link, setLink] = useState('')
   const [rigenerando, setRigenerando] = useState(false)
@@ -95,6 +99,64 @@ export default function ModificaCasa() {
   function aggiorna(campo: keyof DatiCasa, valore: string) {
     setDati((d) => ({ ...d, [campo]: valore }))
     setSalvato(false)
+  }
+
+  // Carica un'immagine su Storage e salva SUBITO il link (non aspetta il pulsante "Salva":
+  // è un'azione a sé, con il suo bottone).
+  async function caricaFoto(file: File) {
+    if (!struttura) return
+    setFotoEsito('')
+    if (!file.type.startsWith('image/')) {
+      setFotoEsito('Serve un file immagine (jpg, png…).')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFotoEsito('Immagine troppo pesante (massimo 5 MB). Rimpiccioliscila e riprova.')
+      return
+    }
+    setCaricamentoFoto(true)
+
+    const { data: s } = await supabase.auth.getSession()
+    const uid = s.session?.user.id ?? 'anon'
+    const ext = (file.name.match(/\.([a-z0-9]+)$/i)?.[1] || 'jpg').toLowerCase()
+    const percorso = `${uid}/${struttura.id}-${Date.now()}.${ext}`
+
+    const caricamento = await supabase.storage
+      .from('copertine')
+      .upload(percorso, file, { upsert: true, cacheControl: '3600' })
+    if (caricamento.error) {
+      setCaricamentoFoto(false)
+      setFotoEsito('Caricamento non riuscito: ' + caricamento.error.message)
+      return
+    }
+
+    const { data: pub } = supabase.storage.from('copertine').getPublicUrl(percorso)
+    const { error } = await supabase
+      .from('strutture')
+      .update({ copertina_url: pub.publicUrl })
+      .eq('id', struttura.id)
+
+    setCaricamentoFoto(false)
+    if (error) {
+      setFotoEsito('Foto caricata ma non salvata: ' + error.message)
+      return
+    }
+    setDati((d) => ({ ...d, copertina_url: pub.publicUrl }))
+    setFotoEsito('ok')
+  }
+
+  async function rimuoviFoto() {
+    if (!struttura) return
+    setFotoEsito('')
+    const { error } = await supabase
+      .from('strutture')
+      .update({ copertina_url: null })
+      .eq('id', struttura.id)
+    if (error) {
+      setFotoEsito('Non sono riuscito a togliere la foto: ' + error.message)
+      return
+    }
+    setDati((d) => ({ ...d, copertina_url: '' }))
   }
 
   async function salva() {
@@ -294,17 +356,60 @@ export default function ModificaCasa() {
         Tinta di accento: bottoni, intestazione, pastiglie. Il default è "Mare".
       </p>
 
-      <label className="text-xs text-gray-500">Foto di copertina (link)</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-1"
-        value={dati.copertina_url}
-        onChange={(e) => aggiorna('copertina_url', e.target.value)}
-        placeholder="https://..."
-      />
-      <p className="text-xs text-gray-400 mb-4">
-        Incolla il link di una foto (es. quella dell'annuncio): diventa lo sfondo dell'intestazione.
-        Lascia vuoto per una tinta con il colore scelto sopra. Il caricamento diretto arriva più avanti.
-      </p>
+      <label className="text-xs text-gray-500">Foto di copertina</label>
+      {dati.copertina_url && (
+        <img
+          src={dati.copertina_url}
+          alt="Anteprima copertina"
+          className="w-full h-28 object-cover rounded-lg border mt-1 mb-2"
+        />
+      )}
+      <div className="flex gap-2">
+        <label
+          className={`flex-1 text-center border rounded-lg py-2 text-sm cursor-pointer ${
+            caricamentoFoto ? 'opacity-50' : 'border-blue-600 text-blue-600'
+          }`}
+        >
+          {caricamentoFoto ? 'Carico...' : dati.copertina_url ? 'Cambia foto' : 'Carica foto'}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={caricamentoFoto}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (f) caricaFoto(f)
+            }}
+          />
+        </label>
+        {dati.copertina_url && (
+          <button
+            type="button"
+            onClick={rimuoviFoto}
+            className="border rounded-lg px-3 text-sm text-red-600"
+          >
+            Rimuovi
+          </button>
+        )}
+      </div>
+      {fotoEsito === 'ok' ? (
+        <p className="text-green-600 text-xs mt-1">Foto di copertina aggiornata ✓</p>
+      ) : (
+        fotoEsito && <p className="text-red-600 text-xs mt-1">{fotoEsito}</p>
+      )}
+      <details className="mt-2 mb-4">
+        <summary className="text-xs text-gray-400 cursor-pointer">oppure incolla un link a un'immagine</summary>
+        <input
+          className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
+          value={dati.copertina_url}
+          onChange={(e) => aggiorna('copertina_url', e.target.value)}
+          placeholder="https://..."
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          Con il link, ricordati di premere "Salva" in fondo. Lascia vuoto per una tinta con il colore scelto sopra.
+        </p>
+      </details>
 
       <button
         onClick={salva}

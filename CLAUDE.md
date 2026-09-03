@@ -82,8 +82,9 @@ haplyhost/
 │       │                          → mostra il link di invito da copiare e mandare. Sotto, l'elenco degli host già autorizzati.
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
-│       │                          su `strutture` (RLS owner). Blocco "Aspetto della guida": 5 preset colore (`accento`) + link
-│       │                          copertina (`copertina_url`). Riquadro separato "rigenera descrizione da un link" → POST /api/aggiorna-casa
+│       │                          su `strutture` (RLS owner). Blocco "Aspetto della guida": 5 preset colore (`accento`) + foto
+│       │                          copertina — "Carica foto" (upload su Storage bucket `copertine`, salva SUBITO `copertina_url`)
+│       │                          o link incollato (in `<details>`, staged). Riquadro separato "rigenera descrizione" → POST /api/aggiorna-casa
 │       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: spunte "mostra nella guida" (sistema + custom) → UPDATE `strutture.sezioni_attive`.
 │       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
 │       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona via
@@ -182,12 +183,15 @@ sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di
 - `proposte`: solo la policy scoped per `authenticated` come sopra, nessun accesso pubblico
 - `soggiorni`: SELECT pubblico solo per la riga dove `current_date` è tra `checkin` e `checkout` (privacy: non si vedono soggiorni passati/futuri)
 - `sezioni_extra`: SELECT pubblico senza restrizioni; nessuna policy di scrittura (solo service role via API)
+- **Storage** `storage.objects` (migration 0006): bucket `copertine` (public), INSERT/UPDATE/DELETE per `authenticated` dove `bucket_id='copertine'` (non scoped per host: un host solo oggi), SELECT pubblico. Le foto di copertina delle guide.
 
 `supabase/migrations/`: `0001_host_autorizzati.sql`, `0002_strutture_owner_on_delete_set_null.sql`
 (FK owner_user_id → SET NULL), `0003_strutture_sezioni_attive.sql` (colonna `sezioni_attive`),
 `0004_sezioni_extra.sql` (tabella sezioni custom), `0005_guida_grafica.sql` (colonne `strutture.accento`
 + `strutture.copertina_url`, `luoghi.prezzo` + `luoghi.voto`, `proposte.prezzo` + `proposte.voto`;
-lanciata su Supabase 03/09/2026). Lo schema sopra resta la fonte di verità scritta;
+lanciata su Supabase 03/09/2026), `0006_storage_copertine.sql` (bucket Storage pubblico `copertine`
++ policy su `storage.objects`: INSERT/UPDATE/DELETE per `authenticated`, SELECT pubblico; per il
+pulsante "Carica foto" in ModificaCasa). Lo schema sopra resta la fonte di verità scritta;
 restano NON tracciati la colonna `link_riferimento` e la policy RLS `strutture` per owner. Da qui in
 avanti ogni `ALTER TABLE` / `CREATE POLICY` va in un file numerato lì dentro. ⚠️ Quando una migration
 aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), lanciare l'SQL
@@ -272,7 +276,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
     per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
 - Multilingua: `luoghi.traduzioni` ha già dati reali in 5 lingue importati da V1; manca il selettore lingua e la logica di lettura nel frontend; `pagine` ha solo italiano. (Il mockup del reskin aveva un selettore `.lang`, non portato: qui va agganciato.)
-- Upload della foto di copertina via Supabase Storage: oggi in ModificaCasa si incolla un link (`copertina_url`). Aggiungere un vero caricamento file.
+- Ottimizzazione foto di copertina: l'upload (`ModificaCasa` → bucket `copertine`) non ridimensiona l'immagine — un JPEG da telefono può essere pesante. Client-side resize (canvas) prima dell'upload, tetto attuale 5 MB. Le trasformazioni immagine di Supabase richiedono il piano Pro. Pulizia dei file orfani non fatta.
 - Visualizzazione dei sotto-blocchi "Aperitivi" e "Stellati" dentro la pagina "Dove Mangiare" (dati presenti in `luoghi` con quelle sezioni, nessuna UI dedicata — oggi sarebbero raggiungibili solo con un URL manuale tipo `/villavirginia/aperitivi`, non linkato da nessuna parte)
 - **Reskin del pannello admin**: la guida ospiti è riskinnata (design system `g-*`); l'admin resta su Tailwind grezzo. Serve un impianto grafico dedicato più sobrio/editoriale (mockup "v2" già approvato a voce), separato da `g-*`.
 - **"Il consiglio di oggi"**: c'era nel mockup del reskin (chiamata AI a costo), rimosso su richiesta. Da riprendere quando c'è budget AI e cache.

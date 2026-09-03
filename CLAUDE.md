@@ -99,6 +99,8 @@ haplyhost/
 │       │                          o link incollato (in `<details>`, staged). Riquadro "Rigenera la descrizione" → POST /api/aggiorna-casa
 │       ├── NoteGennarino.tsx     ← rotta /admin/note (link nel pannello): textarea `strutture.note_gennarino` → UPDATE diretto.
 │       │                          Info pratiche libere per Gennarino, NON una sezione della guida
+│       ├── DomandeOspiti.tsx     ← rotta /admin/domande (link nel pannello): elenco `domande` della struttura (cosa hanno chiesto
+│       │                          gli ospiti a Gennarino), tap per vedere la risposta. Sola lettura (migration 0008)
 │       ├── TraduciGuida.tsx      ← rotta /admin/traduzioni (link nel pannello): pulsante "Traduci la guida" → POST /api/traduci-guida
 │       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: spunte "mostra nella guida" (sistema + custom) → UPDATE `strutture.sezioni_attive`.
 │       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
@@ -162,7 +164,7 @@ luoghi (
 annunci (struttura_id, testo, attivo, creato_il)     -- non ancora usata dal frontend V2
 eventi  (struttura_id, data, titolo, descrizione, attivo)  -- non ancora usata dal frontend V2
 soggiorni (struttura_id, nome, checkin, checkout, con_bambini)  -- non ancora usata; serve per il Wi-Fi legato al soggiorno (feature pendente)
-domande (struttura_id, domanda, risposta, lang default 'it', creato_il)  -- log Gennarino, scritto da api/gennarino.js con service role (lang = lingua della guida)
+domande (id uuid pk, struttura_id, domanda, risposta, lang default 'it', creato_il)  -- log Gennarino, scritto da api/gennarino.js con service role (lang = lingua rilevata). RLS: SELECT per l'host della struttura (migration 0008)
 
 pagine (
   id uuid pk, struttura_id uuid references strutture(id) on delete cascade,
@@ -200,6 +202,7 @@ sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di
 - `luoghi`: SELECT pubblico dove `attivo=true` **+** una policy `for all` per `authenticated` scoped a `struttura_id in (select id from strutture where owner_user_id = auth.uid())`
 - `pagine`: SELECT pubblico senza restrizioni **+** policy `for all` per `authenticated` scoped come sopra
 - `proposte`: solo la policy scoped per `authenticated` come sopra, nessun accesso pubblico
+- `domande`: RLS on; SELECT per `authenticated` scoped a `struttura_id in (select id from strutture where owner_user_id = auth.uid())` (migration 0008). Scrittura solo service role (api/gennarino.js). Nessun accesso anon.
 - `soggiorni`: SELECT pubblico solo per la riga dove `current_date` è tra `checkin` e `checkout` (privacy: non si vedono soggiorni passati/futuri)
 - `sezioni_extra`: SELECT pubblico senza restrizioni; nessuna policy di scrittura (solo service role via API)
 - **Storage** `storage.objects` (migration 0006): bucket `copertine` (public), INSERT/UPDATE/DELETE per `authenticated` dove `bucket_id='copertine'` (non scoped per host: un host solo oggi), SELECT pubblico. Le foto di copertina delle guide.
@@ -211,7 +214,8 @@ sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di
 lanciata su Supabase 03/09/2026), `0006_storage_copertine.sql` (bucket Storage pubblico `copertine`
 + policy su `storage.objects`: INSERT/UPDATE/DELETE per `authenticated`, SELECT pubblico; per il
 pulsante "Carica foto" in ModificaCasa), `0007_note_gennarino.sql` (colonna `strutture.note_gennarino`,
-letta da `api/gennarino.js` — SQL prima del push). Lo schema sopra resta la fonte di verità scritta;
+letta da `api/gennarino.js` — SQL prima del push), `0008_domande_lettura_host.sql` (RLS su `domande` +
+policy SELECT per l'host, per la pagina `/admin/domande`). Lo schema sopra resta la fonte di verità scritta;
 restano NON tracciati la colonna `link_riferimento` e la policy RLS `strutture` per owner. Da qui in
 avanti ogni `ALTER TABLE` / `CREATE POLICY` va in un file numerato lì dentro. ⚠️ Quando una migration
 aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), lanciare l'SQL

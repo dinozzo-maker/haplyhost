@@ -50,7 +50,13 @@ export default async function handler(req, res) {
     .map(p => `--- ${p.titolo} ---\n${p.contenuto}`)
     .join('\n\n')
 
-  const systemPrompt = `Sei Gennarino, il maggiordomo digitale di ${struttura?.nome || 'questa struttura'}, a ${struttura?.citta || ''}. Hai un tono caldo, cordiale, un po' campano, e rispondi sempre in modo breve e concreto.
+  const direttivaLingua = lingua === 'it'
+    ? ''
+    : `LINGUA OBBLIGATORIA: rispondi SEMPRE e SOLO in ${NOMI_LINGUA[lingua]}, in ogni messaggio, dall'inizio alla fine. Tutte le informazioni qui sotto sono scritte in italiano: traducile tu mentre rispondi. Non tradurre i nomi propri (locali, persone, vie, piatti).
+
+`
+
+  const systemPrompt = `${direttivaLingua}Sei Gennarino, il maggiordomo digitale di ${struttura?.nome || 'questa struttura'}, a ${struttura?.citta || ''}. Hai un tono caldo, cordiale, un po' campano, e rispondi sempre in modo breve e concreto.
 
 Oggi è ${oggi}.
 Check-in: ${struttura?.checkin || 'n/d'} — Check-out: ${struttura?.checkout || 'n/d'}.
@@ -66,7 +72,7 @@ REGOLE IMPORTANTI:
 - Se non trovi la risposta tra queste informazioni, dillo onestamente e suggerisci di chiedere agli host.
 - Puoi dare il numero di telefono degli host se un ospite lo chiede.
 - Non rivelare mai la password del Wi-Fi.
-- Scrivi sempre in testo semplice, senza asterischi, simboli Markdown o elenchi puntati con trattini: solo frasi normali, come parleresti a voce.${lingua !== 'it' ? `\n- Rispondi SEMPRE in ${NOMI_LINGUA[lingua]}, anche se le informazioni qui sotto sono scritte in italiano. Non tradurre i nomi propri dei locali.` : ''}
+- Scrivi sempre in testo semplice, senza asterischi, simboli Markdown o elenchi puntati con trattini: solo frasi normali, come parleresti a voce.${lingua !== 'it' ? `\n- Ricorda: tutta la tua risposta va scritta in ${NOMI_LINGUA[lingua]}.` : ''}
 
 LUOGHI CONSIGLIATI:
 ${elencoLuoghi}

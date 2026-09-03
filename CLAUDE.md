@@ -36,7 +36,7 @@ haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`.
-│   │                          Accetta `lang` (it|en|fr|de|es): se != it aggiunge al prompt "rispondi in <lingua>" e lo scrive in `domande.lang`
+│   │                          Accetta `lang` (it|en|fr|de|es): se != it mette una direttiva lingua IN CIMA al system prompt + reminder nelle regole; scrive `domande.lang`
 │   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni (en/fr/de/es) → `pagine.traduzioni` /
 │   │                          `luoghi.traduzioni`. Chiamate a lotti di 4. `vercel.json` maxDuration 60. Pulsante in ModificaCasa.
 │   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,
@@ -78,7 +78,8 @@ haplyhost/
 │   ├── SezionePage.tsx      ← sezioni 'elenco' — legge `luoghi` (+`prezzo`,`voto`,`categoria`); schede `.g-place` con pastiglie
 │   ├── PaginaStatica.tsx    ← sezioni 'testo' — legge `pagine`; `.g-peek` + `.g-prose`. Sotto il testo, tasti "💬 WhatsApp" (verde
 │   │                          #25D366 → wa.me) e "📞 Chiama" (colore accento → tel:) se `strutture.host_telefono` c'è E la pagina è
-│   │                          `contatti` o nomina WhatsApp/telefono (`FRASI_TELEFONO` in lingua.ts)
+│   │                          `contatti` o nomina WhatsApp/telefono (`FRASI_TELEFONO`). Nel testo, i numeri di telefono diventano chip
+│   │                          `tel:` (`.g-tel`); i codici brevi 112/118… solo nella pagina `emergenze`
 │   ├── Gennarino.tsx        ← UI chat ospiti (`.g-chat`), chiama /api/gennarino, storico in stato React (nessuna persistenza)
 │   └── admin/
 │       ├── Login.tsx            ← login via magic link email (Supabase OTP, nessuna password). `shouldCreateUser: false`:
@@ -94,8 +95,8 @@ haplyhost/
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
 │       │                          su `strutture` (RLS owner). Blocco "Aspetto della guida": 5 preset colore (`accento`) + foto
 │       │                          copertina — "Carica foto" (upload su Storage bucket `copertine`, salva SUBITO `copertina_url`)
-│       │                          o link incollato (in `<details>`, staged). Riquadri separati: "Traduci la guida" → POST /api/traduci-guida;
-│       │                          "Rigenera la descrizione" → POST /api/aggiorna-casa
+│       │                          o link incollato (in `<details>`, staged). Riquadro "Rigenera la descrizione" → POST /api/aggiorna-casa
+│       ├── TraduciGuida.tsx      ← rotta /admin/traduzioni (link nel pannello): pulsante "Traduci la guida" → POST /api/traduci-guida
 │       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: spunte "mostra nella guida" (sistema + custom) → UPDATE `strutture.sezioni_attive`.
 │       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
 │       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona via

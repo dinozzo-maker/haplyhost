@@ -27,6 +27,9 @@ export default function Admin() {
         <Link to="/admin/sezioni-guida" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
           🧩 Sezioni della guida
         </Link>
+        <Link to="/admin/traduzioni" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
+          🌐 Traduzioni della guida
+        </Link>
         <a
           href={`/${struttura.slug}`}
           target="_blank"

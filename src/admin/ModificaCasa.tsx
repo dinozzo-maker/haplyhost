@@ -59,10 +59,6 @@ export default function ModificaCasa() {
   const [rigenerato, setRigenerato] = useState(false)
   const [erroreRigenera, setErroreRigenera] = useState('')
 
-  // Riquadro separato: traduzione AI di pagine e luoghi
-  const [traducendo, setTraducendo] = useState(false)
-  const [esitoTraduzione, setEsitoTraduzione] = useState('')
-
   useEffect(() => {
     async function carica() {
       if (!struttura) {
@@ -197,33 +193,6 @@ export default function ModificaCasa() {
       return
     }
     setSalvato(true)
-  }
-
-  async function traduciGuida() {
-    if (!struttura) return
-    setEsitoTraduzione('')
-    setTraducendo(true)
-
-    const { data: sessionData } = await supabase.auth.getSession()
-    const access_token = sessionData.session?.access_token
-
-    try {
-      const res = await fetch('/api/traduci-guida', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ struttura_id: struttura.id, access_token }),
-      })
-      const dati = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setEsitoTraduzione(dati.error || 'Traduzione non riuscita, riprova.')
-        return
-      }
-      setEsitoTraduzione(`Tradotte ${dati.pagine} pagine e ${dati.luoghi} luoghi ✓`)
-    } catch {
-      setEsitoTraduzione('Errore di connessione, riprova.')
-    } finally {
-      setTraducendo(false)
-    }
   }
 
   async function rigenera() {
@@ -455,23 +424,6 @@ export default function ModificaCasa() {
       </button>
       {salvato && <p className="text-sm text-green-600 mt-2 text-center">Salvato ✓</p>}
       {errore && <p className="text-red-600 text-sm mt-2">{errore}</p>}
-
-      <hr className="my-6 border-gray-200" />
-
-      <h2 className="text-sm font-bold mb-1">Traduzioni della guida</h2>
-      <p className="text-xs text-gray-500 mb-3">
-        Traduce in inglese, francese, tedesco e spagnolo le pagine di testo e i luoghi che non hanno
-        ancora una traduzione. L'ospite vede la guida nella lingua del suo telefono. Rilancia dopo
-        aver modificato i testi.
-      </p>
-      <button
-        onClick={traduciGuida}
-        disabled={traducendo}
-        className="w-full border border-blue-600 text-blue-600 rounded-lg py-2 text-sm disabled:opacity-50"
-      >
-        {traducendo ? 'Sto traducendo, può volerci un minuto…' : 'Traduci la guida'}
-      </button>
-      {esitoTraduzione && <p className="text-sm text-gray-600 mt-2 text-center">{esitoTraduzione}</p>}
 
       <hr className="my-6 border-gray-200" />
 

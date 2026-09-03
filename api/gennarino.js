@@ -10,11 +10,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Metodo non permesso' })
   }
 
-  const { struttura_id, domanda, storico = [] } = req.body
+  const { struttura_id, domanda, storico = [], lang } = req.body
 
   if (!struttura_id || !domanda) {
     return res.status(400).json({ error: 'Dati mancanti' })
   }
+
+  const NOMI_LINGUA = { it: 'italiano', en: 'inglese', fr: 'francese', de: 'tedesco', es: 'spagnolo' }
+  const lingua = NOMI_LINGUA[lang] ? lang : 'it'
 
   const { data: struttura } = await supabase
     .from('strutture')
@@ -63,7 +66,7 @@ REGOLE IMPORTANTI:
 - Se non trovi la risposta tra queste informazioni, dillo onestamente e suggerisci di chiedere agli host.
 - Puoi dare il numero di telefono degli host se un ospite lo chiede.
 - Non rivelare mai la password del Wi-Fi.
-- Scrivi sempre in testo semplice, senza asterischi, simboli Markdown o elenchi puntati con trattini: solo frasi normali, come parleresti a voce.
+- Scrivi sempre in testo semplice, senza asterischi, simboli Markdown o elenchi puntati con trattini: solo frasi normali, come parleresti a voce.${lingua !== 'it' ? `\n- Rispondi SEMPRE in ${NOMI_LINGUA[lingua]}, anche se le informazioni qui sotto sono scritte in italiano. Non tradurre i nomi propri dei locali.` : ''}
 
 LUOGHI CONSIGLIATI:
 ${elencoLuoghi}
@@ -90,7 +93,7 @@ ${elencoPagine}`
     const dati = await risposta.json()
     const testo = dati?.content?.[0]?.text || 'Scusa, non sono riuscito a rispondere. Riprova tra poco.'
 
-    supabase.from('domande').insert({ struttura_id, domanda, risposta: testo }).then(() => {})
+    supabase.from('domande').insert({ struttura_id, domanda, risposta: testo, lang: lingua }).then(() => {})
 
     return res.status(200).json({ risposta: testo })
   } catch (err) {

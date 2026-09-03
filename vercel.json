@@ -3,6 +3,7 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/scout.js": { "maxDuration": 60 }
+    "api/scout.js": { "maxDuration": 60 },
+    "api/traduci-guida.js": { "maxDuration": 60 }
   }
 }

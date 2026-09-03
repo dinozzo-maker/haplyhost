@@ -1,13 +1,15 @@
 import type { CSSProperties } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
-import { filtraVisibili } from './sezioni'
+import { etichettaSezione, filtraVisibili } from './sezioni'
+import { T, useLingua } from './lingua'
 import { useSezioni } from './useSezioni'
 
 export default function Home() {
   const struttura = useOutletContext<StrutturaRow>()
   const { slug } = useParams()
   const { tutte } = useSezioni()
+  const { lingua } = useLingua()
 
   // La chat vive nella barra in basso / nella FAB, non tra le tessere.
   const tessere = filtraVisibili(tutte, struttura.sezioni_attive).filter((s) => s.tipo !== 'chat')
@@ -21,10 +23,11 @@ export default function Home() {
   return (
     <div className="g-page">
       <div className="g-hero" style={heroStile}>
-        <span className="welcome">Benvenuti in</span>
+        <span className="welcome">{T[lingua].heroBenvenuti}</span>
         <p className="name">{struttura.nome}</p>
         <span className="sub">
-          {struttura.citta ? `${struttura.citta} — ` : ''}tutto quello che serve per il tuo soggiorno
+          {struttura.citta ? `${struttura.citta} — ` : ''}
+          {T[lingua].heroSub}
         </span>
       </div>
 
@@ -32,7 +35,7 @@ export default function Home() {
         {tessere.map((s) => (
           <Link key={s.chiave} to={`/${slug}/${s.chiave}`} className="g-tile">
             <span className="emo">{s.icona}</span>
-            <span className="lbl">{s.etichetta}</span>
+            <span className="lbl">{etichettaSezione(s, lingua)}</span>
           </Link>
         ))}
       </div>

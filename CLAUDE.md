@@ -35,7 +35,10 @@ Modello di business: piani Guida (14€/mese), Concierge (29€/mese), Portfolio
 haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
-│   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`
+│   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`.
+│   │                          Accetta `lang` (it|en|fr|de|es): se != it aggiunge al prompt "rispondi in <lingua>" e lo scrive in `domande.lang`
+│   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni (en/fr/de/es) → `pagine.traduzioni` /
+│   │                          `luoghi.traduzioni`. Chiamate a lotti di 4. `vercel.json` maxDuration 60. Pulsante in ModificaCasa.
 │   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,
 │   │                          uguale in GestisciSezione.tsx): false → l'endpoint torna 503 senza chiamare AI.
 │   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding; prezzo e voto
@@ -56,6 +59,10 @@ haplyhost/
 │   ├── index.css            ← `@import "tailwindcss"` + design system "g-*" della GUIDA OSPITI (token su .g-shell,
 │   │                          non :root, così l'override inline di --g-accent fa ricalcolare i color-mix; dark via
 │   │                          prefers-color-scheme). L'admin NON usa g-*: resta su utility Tailwind (reskin editoriale a parte).
+│   ├── lingua.ts            ← multilingua guida ospiti: `Lingua`, `LINGUE`, `rilevaLingua()` (navigator.language + localStorage),
+│   │                          `LinguaContext`/`useLingua()`, `campoTradotto()` (ripiego campo per campo su it), dizionario `T` dei testi fissi
+│   ├── LinguaProvider.tsx   ← `<LinguaProvider>` (stato lingua + `<html lang>`); montato in Struttura.tsx. Diviso da lingua.ts per il fast-refresh
+│   ├── SelettoreLingua.tsx  ← chip 🌐 in alto a destra nella guida, 5 lingue
 │   ├── supabaseClient.ts    ← client Supabase con anon key (sicuro lato browser)
 │   ├── sezioni.ts           ← le 14 sezioni DI SISTEMA: {chiave, icona, etichetta, tipo, descrizione?} + `CHIAVI_BUILTIN` (Set)
 │   │                          + `filtraVisibili(tutte, sezioni_attive)` (filtro guida, usato da Home/TabBar/GennarinoFab).
@@ -85,7 +92,8 @@ haplyhost/
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
 │       │                          su `strutture` (RLS owner). Blocco "Aspetto della guida": 5 preset colore (`accento`) + foto
 │       │                          copertina — "Carica foto" (upload su Storage bucket `copertine`, salva SUBITO `copertina_url`)
-│       │                          o link incollato (in `<details>`, staged). Riquadro separato "rigenera descrizione" → POST /api/aggiorna-casa
+│       │                          o link incollato (in `<details>`, staged). Riquadri separati: "Traduci la guida" → POST /api/traduci-guida;
+│       │                          "Rigenera la descrizione" → POST /api/aggiorna-casa
 │       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: spunte "mostra nella guida" (sistema + custom) → UPDATE `strutture.sezioni_attive`.
 │       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
 │       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona via
@@ -139,17 +147,19 @@ luoghi (
 -- index (struttura_id, sezione, ordine)
 -- ⚠️ distanza: i dati reali importati da V1 hanno già l'emoji dentro il testo (es. "🚶 7 min a piedi").
 --    Il frontend NON deve aggiungere un'altra icona davanti.
--- traduzioni: JSON multi-lingua già importato da V1 (IT/EN/FR/DE/ES) e validato;
--- ispezionare una riga reale per la struttura esatta delle chiavi prima di costruire il selettore lingua
+-- traduzioni: { en: {...}, fr: {...}, de: {...}, es: {...} } — NIENTE chiave `it` (l'italiano è la colonna).
+--    Campi per lingua NON uniformi tra righe (alcune {descrizione,categoria,distanza}, altre {descrizione,etichetta}):
+--    leggere con campoTradotto() che fa ripiego campo per campo. `nome` non si traduce mai. `da_tradurre` è vestigiale.
+--    53/69 righe di Villa Virginia tradotte (import V1); le altre le riempie api/traduci-guida.js.
 
 annunci (struttura_id, testo, attivo, creato_il)     -- non ancora usata dal frontend V2
 eventi  (struttura_id, data, titolo, descrizione, attivo)  -- non ancora usata dal frontend V2
 soggiorni (struttura_id, nome, checkin, checkout, con_bambini)  -- non ancora usata; serve per il Wi-Fi legato al soggiorno (feature pendente)
-domande (struttura_id, domanda, risposta, lang default 'it', creato_il)  -- log Gennarino, scritto da api/gennarino.js con service role
+domande (struttura_id, domanda, risposta, lang default 'it', creato_il)  -- log Gennarino, scritto da api/gennarino.js con service role (lang = lingua della guida)
 
 pagine (
   id uuid pk, struttura_id uuid references strutture(id) on delete cascade,
-  chiave text, titolo text, contenuto text, traduzioni jsonb,
+  chiave text, titolo text, contenuto text, traduzioni jsonb,   -- traduzioni: { en:{titolo,contenuto}, fr:{...}, ... }, popolato da api/traduci-guida.js
   unique (struttura_id, chiave)
 )
 
@@ -250,7 +260,8 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - Pannello host: login magic-link, gestione on/off + modifica/elimina/**aggiungi a mano** luoghi su tutte le sezioni elenco (con distanza in lista), editor per le pagine testuali, link "Vedi la guida degli ospiti", pagina "Sezioni della guida" (scegli quali tessere mostrare agli ospiti — `strutture.sezioni_attive`)
 - **Sezioni custom del superadmin**: pagina `/admin/sezioni-extra` (solo superadmin) per creare/eliminare sezioni oltre le 14 di sistema, tipo testo o elenco. Vivono in `sezioni_extra`, si uniscono ovunque via `useSezioni()`, nascono spente per tutti gli host. **Prerequisito prod: migration 0004.**
 - Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (colonne `proposte.prezzo`/`voto`, copiati nel luogo all'accettazione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.**
-- **Reskin della guida ospiti** (migration 0005, verificato in prod 03/09/2026): design system "g-*" in `src/index.css` (spirito StayFlow: Nunito, hero, griglia emoji, barra in basso `TabBar`, FAB `GennarinoFab`, modalità chiara/scura). Due leve per l'host in ModificaCasa: colore d'accento (`strutture.accento`, 5 preset, iniettato come `--g-accent` inline sullo `.g-shell`) e foto di copertina — **"Carica foto"** (upload su Storage bucket `copertine`, migration 0006) o link incollato. Schede luogo con pastiglie prezzo/voto (`luoghi.prezzo`/`voto` da Scout). Selettore emoji in SezioniExtra. "+ Aggiungi un luogo a mano" in GestisciSezione. Il pannello admin resta su Tailwind grezzo (reskin editoriale rimandato). "Il consiglio di oggi" e il selettore lingua: rimandati.
+- **Reskin della guida ospiti** (migration 0005, verificato in prod 03/09/2026): design system "g-*" in `src/index.css` (spirito StayFlow: Nunito, hero, griglia emoji, barra in basso `TabBar`, FAB `GennarinoFab`, modalità chiara/scura). Due leve per l'host in ModificaCasa: colore d'accento (`strutture.accento`, 5 preset, iniettato come `--g-accent` inline sullo `.g-shell`) e foto di copertina — **"Carica foto"** (upload su Storage bucket `copertine`, migration 0006) o link incollato. Schede luogo con pastiglie prezzo/voto (`luoghi.prezzo`/`voto` da Scout). Selettore emoji in SezioniExtra. "+ Aggiungi un luogo a mano" in GestisciSezione. Il pannello admin resta su Tailwind grezzo (reskin editoriale rimandato). "Il consiglio di oggi": rimandato.
+- **Multilingua della guida ospiti** (IT/EN/FR/DE/ES, nessuna migration): all'apertura la guida si mette nella lingua del telefono (`navigator.language`), con selettore 🌐 in alto a destra (scelta ricordata in localStorage). Testi fissi da un dizionario (`src/lingua.ts` `T`); luoghi da `luoghi.traduzioni` con ripiego all'italiano; etichette sezioni tradotte (solo le 14 di sistema — le custom restano in italiano). Gennarino risponde nella lingua dell'ospite (`api/gennarino.js` accetta `lang`). Le pagine di testo e i luoghi senza traduzione si riempiono con **"Traduci la guida"** in ModificaCasa → `api/traduci-guida.js` (Haiku). Verificato frontend in locale 03/09/2026.
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
@@ -276,7 +287,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
   - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo
     per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
-- Multilingua: `luoghi.traduzioni` ha già dati reali in 5 lingue importati da V1; manca il selettore lingua e la logica di lettura nel frontend; `pagine` ha solo italiano. (Il mockup del reskin aveva un selettore `.lang`, non portato: qui va agganciato.)
+- Multilingua, follow-up: traduzione delle etichette delle sezioni **custom** (`sezioni_extra`, oggi solo italiano); segnale di "traduzione da rifare" quando l'host modifica una pagina/luogo già tradotto (oggi si rilancia "Traduci la guida" a mano e riscrive tutto).
 - Ottimizzazione foto di copertina: l'upload (`ModificaCasa` → bucket `copertine`) non ridimensiona l'immagine — un JPEG da telefono può essere pesante. Client-side resize (canvas) prima dell'upload, tetto attuale 5 MB. Le trasformazioni immagine di Supabase richiedono il piano Pro. Pulizia dei file orfani non fatta.
 - Visualizzazione dei sotto-blocchi "Aperitivi" e "Stellati" dentro la pagina "Dove Mangiare" (dati presenti in `luoghi` con quelle sezioni, nessuna UI dedicata — oggi sarebbero raggiungibili solo con un URL manuale tipo `/villavirginia/aperitivi`, non linkato da nessuna parte)
 - **Reskin del pannello admin**: la guida ospiti è riskinnata (design system `g-*`); l'admin resta su Tailwind grezzo. Serve un impianto grafico dedicato più sobrio/editoriale (mockup "v2" già approvato a voce), separato da `g-*`.

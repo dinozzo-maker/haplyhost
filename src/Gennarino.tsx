@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
+import { conNome, T, useLingua } from './lingua'
 
 type Messaggio = { role: 'user' | 'assistant'; content: string }
 
 export default function Gennarino() {
   const struttura = useOutletContext<StrutturaRow>()
+  const { lingua } = useLingua()
   const [messaggi, setMessaggi] = useState<Messaggio[]>([])
   const [testo, setTesto] = useState('')
   const [caricamento, setCaricamento] = useState(false)
@@ -23,12 +25,12 @@ export default function Gennarino() {
       const res = await fetch('/api/gennarino', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ struttura_id: struttura.id, domanda, storico: messaggi }),
+        body: JSON.stringify({ struttura_id: struttura.id, domanda, storico: messaggi, lang: lingua }),
       })
       const dati = await res.json()
-      setMessaggi([...nuovaCronologia, { role: 'assistant', content: dati.risposta || 'Errore nella risposta.' }])
+      setMessaggi([...nuovaCronologia, { role: 'assistant', content: dati.risposta || T[lingua].gennarinoErrore }])
     } catch {
-      setMessaggi([...nuovaCronologia, { role: 'assistant', content: 'Non sono riuscito a rispondere, riprova tra poco.' }])
+      setMessaggi([...nuovaCronologia, { role: 'assistant', content: T[lingua].gennarinoErrore }])
     } finally {
       setCaricamento(false)
     }
@@ -40,31 +42,29 @@ export default function Gennarino() {
         <span className="p-emo">🤵</span>
         <div>
           <div className="p-title">Gennarino</div>
-          <div className="p-sub">Il concierge di {struttura.nome}</div>
+          <div className="p-sub">{conNome(T[lingua].gennarinoSottotitolo, struttura.nome)}</div>
         </div>
       </div>
 
       {messaggi.length === 0 && (
-        <p className="g-hint">
-          Chiedimi pure qualcosa su {struttura.nome}: spiagge, ristoranti, regole della casa...
-        </p>
+        <p className="g-hint">{conNome(T[lingua].gennarinoHint, struttura.nome)}</p>
       )}
       {messaggi.map((m, i) => (
         <div key={i} className={m.role === 'user' ? 'g-bubble mine' : 'g-bubble'}>
           {m.content}
         </div>
       ))}
-      {caricamento && <p className="g-hint">Gennarino sta scrivendo...</p>}
+      {caricamento && <p className="g-hint">{T[lingua].gennarinoScrivendo}</p>}
 
       <div className="g-composer">
         <input
           value={testo}
           onChange={(e) => setTesto(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && invia()}
-          placeholder="Scrivi qui..."
+          placeholder={T[lingua].gennarinoPlaceholder}
         />
         <button onClick={invia} disabled={caricamento}>
-          Invia
+          {T[lingua].gennarinoInvia}
         </button>
       </div>
     </div>

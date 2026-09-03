@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useParams, Outlet } from 'react-router-dom'
 import { supabase } from './supabaseClient'
+import { T, useLingua } from './lingua'
+import { LinguaProvider } from './LinguaProvider'
+import SelettoreLingua from './SelettoreLingua'
 import TabBar from './TabBar'
 import GennarinoFab from './GennarinoFab'
 
@@ -33,8 +36,26 @@ export default function Struttura() {
     carica()
   }, [slug])
 
-  if (caricamento) return <p className="g-stato">Caricamento...</p>
-  if (!struttura) return <p className="g-stato">Struttura non trovata.</p>
+  return (
+    <LinguaProvider>
+      <Guscio slug={slug ?? ''} struttura={struttura} caricamento={caricamento} />
+    </LinguaProvider>
+  )
+}
+
+function Guscio({
+  slug,
+  struttura,
+  caricamento,
+}: {
+  slug: string
+  struttura: StrutturaRow | null
+  caricamento: boolean
+}) {
+  const { lingua } = useLingua()
+
+  if (caricamento) return <p className="g-stato">{T[lingua].caricamento}</p>
+  if (!struttura) return <p className="g-stato">{T[lingua].strutturaNonTrovata}</p>
 
   // Colore d'accento della struttura: iniettato come variabile CSS sullo shell,
   // così i derivati color-mix (--g-accent-d, --g-grad-b, ...) si ricalcolano da qui.
@@ -45,8 +66,9 @@ export default function Struttura() {
   return (
     <div className="g-shell" style={stile}>
       <Outlet context={struttura} />
-      <GennarinoFab slug={slug!} struttura={struttura} />
-      <TabBar slug={slug!} struttura={struttura} />
+      <SelettoreLingua />
+      <GennarinoFab slug={slug} struttura={struttura} />
+      <TabBar slug={slug} struttura={struttura} />
     </div>
   )
 }

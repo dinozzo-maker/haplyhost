@@ -1,3 +1,5 @@
+import type { Lingua } from './lingua'
+
 export type TipoSezione = 'elenco' | 'testo' | 'chat'
 
 export type Sezione = {
@@ -36,4 +38,28 @@ export function filtraVisibili(tutte: Sezione[], sezioniAttive: string[] | null)
   return tutte.filter((s) =>
     sezioniAttive ? sezioniAttive.includes(s.chiave) : CHIAVI_BUILTIN.has(s.chiave)
   )
+}
+
+// Etichette delle 14 sezioni di sistema nelle lingue della guida (l'italiano è già `etichetta`).
+// Le sezioni custom (sezioni_extra) non sono qui: restano con l'etichetta italiana.
+const ETICHETTE_TRAD: Record<string, Partial<Record<Lingua, string>>> = {
+  casa: { en: 'Home & Wi-Fi', fr: 'Logement & Wi-Fi', de: 'Wohnung & WLAN', es: 'Alojamiento y Wi-Fi' },
+  piscina: { en: 'Pool', fr: 'Piscine', de: 'Pool', es: 'Piscina' },
+  spiagge: { en: 'Beaches', fr: 'Plages', de: 'Strände', es: 'Playas' },
+  mangiare: { en: 'Where to Eat', fr: 'Où Manger', de: 'Essen gehen', es: 'Dónde Comer' },
+  vicinanze: { en: 'Nearby', fr: 'À Proximité', de: 'In der Nähe', es: 'Cerca de aquí' },
+  visitare: { en: 'What to See', fr: 'À Visiter', de: 'Sehenswertes', es: 'Qué Visitar' },
+  divertimento: { en: 'Fun & Activities', fr: 'Loisirs & Activités', de: 'Freizeit & Aktivitäten', es: 'Ocio y Actividades' },
+  gite: { en: 'Trips & Excursions', fr: 'Sorties & Excursions', de: 'Ausflüge & Touren', es: 'Excursiones' },
+  trasporti: { en: 'Transport', fr: 'Transports', de: 'Verkehrsmittel', es: 'Transporte' },
+  differenziata: { en: 'Recycling', fr: 'Tri des Déchets', de: 'Mülltrennung', es: 'Reciclaje' },
+  regole: { en: 'House Rules', fr: 'Règlement Intérieur', de: 'Hausordnung', es: 'Normas de la Casa' },
+  emergenze: { en: 'Emergencies', fr: 'Urgences', de: 'Notfälle', es: 'Emergencias' },
+  contatti: { en: 'Contacts', fr: 'Contacts', de: 'Kontakte', es: 'Contactos' },
+  gennarino: { en: 'Ask Gennarino', fr: 'Demander à Gennarino', de: 'Gennarino fragen', es: 'Pregunta a Gennarino' },
+}
+
+export function etichettaSezione(s: Sezione, lingua: Lingua): string {
+  if (lingua === 'it') return s.etichetta
+  return ETICHETTE_TRAD[s.chiave]?.[lingua] ?? s.etichetta
 }

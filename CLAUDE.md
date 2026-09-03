@@ -36,7 +36,8 @@ haplyhost/
 ├── api/                     ← funzioni serverless Vercel (Node). NON girano con `npm run dev`:
 │   │                          si testano solo online, dopo push, su haplyhost.vercel.app
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`.
-│   │                          Accetta `lang` (it|en|fr|de|es): se != it mette una direttiva lingua IN CIMA al system prompt + reminder nelle regole; scrive `domande.lang`
+│   │                          Risponde nella LINGUA DELLA DOMANDA (direttiva con esempi in cima + promemoria in fondo); `lang` dal body è
+│   │                          solo il ripiego per messaggi ambigui. Strip di `*`/`#` markdown dalla risposta (Haiku ogni tanto lo infila).
 │   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni (en/fr/de/es) → `pagine.traduzioni` /
 │   │                          `luoghi.traduzioni`. Chiamate a lotti di 4. `vercel.json` maxDuration 60. Pulsante in ModificaCasa.
 │   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,

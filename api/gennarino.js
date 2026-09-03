@@ -107,7 +107,11 @@ PROMEMORIA: scrivi la risposta nella STESSA lingua dell'ultimo messaggio dell'os
     })
 
     const dati = await risposta.json()
-    const testo = dati?.content?.[0]?.text || 'Scusa, non sono riuscito a rispondere. Riprova tra poco.'
+    // Rete di sicurezza: Haiku ogni tanto infila **grassetto** o titoli markdown
+    // nonostante il prompt lo vieti. Li togliamo qui (Gennarino parla a voce).
+    const testo = (dati?.content?.[0]?.text || 'Scusa, non sono riuscito a rispondere. Riprova tra poco.')
+      .replace(/\*+/g, '')
+      .replace(/^\s{0,3}#{1,6}\s+/gm, '')
 
     supabase.from('domande').insert({ struttura_id, domanda, risposta: testo, lang: lingua }).then(() => {})
 

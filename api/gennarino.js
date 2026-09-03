@@ -5,6 +5,49 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+const NOMI_LINGUA = { it: 'italiano', en: 'inglese', fr: 'francese', de: 'tedesco', es: 'spagnolo' }
+
+async function chiamaClaude({ system, messages, max_tokens }) {
+  const risposta = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens, system, messages }),
+  })
+  const dati = await risposta.json()
+  return dati?.content?.[0]?.text || ''
+}
+
+// Chiamata piccola e dedicata: riconosce in che lingua scrive l'ospite.
+// In isolamento (senza il contesto tutto-italiano di Gennarino) Haiku la azzecca.
+// Guarda le ultime righe della chat, così anche un "ok" dopo domande in francese
+// resta francese. `fallback` = lingua della guida, per casi davvero ambigui.
+async function rilevaLinguaDomanda(messaggi, fallback) {
+  const ultime = messaggi
+    .slice(-3)
+    .map(m => `${m.role === 'user' ? 'Ospite' : 'Gennarino'}: ${String(m.content).slice(0, 300)}`)
+    .join('\n')
+  try {
+    const parola = (
+      await chiamaClaude({
+        system:
+          'Ti mando le ultime righe di una chat. Rispondi con UNA sola parola: la lingua in cui scrive l\'Ospite nell\'ultima riga, tra italiano, inglese, francese, tedesco, spagnolo. Se l\'ultima riga è troppo corta, guarda le righe prima. Se davvero non si capisce: incerto. Niente altro.',
+        messages: [{ role: 'user', content: ultime }],
+        max_tokens: 8,
+      })
+    )
+      .toLowerCase()
+      .trim()
+    const mappa = { italiano: 'it', inglese: 'en', francese: 'fr', tedesco: 'de', spagnolo: 'es' }
+    return mappa[parola] || fallback
+  } catch {
+    return fallback
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Metodo non permesso' })
@@ -16,26 +59,23 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Dati mancanti' })
   }
 
-  const NOMI_LINGUA = { it: 'italiano', en: 'inglese', fr: 'francese', de: 'tedesco', es: 'spagnolo' }
-  const lingua = NOMI_LINGUA[lang] ? lang : 'it'
+  const linguaGuida = NOMI_LINGUA[lang] ? lang : 'it'
 
-  const { data: struttura } = await supabase
-    .from('strutture')
-    .select('nome, indirizzo, citta, checkin, checkout, host_nome, host_telefono, max_ospiti, descrizione_casa')
-    .eq('id', struttura_id)
-    .single()
-
-  const { data: luoghi } = await supabase
-    .from('luoghi')
-    .select('sezione, nome, categoria, descrizione, distanza, maps, telefono')
-    .eq('struttura_id', struttura_id)
-    .eq('attivo', true)
-    .order('ordine')
-
-  const { data: pagine } = await supabase
-    .from('pagine')
-    .select('titolo, contenuto')
-    .eq('struttura_id', struttura_id)
+  const [{ data: struttura }, { data: luoghi }, { data: pagine }, linguaRisposta] = await Promise.all([
+    supabase
+      .from('strutture')
+      .select('nome, indirizzo, citta, checkin, checkout, host_nome, host_telefono, max_ospiti, descrizione_casa')
+      .eq('id', struttura_id)
+      .single(),
+    supabase
+      .from('luoghi')
+      .select('sezione, nome, categoria, descrizione, distanza, maps, telefono')
+      .eq('struttura_id', struttura_id)
+      .eq('attivo', true)
+      .order('ordine'),
+    supabase.from('pagine').select('titolo, contenuto').eq('struttura_id', struttura_id),
+    rilevaLinguaDomanda([...storico, { role: 'user', content: domanda }], linguaGuida),
+  ])
 
   const oggi = new Intl.DateTimeFormat('it-IT', {
     timeZone: 'Europe/Rome',
@@ -50,15 +90,11 @@ export default async function handler(req, res) {
     .map(p => `--- ${p.titolo} ---\n${p.contenuto}`)
     .join('\n\n')
 
-  const direttivaLingua = `## LINGUA DELLA RISPOSTA — LEGGI PRIMA DI TUTTO
-Riconosci la lingua dell'ULTIMO messaggio dell'ospite e scrivi TUTTA la risposta in quella lingua.
-- "Is there a pharmacy nearby?" -> rispondi in inglese
-- "Wo kann ich zu Abend essen?" -> rispondi in tedesco
-- "Y a-t-il une plage a proximite ?" -> rispondi in francese
-- "A che ora e il check-out?" -> rispondi in italiano
-Vale SEMPRE, anche se le informazioni qui sotto sono in italiano e anche se la lingua della guida e un'altra: conta solo come scrive l'ospite adesso.
-Solo se il messaggio e troppo corto per capire la lingua (una parola sola, un nome proprio, "ok", "grazie") rispondi in ${NOMI_LINGUA[lingua]}.
-Non tradurre mai i nomi propri (locali, persone, vie, piatti). Traduci tu le informazioni italiane quando rispondi in un'altra lingua.
+  const NOME = NOMI_LINGUA[linguaRisposta]
+  const direttivaLingua =
+    linguaRisposta === 'it'
+      ? ''
+      : `LINGUA: scrivi TUTTA la risposta in ${NOME}. Le informazioni qui sotto sono in italiano: traducile tu. Non tradurre i nomi propri (locali, persone, vie, piatti). Non usare nessun'altra lingua.
 
 `
 
@@ -78,42 +114,28 @@ REGOLE IMPORTANTI:
 - Se non trovi la risposta tra queste informazioni, dillo onestamente e suggerisci di chiedere agli host.
 - Puoi dare il numero di telefono degli host se un ospite lo chiede.
 - Non rivelare mai la password del Wi-Fi.
-- Scrivi sempre in testo semplice, senza asterischi, simboli Markdown o elenchi puntati con trattini: solo frasi normali, come parleresti a voce.
-- Tutta la risposta nella lingua dell'ospite (vedi in cima), senza mischiare lingue.
+- Scrivi sempre in testo semplice, senza asterischi, simboli Markdown o elenchi puntati con trattini: solo frasi normali, come parleresti a voce.${linguaRisposta !== 'it' ? `\n- Tutta la risposta in ${NOME}.` : ''}
 
 LUOGHI CONSIGLIATI:
 ${elencoLuoghi}
 
 INFORMAZIONI DELLA CASA:
-${elencoPagine}
-
----
-PROMEMORIA: scrivi la risposta nella STESSA lingua dell'ultimo messaggio dell'ospite (vedi "LINGUA DELLA RISPOSTA" in cima). Non rispondere in italiano se l'ospite ha scritto in un'altra lingua.`
+${elencoPagine}`
 
   try {
-    const risposta = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        system: systemPrompt,
-        messages: [...storico, { role: 'user', content: domanda }],
-      }),
+    const grezzo = await chiamaClaude({
+      system: systemPrompt,
+      messages: [...storico, { role: 'user', content: domanda }],
+      max_tokens: 500,
     })
 
-    const dati = await risposta.json()
     // Rete di sicurezza: Haiku ogni tanto infila **grassetto** o titoli markdown
     // nonostante il prompt lo vieti. Li togliamo qui (Gennarino parla a voce).
-    const testo = (dati?.content?.[0]?.text || 'Scusa, non sono riuscito a rispondere. Riprova tra poco.')
+    const testo = (grezzo || 'Scusa, non sono riuscito a rispondere. Riprova tra poco.')
       .replace(/\*+/g, '')
       .replace(/^\s{0,3}#{1,6}\s+/gm, '')
 
-    supabase.from('domande').insert({ struttura_id, domanda, risposta: testo, lang: lingua }).then(() => {})
+    supabase.from('domande').insert({ struttura_id, domanda, risposta: testo, lang: linguaRisposta }).then(() => {})
 
     return res.status(200).json({ risposta: testo })
   } catch (err) {

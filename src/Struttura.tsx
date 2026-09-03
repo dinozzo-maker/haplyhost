@@ -4,7 +4,6 @@ import { useParams, Outlet } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import { T, useLingua } from './lingua'
 import { LinguaProvider } from './LinguaProvider'
-import SelettoreLingua from './SelettoreLingua'
 import TabBar from './TabBar'
 import GennarinoFab from './GennarinoFab'
 
@@ -63,10 +62,11 @@ function Guscio({
     ? ({ '--g-accent': struttura.accento } as CSSProperties)
     : undefined
 
+  // Il selettore lingua è in Home.tsx (riga sotto la copertina), non qui: la scelta
+  // vale per tutta la guida perché è ricordata (localStorage + context).
   return (
     <div className="g-shell" style={stile}>
       <Outlet context={struttura} />
-      <SelettoreLingua />
       <GennarinoFab slug={slug} struttura={struttura} />
       <TabBar slug={slug} struttura={struttura} />
     </div>

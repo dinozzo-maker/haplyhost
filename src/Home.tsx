@@ -3,6 +3,7 @@ import { Link, useOutletContext, useParams } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
 import { etichettaSezione, filtraVisibili } from './sezioni'
 import { T, useLingua } from './lingua'
+import SelettoreLingua from './SelettoreLingua'
 import { useSezioni } from './useSezioni'
 
 export default function Home() {
@@ -30,6 +31,8 @@ export default function Home() {
           {T[lingua].heroSub}
         </span>
       </div>
+
+      <SelettoreLingua />
 
       <div className="g-grid">
         {tessere.map((s) => (

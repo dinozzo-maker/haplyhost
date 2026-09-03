@@ -62,7 +62,7 @@ haplyhost/
 │   ├── lingua.ts            ← multilingua guida ospiti: `Lingua`, `LINGUE`, `rilevaLingua()` (navigator.language + localStorage),
 │   │                          `LinguaContext`/`useLingua()`, `campoTradotto()` (ripiego campo per campo su it), dizionario `T` dei testi fissi
 │   ├── LinguaProvider.tsx   ← `<LinguaProvider>` (stato lingua + `<html lang>`); montato in Struttura.tsx. Diviso da lingua.ts per il fast-refresh
-│   ├── SelettoreLingua.tsx  ← chip 🌐 in alto a destra nella guida, 5 lingue
+│   ├── SelettoreLingua.tsx  ← riga di 5 pastiglie (bandiera + sigla), reso in Home.tsx sotto la copertina (stile StayFlow). Non c'è sulle sottopagine: la scelta è ricordata
 │   ├── supabaseClient.ts    ← client Supabase con anon key (sicuro lato browser)
 │   ├── sezioni.ts           ← le 14 sezioni DI SISTEMA: {chiave, icona, etichetta, tipo, descrizione?} + `CHIAVI_BUILTIN` (Set)
 │   │                          + `filtraVisibili(tutte, sezioni_attive)` (filtro guida, usato da Home/TabBar/GennarinoFab).

@@ -1,46 +1,32 @@
-import { useState } from 'react'
-import { LINGUE, LINGUE_LABEL, T, useLingua } from './lingua'
+import { LINGUE, useLingua } from './lingua'
+import type { Lingua } from './lingua'
 
-// Chip in alto a destra nella guida: mostra la lingua corrente, al tap apre le 5.
+const BANDIERA: Record<Lingua, string> = {
+  it: '🇮🇹',
+  en: '🇬🇧',
+  fr: '🇫🇷',
+  de: '🇩🇪',
+  es: '🇪🇸',
+}
+
+// Riga di 5 pastiglie (bandiera + sigla), sotto la copertina nella home.
 export default function SelettoreLingua() {
   const { lingua, setLingua } = useLingua()
-  const [aperto, setAperto] = useState(false)
 
   return (
-    <div className="g-lang">
-      <button
-        type="button"
-        className="g-lang-chip"
-        aria-haspopup="listbox"
-        aria-expanded={aperto}
-        aria-label={T[lingua].lingua}
-        onClick={() => setAperto((v) => !v)}
-      >
-        🌐 {lingua.toUpperCase()}
-      </button>
-      {aperto && (
-        <>
-          <div className="g-lang-scrim" onClick={() => setAperto(false)} />
-          <ul className="g-lang-menu" role="listbox" aria-label={T[lingua].lingua}>
-            {LINGUE.map((l) => (
-              <li key={l}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={l === lingua}
-                  className={l === lingua ? 'attivo' : undefined}
-                  onClick={() => {
-                    setLingua(l)
-                    setAperto(false)
-                  }}
-                >
-                  {LINGUE_LABEL[l]}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+    <div className="g-langrow" role="group" aria-label="Lingua / Language">
+      {LINGUE.map((l) => (
+        <button
+          key={l}
+          type="button"
+          aria-pressed={l === lingua}
+          className={l === lingua ? 'attivo' : undefined}
+          onClick={() => setLingua(l)}
+        >
+          <span aria-hidden="true">{BANDIERA[l]}</span>
+          {l.toUpperCase()}
+        </button>
+      ))}
     </div>
   )
 }

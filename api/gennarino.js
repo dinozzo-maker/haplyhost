@@ -27,14 +27,14 @@ async function chiamaClaude({ system, messages, max_tokens }) {
 // resta francese. `fallback` = lingua della guida, per casi davvero ambigui.
 async function rilevaLinguaDomanda(messaggi, fallback) {
   const ultime = messaggi
-    .slice(-3)
+    .slice(-5)
     .map(m => `${m.role === 'user' ? 'Ospite' : 'Gennarino'}: ${String(m.content).slice(0, 300)}`)
     .join('\n')
   try {
     const parola = (
       await chiamaClaude({
         system:
-          'Ti mando le ultime righe di una chat. Rispondi con UNA sola parola: la lingua in cui scrive l\'Ospite nell\'ultima riga, tra italiano, inglese, francese, tedesco, spagnolo. Se l\'ultima riga è troppo corta, guarda le righe prima. Se davvero non si capisce: incerto. Niente altro.',
+          'Ti mando le ultime righe di una chat tra un ospite e un concierge. In che lingua sta scrivendo l\'Ospite? Guarda soprattutto l\'ULTIMA riga dell\'Ospite; se è corta usala comunque se riconoscibile ("merci"/"bonjour" = francese, "grazie"/"ciao" = italiano, "thanks"/"hi" = inglese, "danke"/"hallo" = tedesco, "gracias"/"hola" = spagnolo), altrimenti guarda le righe prima. Rispondi con UNA sola parola tra: italiano, inglese, francese, tedesco, spagnolo, incerto. Niente altro.',
         messages: [{ role: 'user', content: ultime }],
         max_tokens: 8,
       })

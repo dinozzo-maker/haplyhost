@@ -50,9 +50,7 @@ export default async function handler(req, res) {
     .map(p => `--- ${p.titolo} ---\n${p.contenuto}`)
     .join('\n\n')
 
-  const direttivaLingua = lingua === 'it'
-    ? ''
-    : `LINGUA OBBLIGATORIA: rispondi SEMPRE e SOLO in ${NOMI_LINGUA[lingua]}, in ogni messaggio, dall'inizio alla fine. Tutte le informazioni qui sotto sono scritte in italiano: traducile tu mentre rispondi. Non tradurre i nomi propri (locali, persone, vie, piatti).
+  const direttivaLingua = `LINGUA: rispondi nella STESSA lingua in cui l'ospite ti scrive. Se un messaggio è troppo breve o ambiguo per capire la lingua (una sola parola, un nome proprio, "ok"), rispondi in ${NOMI_LINGUA[lingua]}. Non cambiare lingua a metà conversazione, a meno che l'ospite non passi chiaramente a un'altra lingua. Non tradurre mai i nomi propri (locali, persone, vie, piatti). Le informazioni qui sotto sono scritte in italiano: quando rispondi in un'altra lingua, traducile tu.
 
 `
 
@@ -72,7 +70,8 @@ REGOLE IMPORTANTI:
 - Se non trovi la risposta tra queste informazioni, dillo onestamente e suggerisci di chiedere agli host.
 - Puoi dare il numero di telefono degli host se un ospite lo chiede.
 - Non rivelare mai la password del Wi-Fi.
-- Scrivi sempre in testo semplice, senza asterischi, simboli Markdown o elenchi puntati con trattini: solo frasi normali, come parleresti a voce.${lingua !== 'it' ? `\n- Ricorda: tutta la tua risposta va scritta in ${NOMI_LINGUA[lingua]}.` : ''}
+- Scrivi sempre in testo semplice, senza asterischi, simboli Markdown o elenchi puntati con trattini: solo frasi normali, come parleresti a voce.
+- Tutta la risposta nella lingua dell'ospite (vedi in cima), senza mischiare lingue.
 
 LUOGHI CONSIGLIATI:
 ${elencoLuoghi}

@@ -50,7 +50,15 @@ export default async function handler(req, res) {
     .map(p => `--- ${p.titolo} ---\n${p.contenuto}`)
     .join('\n\n')
 
-  const direttivaLingua = `LINGUA: rispondi nella STESSA lingua in cui l'ospite ti scrive. Se un messaggio è troppo breve o ambiguo per capire la lingua (una sola parola, un nome proprio, "ok"), rispondi in ${NOMI_LINGUA[lingua]}. Non cambiare lingua a metà conversazione, a meno che l'ospite non passi chiaramente a un'altra lingua. Non tradurre mai i nomi propri (locali, persone, vie, piatti). Le informazioni qui sotto sono scritte in italiano: quando rispondi in un'altra lingua, traducile tu.
+  const direttivaLingua = `## LINGUA DELLA RISPOSTA — LEGGI PRIMA DI TUTTO
+Riconosci la lingua dell'ULTIMO messaggio dell'ospite e scrivi TUTTA la risposta in quella lingua.
+- "Is there a pharmacy nearby?" -> rispondi in inglese
+- "Wo kann ich zu Abend essen?" -> rispondi in tedesco
+- "Y a-t-il une plage a proximite ?" -> rispondi in francese
+- "A che ora e il check-out?" -> rispondi in italiano
+Vale SEMPRE, anche se le informazioni qui sotto sono in italiano e anche se la lingua della guida e un'altra: conta solo come scrive l'ospite adesso.
+Solo se il messaggio e troppo corto per capire la lingua (una parola sola, un nome proprio, "ok", "grazie") rispondi in ${NOMI_LINGUA[lingua]}.
+Non tradurre mai i nomi propri (locali, persone, vie, piatti). Traduci tu le informazioni italiane quando rispondi in un'altra lingua.
 
 `
 
@@ -77,7 +85,10 @@ LUOGHI CONSIGLIATI:
 ${elencoLuoghi}
 
 INFORMAZIONI DELLA CASA:
-${elencoPagine}`
+${elencoPagine}
+
+---
+PROMEMORIA: scrivi la risposta nella STESSA lingua dell'ultimo messaggio dell'ospite (vedi "LINGUA DELLA RISPOSTA" in cima). Non rispondere in italiano se l'ospite ha scritto in un'altra lingua.`
 
   try {
     const risposta = await fetch('https://api.anthropic.com/v1/messages', {

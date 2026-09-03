@@ -76,8 +76,9 @@ haplyhost/
 │   ├── GennarinoFab.tsx     ← bottone tondo galleggiante → /:slug/gennarino; nascosto sulla rotta chat o se la sezione chat è spenta
 │   ├── Home.tsx             ← hero (gradiente o `copertina_url`) + griglia `.g-tile` da `filtraVisibili()` (esclusa la voce chat)
 │   ├── SezionePage.tsx      ← sezioni 'elenco' — legge `luoghi` (+`prezzo`,`voto`,`categoria`); schede `.g-place` con pastiglie
-│   ├── PaginaStatica.tsx    ← sezioni 'testo' — legge `pagine`; `.g-peek` + `.g-prose`. Rende cliccabili nel testo "WhatsApp"
-│   │                          (→ wa.me) e le frasi tipo "al telefono"/"by phone" (→ tel:), se `strutture.host_telefono` è valorizzato
+│   ├── PaginaStatica.tsx    ← sezioni 'testo' — legge `pagine`; `.g-peek` + `.g-prose`. Sotto il testo, tasti "💬 WhatsApp" (verde
+│   │                          #25D366 → wa.me) e "📞 Chiama" (colore accento → tel:) se `strutture.host_telefono` c'è E la pagina è
+│   │                          `contatti` o nomina WhatsApp/telefono (`FRASI_TELEFONO` in lingua.ts)
 │   ├── Gennarino.tsx        ← UI chat ospiti (`.g-chat`), chiama /api/gennarino, storico in stato React (nessuna persistenza)
 │   └── admin/
 │       ├── Login.tsx            ← login via magic link email (Supabase OTP, nessuna password). `shouldCreateUser: false`:

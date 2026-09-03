@@ -1,5 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import type { StrutturaRow } from './Struttura'
@@ -43,36 +42,15 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
     (info ? etichettaSezione(info, lingua) : chiave)
   const contenuto = campoTradotto(pagina?.contenuto, pagina?.traduzioni, 'contenuto', lingua)
 
-  // Rende cliccabili "WhatsApp" (→ wa.me) e le frasi tipo "al telefono" (→ tel:)
-  // dentro il testo della pagina, se la struttura ha un telefono host.
+  // Tasti "WhatsApp" / "Chiama" sotto il testo: sulla pagina Contatti, o quando il
+  // testo nomina WhatsApp o il telefono. Servono host_telefono valorizzato.
   const tel = (struttura.host_telefono ?? '').trim()
   const waNumero = tel.replace(/\D/g, '')
   const telHref = tel.replace(/[^\d+]/g, '')
-
-  function conLink(testo: string): ReactNode {
-    if (!tel || !testo) return testo
-    const frasi = FRASI_TELEFONO[lingua]
-    const alternative = ['WhatsApp', ...frasi].map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    const re = new RegExp(`(${alternative.join('|')})`, 'gi')
-    return testo.split(re).map((p, i) => {
-      const low = p.toLowerCase()
-      if (low === 'whatsapp' && waNumero) {
-        return (
-          <a key={i} className="g-link" href={`https://wa.me/${waNumero}`} target="_blank" rel="noreferrer">
-            {p}
-          </a>
-        )
-      }
-      if (frasi.includes(low)) {
-        return (
-          <a key={i} className="g-link" href={`tel:${telHref}`}>
-            {p}
-          </a>
-        )
-      }
-      return <Fragment key={i}>{p}</Fragment>
-    })
-  }
+  const testoBasso = contenuto.toLowerCase()
+  const nominaContatto =
+    /whatsapp/i.test(contenuto) || FRASI_TELEFONO[lingua].some((f) => testoBasso.includes(f))
+  const mostraTasti = tel && (chiave === 'contatti' || nominaContatto)
 
   return (
     <div className="g-page">
@@ -90,7 +68,20 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
 
       {caricamento && <p className="g-hint">{T[lingua].caricamento}</p>}
       {!caricamento && !pagina && <p className="g-hint">{T[lingua].paginaVuota}</p>}
-      {!caricamento && pagina && <div className="g-prose">{conLink(contenuto)}</div>}
+      {!caricamento && pagina && <div className="g-prose">{contenuto}</div>}
+
+      {mostraTasti && (
+        <div className="g-contatti">
+          {waNumero && (
+            <a className="g-btn-wa" href={`https://wa.me/${waNumero}`} target="_blank" rel="noreferrer">
+              💬 WhatsApp
+            </a>
+          )}
+          <a className="g-btn-tel" href={`tel:${telHref}`}>
+            📞 {T[lingua].azChiama}
+          </a>
+        </div>
+      )}
     </div>
   )
 }

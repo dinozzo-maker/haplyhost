@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import type { StrutturaRow } from './Struttura'
+import { useSezioni } from './useSezioni'
 
 type PaginaRow = {
   titolo: string
@@ -11,8 +12,11 @@ type PaginaRow = {
 export default function PaginaStatica({ chiave }: { chiave: string }) {
   const struttura = useOutletContext<StrutturaRow>()
   const { slug } = useParams()
+  const { tutte } = useSezioni()
   const [pagina, setPagina] = useState<PaginaRow | null>(null)
   const [caricamento, setCaricamento] = useState(true)
+
+  const info = tutte.find((s) => s.chiave === chiave)
 
   useEffect(() => {
     async function carica() {
@@ -30,18 +34,25 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
   }, [struttura.id, chiave])
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <Link to={`/${slug}`} className="text-sm text-blue-600">&larr; Torna alla home</Link>
+    <div className="g-page">
+      <Link to={`/${slug}`} className="g-back">
+        ← Torna alla home
+      </Link>
 
-      {caricamento && <p className="mt-4">Caricamento...</p>}
-      {!caricamento && !pagina && <p className="mt-4">Contenuto non ancora inserito per questa pagina.</p>}
+      <div className="g-peek">
+        <span className="p-emo">{info?.icona ?? '📄'}</span>
+        <div>
+          <div className="p-title">{pagina?.titolo || info?.etichetta || 'Pagina'}</div>
+          {info?.descrizione && <div className="p-sub">{info.descrizione}</div>}
+        </div>
+      </div>
 
-      {!caricamento && pagina && (
-        <>
-          <h1 className="text-xl font-bold mt-2 mb-4">{pagina.titolo}</h1>
-          <div className="whitespace-pre-line text-sm leading-relaxed">{pagina.contenuto}</div>
-        </>
+      {caricamento && <p className="g-hint">Caricamento...</p>}
+      {!caricamento && !pagina && (
+        <p className="g-hint">Contenuto non ancora inserito per questa pagina.</p>
       )}
+
+      {!caricamento && pagina && <div className="g-prose">{pagina.contenuto}</div>}
     </div>
   )
 }

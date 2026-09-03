@@ -1,1 +1,398 @@
 @import "tailwindcss";
+
+/* ==========================================================================
+   GUIDA OSPITI — design system "g-*"
+   Un solo impianto per tutte le strutture. Due leve di personalizzazione:
+   - --g-accent: iniettato inline da Struttura.tsx (colonna strutture.accento)
+   - foto di copertina: strutture.copertina_url, gestita in Home.tsx
+   Il pannello admin (src/admin/*) NON usa queste classi: resta su utility Tailwind.
+   ========================================================================== */
+
+.g-shell {
+  /* Token sul .g-shell (non su :root): i derivati color-mix devono vedere
+     l'override inline di --g-accent, che vive su questo stesso elemento. */
+  --g-bg: #edf1f5;
+  --g-card: #ffffff;
+  --g-ink: #2e4356;
+  --g-ink-2: #6e8194;
+  --g-line: #e2e8ee;
+  --g-sh: 30 45 65; /* terzina rgb per le ombre: rgb(var(--g-sh) / .1) */
+
+  --g-ff: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --g-accent: #12a69b; /* default teal; sovrascritto inline da strutture.accento */
+  --g-accent-d: color-mix(in srgb, var(--g-accent) 82%, #0a2e33);
+  --g-accent-l: color-mix(in srgb, var(--g-accent) 12%, var(--g-card));
+  --g-grad-a: var(--g-accent);
+  --g-grad-b: color-mix(in srgb, var(--g-accent) 55%, #3f7bd6);
+
+  position: relative;
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 78px; /* spazio per la .g-tabbar fissa */
+  background: var(--g-bg);
+  color: var(--g-ink);
+  font-family: var(--g-ff);
+  font-weight: 500;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  .g-shell {
+    --g-bg: #131a21;
+    --g-card: #1c262f;
+    --g-ink: #e8eef3;
+    --g-ink-2: #8fa1b1;
+    --g-line: #2a3742;
+    --g-sh: 0 0 0;
+    --g-accent-d: color-mix(in srgb, var(--g-accent) 72%, #ffffff);
+    --g-accent-l: color-mix(in srgb, var(--g-accent) 20%, var(--g-card));
+  }
+}
+
+.g-shell :focus-visible {
+  outline: 2px solid var(--g-accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* --- stato di caricamento / errore --- */
+.g-stato {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  font-family: var(--g-ff, sans-serif);
+  color: #6e8194;
+}
+
+/* --- wrapper di pagina --- */
+.g-page {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 14px 13px 20px;
+}
+
+/* --- link "torna indietro" --- */
+.g-back {
+  align-self: flex-start;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--g-ink-2);
+  padding: 2px 0;
+}
+.g-back:hover {
+  color: var(--g-ink);
+}
+
+/* --- hero --- */
+.g-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 24px 18px 22px;
+  color: #fff;
+  background: linear-gradient(140deg, var(--g-grad-a), var(--g-grad-b));
+  background-size: cover;
+  background-position: center;
+}
+.g-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+.g-hero .welcome {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  opacity: 0.95;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+}
+.g-hero .name {
+  margin: 3px 0 6px;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+}
+.g-hero .sub {
+  font-size: 12.5px;
+  font-weight: 600;
+  opacity: 0.95;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* --- griglia tessere --- */
+.g-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+.g-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 8px 12px;
+  text-align: center;
+  color: var(--g-ink);
+  background: var(--g-card);
+  border: 1px solid var(--g-line);
+  border-radius: 15px;
+  box-shadow: 0 2px 7px -3px rgb(var(--g-sh) / 0.08);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.g-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 20px -12px rgb(var(--g-sh) / 0.22);
+}
+.g-tile .emo {
+  font-size: 26px;
+  line-height: 1;
+}
+.g-tile .lbl {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* --- intestazione sezione / pagina --- */
+.g-peek {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 14px;
+  background: var(--g-card);
+  border: 1px solid var(--g-line);
+  border-radius: 18px;
+  box-shadow: 0 2px 8px -3px rgb(var(--g-sh) / 0.08);
+}
+.g-peek .p-emo {
+  font-size: 22px;
+}
+.g-peek .p-title {
+  font-size: 15px;
+  font-weight: 800;
+}
+.g-peek .p-sub {
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--g-ink-2);
+}
+
+/* --- scheda luogo --- */
+.g-place {
+  padding: 14px;
+  background: var(--g-card);
+  border: 1px solid var(--g-line);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px -3px rgb(var(--g-sh) / 0.08);
+}
+.g-place .pl-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.g-place .pl-name {
+  font-size: 14px;
+  font-weight: 800;
+}
+.g-pill {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--g-accent-l);
+  color: var(--g-accent-d);
+}
+.g-pill.rate {
+  background: color-mix(in srgb, #e8a93c 16%, var(--g-card));
+  color: color-mix(in srgb, #b0781e 80%, var(--g-ink));
+}
+.g-place .pl-cat {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--g-ink-2);
+}
+.g-place .pl-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--g-ink-2);
+  line-height: 1.5;
+}
+.g-place .pl-meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.g-place .pl-dist {
+  color: var(--g-ink-2);
+}
+.g-place .pl-act {
+  color: var(--g-accent-d);
+}
+
+/* --- pagina di testo --- */
+.g-prose {
+  padding: 16px 15px;
+  background: var(--g-card);
+  border: 1px solid var(--g-line);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px -3px rgb(var(--g-sh) / 0.08);
+  white-space: pre-line;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.65;
+  color: var(--g-ink);
+}
+
+/* --- Gennarino --- */
+.g-hint {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--g-ink-2);
+}
+
+.g-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 13px 12px;
+  min-height: calc(100dvh - 78px);
+}
+.g-bubble {
+  align-self: flex-start;
+  max-width: 85%;
+  padding: 10px 13px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  background: var(--g-card);
+  border: 1px solid var(--g-line);
+  box-shadow: 0 2px 8px -3px rgb(var(--g-sh) / 0.08);
+}
+.g-bubble.mine {
+  align-self: flex-end;
+  background: var(--g-accent);
+  border-color: transparent;
+  color: #fff;
+}
+.g-composer {
+  position: sticky;
+  bottom: calc(58px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+.g-composer input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 16px;
+  border: 1px solid var(--g-line);
+  border-radius: 999px;
+  background: var(--g-card);
+  color: var(--g-ink);
+  font: inherit;
+  font-size: 13px;
+}
+.g-composer button {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--g-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.g-composer button:disabled {
+  opacity: 0.5;
+}
+
+/* --- barra in basso --- */
+.g-tabbar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  z-index: 20;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 9px 4px calc(9px + env(safe-area-inset-bottom));
+  background: var(--g-card);
+  border-top: 1px solid var(--g-line);
+}
+.g-tabbar a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  max-width: 96px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 9.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  color: var(--g-ink-2);
+}
+.g-tabbar a .t-emo {
+  font-size: 18px;
+  filter: grayscale(0.35) opacity(0.8);
+}
+.g-tabbar a[aria-current="page"] {
+  color: var(--g-accent-d);
+}
+.g-tabbar a[aria-current="page"] .t-emo {
+  filter: none;
+}
+
+/* --- bottone Gennarino galleggiante --- */
+.g-fab {
+  position: fixed;
+  right: max(16px, calc(50% - 240px + 16px));
+  bottom: calc(90px + env(safe-area-inset-bottom));
+  z-index: 25;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  background: var(--g-accent);
+  color: #fff;
+  box-shadow: 0 10px 24px -6px color-mix(in srgb, var(--g-accent) 60%, transparent),
+    0 3px 8px rgb(var(--g-sh) / 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g-shell *,
+  .g-shell *::before,
+  .g-shell *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -13,6 +13,8 @@ type DatiCasa = {
   checkin: string
   checkout: string
   max_ospiti: string
+  accento: string
+  copertina_url: string
 }
 
 const VUOTO: DatiCasa = {
@@ -25,7 +27,18 @@ const VUOTO: DatiCasa = {
   checkin: '',
   checkout: '',
   max_ospiti: '',
+  accento: '',
+  copertina_url: '',
 }
+
+// Colore d'accento della guida ospiti: 5 preset. '' = default (Mare).
+const COLORI = [
+  { nome: 'Mare', hex: '#12A69B' },
+  { nome: 'Corallo', hex: '#EA6D57' },
+  { nome: 'Bosco', hex: '#4E9B5B' },
+  { nome: 'Lavanda', hex: '#7C6BD1' },
+  { nome: 'Ambra', hex: '#E0A32E' },
+]
 
 export default function ModificaCasa() {
   const { struttura } = useOutletContext<ContestoHost>()
@@ -51,7 +64,7 @@ export default function ModificaCasa() {
 
       const { data, error } = await supabase
         .from('strutture')
-        .select('nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti')
+        .select('nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti, accento, copertina_url')
         .eq('id', struttura.id)
         .single()
 
@@ -71,6 +84,8 @@ export default function ModificaCasa() {
         checkin: data.checkin ?? '',
         checkout: data.checkout ?? '',
         max_ospiti: data.max_ospiti != null ? String(data.max_ospiti) : '',
+        accento: data.accento ?? '',
+        copertina_url: data.copertina_url ?? '',
       })
       setCaricamento(false)
     }
@@ -104,6 +119,8 @@ export default function ModificaCasa() {
         checkin: dati.checkin.trim(),
         checkout: dati.checkout.trim(),
         max_ospiti: dati.max_ospiti.trim() ? Number(dati.max_ospiti) : null,
+        accento: dati.accento || null,
+        copertina_url: dati.copertina_url.trim() || null,
       })
       .eq('id', struttura.id)
 
@@ -248,6 +265,46 @@ export default function ModificaCasa() {
         value={dati.max_ospiti}
         onChange={(e) => aggiorna('max_ospiti', e.target.value)}
       />
+
+      <hr className="my-5 border-gray-200" />
+      <h2 className="text-sm font-bold mb-1">Aspetto della guida ospiti</h2>
+      <p className="text-xs text-gray-500 mb-3">
+        Due leve per dare identità alla guida senza toccare il resto.
+      </p>
+
+      <label className="text-xs text-gray-500">Colore della guida</label>
+      <div className="flex gap-3 mt-1 mb-1">
+        {COLORI.map((c) => {
+          const attivo = (dati.accento || '#12A69B') === c.hex
+          return (
+            <button
+              key={c.hex}
+              type="button"
+              title={c.nome}
+              aria-label={c.nome}
+              aria-pressed={attivo}
+              onClick={() => aggiorna('accento', c.hex)}
+              className={`h-8 w-8 rounded-full transition ${attivo ? 'ring-2 ring-offset-2 ring-gray-700' : 'hover:scale-110'}`}
+              style={{ background: c.hex }}
+            />
+          )
+        })}
+      </div>
+      <p className="text-xs text-gray-400 mb-3">
+        Tinta di accento: bottoni, intestazione, pastiglie. Il default è "Mare".
+      </p>
+
+      <label className="text-xs text-gray-500">Foto di copertina (link)</label>
+      <input
+        className="w-full border rounded-lg px-3 py-2 text-sm mb-1"
+        value={dati.copertina_url}
+        onChange={(e) => aggiorna('copertina_url', e.target.value)}
+        placeholder="https://..."
+      />
+      <p className="text-xs text-gray-400 mb-4">
+        Incolla il link di una foto (es. quella dell'annuncio): diventa lo sfondo dell'intestazione.
+        Lascia vuoto per una tinta con il colore scelto sopra. Il caricamento diretto arriva più avanti.
+      </p>
 
       <button
         onClick={salva}

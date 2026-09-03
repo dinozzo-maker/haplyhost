@@ -12,6 +12,8 @@ type LuogoRow = {
   nome: string
   descrizione: string
   distanza: string
+  prezzo: string | null
+  voto: string | null
   maps: string
   telefono: string
   attivo: boolean
@@ -21,6 +23,8 @@ type Bozza = {
   nome: string
   descrizione: string
   distanza: string
+  prezzo: string
+  voto: string
   maps: string
   telefono: string
 }
@@ -30,6 +34,8 @@ type PropostaRow = {
   nome: string
   descrizione: string
   distanza: string
+  prezzo: string | null
+  voto: string | null
   maps: string
   telefono: string
 }
@@ -42,7 +48,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const [proposte, setProposte] = useState<PropostaRow[]>([])
   const [caricamento, setCaricamento] = useState(true)
   const [modificaId, setModificaId] = useState<string | null>(null)
-  const [bozza, setBozza] = useState<Bozza>({ nome: '', descrizione: '', distanza: '', maps: '', telefono: '' })
+  const [bozza, setBozza] = useState<Bozza>({ nome: '', descrizione: '', distanza: '', prezzo: '', voto: '', maps: '', telefono: '' })
   const [salvataggio, setSalvataggio] = useState(false)
   const [cercando, setCercando] = useState(false)
   const [esitoScout, setEsitoScout] = useState('')
@@ -50,7 +56,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   async function caricaTutto(id: string) {
     const { data: dl } = await supabase
       .from('luoghi')
-      .select('id, nome, descrizione, distanza, maps, telefono, attivo')
+      .select('id, nome, descrizione, distanza, prezzo, voto, maps, telefono, attivo')
       .eq('struttura_id', id)
       .eq('sezione', sezione)
       .order('ordine')
@@ -58,7 +64,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
     const { data: dp } = await supabase
       .from('proposte')
-      .select('id, nome, descrizione, distanza, maps, telefono')
+      .select('id, nome, descrizione, distanza, prezzo, voto, maps, telefono')
       .eq('struttura_id', id)
       .eq('sezione', sezione)
       .order('creato_il')
@@ -85,6 +91,8 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       nome: l.nome,
       descrizione: l.descrizione || '',
       distanza: l.distanza || '',
+      prezzo: l.prezzo || '',
+      voto: l.voto || '',
       maps: l.maps || '',
       telefono: l.telefono || '',
     })
@@ -139,6 +147,8 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       nome: p.nome,
       descrizione: p.descrizione,
       distanza: p.distanza,
+      prezzo: p.prezzo,
+      voto: p.voto,
       maps: p.maps,
       telefono: p.telefono,
       attivo: true,
@@ -180,7 +190,11 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
             {proposte.map((p) => (
               <div key={p.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
                 <p className="font-medium text-sm">{p.nome}</p>
-                {p.distanza && <p className="text-xs text-gray-500">{p.distanza}</p>}
+                {(p.distanza || p.prezzo || p.voto) && (
+                  <p className="text-xs text-gray-500">
+                    {[p.distanza, p.prezzo, p.voto && `★ ${p.voto}`].filter(Boolean).join('  ·  ')}
+                  </p>
+                )}
                 <p className="text-xs mt-1">{p.descrizione}</p>
                 <div className="flex gap-2 mt-2">
                   <button onClick={() => accetta(p)} className="flex-1 bg-green-600 text-white rounded-lg py-1.5 text-xs">
@@ -210,6 +224,16 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
                 <textarea className="border rounded-lg px-3 py-2 text-sm" rows={3} value={bozza.descrizione} onChange={(e) => setBozza({ ...bozza, descrizione: e.target.value })} />
                 <label className="text-xs text-gray-500">Distanza</label>
                 <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.distanza} onChange={(e) => setBozza({ ...bozza, distanza: e.target.value })} />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500">Fascia di prezzo</label>
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="es. 15-25 €" value={bozza.prezzo} onChange={(e) => setBozza({ ...bozza, prezzo: e.target.value })} />
+                  </div>
+                  <div className="w-24">
+                    <label className="text-xs text-gray-500">Voto Google</label>
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="4,5" value={bozza.voto} onChange={(e) => setBozza({ ...bozza, voto: e.target.value })} />
+                  </div>
+                </div>
                 <label className="text-xs text-gray-500">Link Google Maps</label>
                 <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.maps} onChange={(e) => setBozza({ ...bozza, maps: e.target.value })} />
                 <label className="text-xs text-gray-500">Telefono</label>
@@ -230,7 +254,11 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-medium text-sm">{l.nome}</p>
-                  {l.distanza && <p className="text-xs text-gray-400">{l.distanza}</p>}
+                  {(l.distanza || l.prezzo || l.voto) && (
+                    <p className="text-xs text-gray-400">
+                      {[l.distanza, l.prezzo, l.voto && `★ ${l.voto}`].filter(Boolean).join('  ·  ')}
+                    </p>
+                  )}
                   <p className="text-xs text-gray-500 line-clamp-1">{l.descrizione}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

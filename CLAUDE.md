@@ -38,8 +38,8 @@ haplyhost/
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (descrizione_casa, contatti host, max_ospiti) + luoghi + pagine, chiama Claude, logga su `domande`
 │   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,
 │   │                          uguale in GestisciSezione.tsx): false → l'endpoint torna 503 senza chiamare AI.
-│   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding, prezzo+voto
-│   │                          uniti alla descrizione) | 'claude' (fallback spento: Haiku + web_search_20250305).
+│   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding; prezzo e voto
+│   │                          scritti nelle colonne `proposte.prezzo`/`voto`) | 'claude' (fallback spento: Haiku + web_search_20250305).
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
 │   ├── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
@@ -53,16 +53,23 @@ haplyhost/
 ├── src/
 │   ├── main.tsx             ← entry point: BrowserRouter + StrictMode
 │   ├── App.tsx              ← TUTTE le rotte generate da `useSezioni().tutte` (14 di sistema + custom). Non aggiungere rotte a mano per le sezioni
+│   ├── index.css            ← `@import "tailwindcss"` + design system "g-*" della GUIDA OSPITI (token su .g-shell,
+│   │                          non :root, così l'override inline di --g-accent fa ricalcolare i color-mix; dark via
+│   │                          prefers-color-scheme). L'admin NON usa g-*: resta su utility Tailwind (reskin editoriale a parte).
 │   ├── supabaseClient.ts    ← client Supabase con anon key (sicuro lato browser)
-│   ├── sezioni.ts           ← le 14 sezioni DI SISTEMA: {chiave, icona, etichetta, tipo, descrizione?} + `CHIAVI_BUILTIN` (Set).
+│   ├── sezioni.ts           ← le 14 sezioni DI SISTEMA: {chiave, icona, etichetta, tipo, descrizione?} + `CHIAVI_BUILTIN` (Set)
+│   │                          + `filtraVisibili(tutte, sezioni_attive)` (filtro guida, usato da Home/TabBar/GennarinoFab).
 │   │                          tipo: 'elenco' (lista da tabella luoghi) | 'testo' (pagina da tabella pagine) | 'chat' (Gennarino)
 │   ├── useSezioni.ts        ← hook: `SEZIONI` + righe di `sezioni_extra` (cache di modulo, 1 fetch/sessione, degrada se tabella assente).
 │   │                          `invalidaCacheSezioni()` dopo crea/elimina. Usato da App, Home, Admin, SezioniGuida.
-│   ├── Struttura.tsx        ← rotta layout su /:slug — risolve lo slug in una riga `strutture` (incl. `sezioni_attive`), <Outlet context>
-│   ├── Home.tsx             ← griglia: `useSezioni()` filtrato per `sezioni_attive` (lista esplicita) o `CHIAVI_BUILTIN` (se NULL: solo sistema, custom escluse)
-│   ├── SezionePage.tsx      ← pagina generica per sezioni tipo 'elenco' — legge `luoghi` filtrando su struttura_id+sezione+attivo
-│   ├── PaginaStatica.tsx    ← pagina generica per sezioni tipo 'testo' — legge `pagine` filtrando su struttura_id+chiave
-│   ├── Gennarino.tsx        ← UI chat ospiti, chiama /api/gennarino, storico conversazione in stato React (nessuna persistenza)
+│   ├── Struttura.tsx        ← rotta layout su /:slug — risolve lo slug in `strutture` (incl. `sezioni_attive`, `accento`, `copertina_url`).
+│   │                          Rende `.g-shell` (con --g-accent inline) + <Outlet context> + <GennarinoFab> + <TabBar>
+│   ├── TabBar.tsx           ← barra fissa in basso della guida: Home + prime 2 sezioni 'elenco' visibili + Gennarino
+│   ├── GennarinoFab.tsx     ← bottone tondo galleggiante → /:slug/gennarino; nascosto sulla rotta chat o se la sezione chat è spenta
+│   ├── Home.tsx             ← hero (gradiente o `copertina_url`) + griglia `.g-tile` da `filtraVisibili()` (esclusa la voce chat)
+│   ├── SezionePage.tsx      ← sezioni 'elenco' — legge `luoghi` (+`prezzo`,`voto`,`categoria`); schede `.g-place` con pastiglie
+│   ├── PaginaStatica.tsx    ← sezioni 'testo' — legge `pagine`; intestazione `.g-peek` + corpo `.g-prose`
+│   ├── Gennarino.tsx        ← UI chat ospiti (`.g-chat`), chiama /api/gennarino, storico in stato React (nessuna persistenza)
 │   └── admin/
 │       ├── Login.tsx            ← login via magic link email (Supabase OTP, nessuna password). `shouldCreateUser: false`:
 │       │                          si accede solo con un'email GIÀ esistente in Supabase Auth. Le nuove email si
@@ -75,14 +82,15 @@ haplyhost/
 │       │                          → mostra il link di invito da copiare e mandare. Sotto, l'elenco degli host già autorizzati.
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
-│       │                          su `strutture` (RLS owner). Riquadro separato "rigenera descrizione da un link" → POST /api/aggiorna-casa
+│       │                          su `strutture` (RLS owner). Blocco "Aspetto della guida": 5 preset colore (`accento`) + link
+│       │                          copertina (`copertina_url`). Riquadro separato "rigenera descrizione da un link" → POST /api/aggiorna-casa
 │       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: spunte "mostra nella guida" (sistema + custom) → UPDATE `strutture.sezioni_attive`.
 │       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
-│       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona, descrizione,
-│       │                          tipo testo|elenco, categoria per Scout se elenco) → POST/DELETE /api/sezioni-extra.
+│       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona via
+│       │                          selettore emoji, descrizione, tipo testo|elenco, categoria per Scout se elenco) → POST/DELETE /api/sezioni-extra.
 │       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco luoghi con toggle attivo/spento,
-│       │                          modifica inline (nome/descrizione/distanza/maps/telefono) + "Elimina questo luogo" (DELETE, dentro la
-│       │                          modifica), pulsante "Cerca nuovi luoghi" (Scout) + lista proposte da Accettare/Rifiutare
+│       │                          modifica inline (nome/descrizione/distanza/prezzo/voto/maps/telefono) + "Elimina questo luogo" (DELETE,
+│       │                          dentro la modifica), pulsante "Cerca nuovi luoghi" (Scout) + lista proposte da Accettare/Rifiutare
 │       └── GestisciPagina.tsx   ← UNICO componente riusato per tutte e 6 le sezioni 'testo': editor titolo+contenuto su `pagine`
 ```
 
@@ -103,6 +111,8 @@ strutture (
   host_nome text, host_telefono text, descrizione_casa text,
   regole text,            -- probabilmente vestigiale: il contenuto "Regole Casa" reale vive in pagine.chiave='regole'
   sezioni_attive jsonb,   -- migration 0003: array delle chiavi sezione da mostrare in guida. NULL = tutte
+  accento text,           -- migration 0005: colore d'accento della guida (hex). NULL = teal di default
+  copertina_url text,     -- migration 0005: link immagine hero. NULL = gradiente dal colore accento
   attivo boolean, creato_il timestamptz,
   owner_user_id uuid references auth.users(id) on delete set null   -- ON DELETE SET NULL da migration 0002:
   --   cancellare un utente Auth NON cancella/blocca la sua struttura (diventa senza proprietario)
@@ -120,9 +130,12 @@ luoghi (
   id uuid pk, struttura_id uuid references strutture(id) on delete cascade,
   sezione text, nome text, icona text, etichetta text, categoria text,
   descrizione text, distanza text, maps text, telefono text,
+  prezzo text, voto text,   -- migration 0005: fascia di prezzo (es. "15-25 €") e voto Google (es. "4,5"), da Scout
   ordine int, attivo boolean, traduzioni jsonb, da_tradurre boolean
 )
 -- index (struttura_id, sezione, ordine)
+-- ⚠️ distanza: i dati reali importati da V1 hanno già l'emoji dentro il testo (es. "🚶 7 min a piedi").
+--    Il frontend NON deve aggiungere un'altra icona davanti.
 -- traduzioni: JSON multi-lingua già importato da V1 (IT/EN/FR/DE/ES) e validato;
 -- ispezionare una riga reale per la struttura esatta delle chiavi prima di costruire il selettore lingua
 
@@ -140,6 +153,7 @@ pagine (
 proposte (   -- output di Scout, in attesa di approvazione host
   id uuid pk, struttura_id uuid references strutture(id) on delete cascade,
   sezione text, nome text, descrizione text, distanza text, maps text, telefono text,
+  prezzo text, voto text,   -- migration 0005: come luoghi; copiati nel luogo quando l'host accetta la proposta
   creato_il timestamptz
 )
 
@@ -171,7 +185,9 @@ sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di
 
 `supabase/migrations/`: `0001_host_autorizzati.sql`, `0002_strutture_owner_on_delete_set_null.sql`
 (FK owner_user_id → SET NULL), `0003_strutture_sezioni_attive.sql` (colonna `sezioni_attive`),
-`0004_sezioni_extra.sql` (tabella sezioni custom). Lo schema sopra resta la fonte di verità scritta;
+`0004_sezioni_extra.sql` (tabella sezioni custom), `0005_guida_grafica.sql` (colonne `strutture.accento`
++ `strutture.copertina_url`, `luoghi.prezzo` + `luoghi.voto`, `proposte.prezzo` + `proposte.voto`;
+lanciata su Supabase 03/09/2026). Lo schema sopra resta la fonte di verità scritta;
 restano NON tracciati la colonna `link_riferimento` e la policy RLS `strutture` per owner. Da qui in
 avanti ogni `ALTER TABLE` / `CREATE POLICY` va in un file numerato lì dentro. ⚠️ Quando una migration
 aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), lanciare l'SQL
@@ -193,7 +209,8 @@ I valori reali vanno letti da `.env.local` (locale, gitignored) o dal dashboard 
 
 ## Testare le modifiche
 
-- Solo frontend (componenti in `src/`, non `/api`): `npm run dev`, testare in locale prima del push.
+- Solo frontend (componenti in `src/`, non `/api`): `npm run dev`, testare in locale prima del push. `npm run dev` punta comunque al Supabase remoto (non c'è un DB locale): una migration che aggiunge colonne lette in `select` va lanciata prima anche per i test locali.
+- `vite.config.ts` legge `process.env.PORT` (default 5173): serve solo a poter avviare un secondo dev server su un'altra porta quando 5173 è occupata. Ininfluente per il build/deploy.
 - Qualsiasi modifica a `/api/*.js` o `/lib/*.js`: **non testabile in locale**, `npm run dev` non esegue le funzioni serverless. Serve fare push e testare su `https://haplyhost.vercel.app/...` dopo che Vercel ha ridistribuito (circa un minuto).
 - Trio standard di pubblicazione, sempre dalla radice del progetto: `git add .` / `git commit -m "..."` / `git push`. **Controllare sempre la cartella corrente prima**: in passato comandi git sono stati lanciati per errore da dentro `src/admin` o da una cartella `admin` vuota creata per sbaglio nella radice — questo fa sì che `git add .` non veda affatto le cartelle `api/` e `lib/`, con file mancanti nel push senza errori evidenti.
 - Su Supabase SQL Editor può comparire un popup "Potential issue detected... enable RLS?": scegliere **"Run without RLS"** per script che fanno solo INSERT/UPDATE su tabelle esistenti; **"Run and enable RLS"** solo quando lo script contiene dei veri `CREATE TABLE`.
@@ -226,7 +243,8 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
 - Pannello host: login magic-link, gestione on/off + modifica/elimina luoghi su tutte le sezioni elenco (con distanza in lista), editor per le pagine testuali, link "Vedi la guida degli ospiti", pagina "Sezioni della guida" (scegli quali tessere mostrare agli ospiti — `strutture.sezioni_attive`)
 - **Sezioni custom del superadmin**: pagina `/admin/sezioni-extra` (solo superadmin) per creare/eliminare sezioni oltre le 14 di sistema, tipo testo o elenco. Vivono in `sezioni_extra`, si uniscono ovunque via `useSezioni()`, nascono spente per tutti gli host. **Prerequisito prod: migration 0004.**
-- Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (uniti alla descrizione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.**
+- Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (colonne `proposte.prezzo`/`voto`, copiati nel luogo all'accettazione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.**
+- **Reskin della guida ospiti** (migration 0005): design system "g-*" in `src/index.css` (spirito StayFlow: Nunito, hero, griglia emoji, barra in basso `TabBar`, FAB `GennarinoFab`, modalità chiara/scura). Due leve per l'host in ModificaCasa: colore d'accento (`strutture.accento`, 5 preset, iniettato come `--g-accent` inline sullo `.g-shell`) e foto di copertina (`strutture.copertina_url`, link incollato — upload diretto rimandato). Schede luogo con pastiglie prezzo/voto. Verificato in locale 03/09/2026 (guida ospiti); le 2 modifiche admin passano tsc/build, da verificare con login. Il pannello admin resta su Tailwind grezzo (reskin editoriale rimandato). "Il consiglio di oggi" e il selettore lingua: rimandati.
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
@@ -253,8 +271,10 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
   - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo
     per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
-- Multilingua: `luoghi.traduzioni` ha già dati reali in 5 lingue importati da V1; manca il selettore lingua e la logica di lettura nel frontend; `pagine` ha solo italiano
+- Multilingua: `luoghi.traduzioni` ha già dati reali in 5 lingue importati da V1; manca il selettore lingua e la logica di lettura nel frontend; `pagine` ha solo italiano. (Il mockup del reskin aveva un selettore `.lang`, non portato: qui va agganciato.)
+- Upload della foto di copertina via Supabase Storage: oggi in ModificaCasa si incolla un link (`copertina_url`). Aggiungere un vero caricamento file.
 - Visualizzazione dei sotto-blocchi "Aperitivi" e "Stellati" dentro la pagina "Dove Mangiare" (dati presenti in `luoghi` con quelle sezioni, nessuna UI dedicata — oggi sarebbero raggiungibili solo con un URL manuale tipo `/villavirginia/aperitivi`, non linkato da nessuna parte)
-- Restyling grafico (deliberatamente rimandato — l'interfaccia attuale è Tailwind minimale, non rifinita come la V1)
+- **Reskin del pannello admin**: la guida ospiti è riskinnata (design system `g-*`); l'admin resta su Tailwind grezzo. Serve un impianto grafico dedicato più sobrio/editoriale (mockup "v2" già approvato a voce), separato da `g-*`.
+- **"Il consiglio di oggi"**: c'era nel mockup del reskin (chiamata AI a costo), rimosso su richiesta. Da riprendere quando c'è budget AI e cache.
 - Passaggio da Vercel Hobby a Pro (obbligatorio prima di fatturare a un cliente vero, per via dei termini d'uso non-commerciali del piano gratuito)
 - Gestione di un host con più strutture (oggi il modello presume una struttura per host)

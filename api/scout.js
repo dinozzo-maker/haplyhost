@@ -78,16 +78,15 @@ Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
     throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
   }
 
-  return candidati.filter(c => c && c.nome).map(c => {
-    const extra = [c.prezzo, c.voto ? `voto ${c.voto}` : ''].filter(Boolean).join(' · ')
-    return {
-      nome: c.nome,
-      descrizione: [c.descrizione || '', extra].filter(Boolean).join(' · '),
-      distanza: c.distanza || '',
-      maps: c.maps || '',
-      telefono: c.telefono || '',
-    }
-  })
+  return candidati.filter(c => c && c.nome).map(c => ({
+    nome: c.nome,
+    descrizione: c.descrizione || '',
+    distanza: c.distanza || '',
+    prezzo: c.prezzo || '',
+    voto: c.voto || '',
+    maps: c.maps || '',
+    telefono: c.telefono || '',
+  }))
 }
 
 // ---- MOTORE CLAUDE: ricerca web (fallback, oggi non selezionato) ----
@@ -149,6 +148,8 @@ Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato es
     nome: c.nome,
     descrizione: c.descrizione || '',
     distanza: c.distanza || '',
+    prezzo: '',
+    voto: '',
     maps: c.maps || '',
     telefono: c.telefono || '',
   }))
@@ -212,6 +213,8 @@ export default async function handler(req, res) {
       nome: c.nome,
       descrizione: c.descrizione,
       distanza: c.distanza,
+      prezzo: c.prezzo || null,
+      voto: c.voto || null,
       maps: c.maps,
       telefono: c.telefono,
     }))

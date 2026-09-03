@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import type { StrutturaRow } from './Struttura'
+import { useSezioni } from './useSezioni'
 
 type LuogoRow = {
   id: string
@@ -10,19 +11,25 @@ type LuogoRow = {
   distanza: string
   maps: string
   telefono: string
+  prezzo: string | null
+  voto: string | null
+  categoria: string | null
 }
 
 export default function SezionePage() {
   const struttura = useOutletContext<StrutturaRow>()
   const { slug, sezione } = useParams()
+  const { tutte } = useSezioni()
   const [luoghi, setLuoghi] = useState<LuogoRow[]>([])
   const [caricamento, setCaricamento] = useState(true)
+
+  const info = tutte.find((s) => s.chiave === sezione)
 
   useEffect(() => {
     async function carica() {
       const { data } = await supabase
         .from('luoghi')
-        .select('id, nome, descrizione, distanza, maps, telefono')
+        .select('id, nome, descrizione, distanza, maps, telefono, prezzo, voto, categoria')
         .eq('struttura_id', struttura.id)
         .eq('sezione', sezione)
         .eq('attivo', true)
@@ -35,37 +42,51 @@ export default function SezionePage() {
   }, [struttura.id, sezione])
 
   return (
-    <div className="p-6 max-w-md mx-auto">
-      <Link to={`/${slug}`} className="text-sm text-blue-600">&larr; Torna alla home</Link>
-      <h1 className="text-xl font-bold capitalize mt-2 mb-4">{sezione}</h1>
+    <div className="g-page">
+      <Link to={`/${slug}`} className="g-back">
+        ← Torna alla home
+      </Link>
 
-      {caricamento && <p>Caricamento...</p>}
-      {!caricamento && luoghi.length === 0 && <p>Nessun contenuto ancora inserito qui.</p>}
-
-      <div className="flex flex-col gap-3">
-        {luoghi.map((l) => (
-          <div key={l.id} className="bg-white rounded-xl shadow p-4">
-            <h2 className="font-semibold">{l.nome}</h2>
-            {l.distanza && <p className="text-sm text-gray-500">{l.distanza}</p>}
-            <p className="text-sm mt-1">{l.descrizione}</p>
-
-            {(l.telefono || l.maps) && (
-              <div className="flex gap-3 mt-3">
-                {l.telefono && (
-                  <a href={`tel:${l.telefono}`} className="text-sm text-blue-600 font-medium">
-                    📞 Chiama
-                  </a>
-                )}
-                {l.maps && (
-                  <a href={l.maps} target="_blank" rel="noreferrer" className="text-sm text-blue-600 font-medium">
-                    📍 Mappa
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+      <div className="g-peek">
+        <span className="p-emo">{info?.icona ?? '📍'}</span>
+        <div>
+          <div className="p-title">{info?.etichetta ?? sezione}</div>
+          <div className="p-sub">{info?.descrizione || 'I posti che consigliamo agli ospiti'}</div>
+        </div>
       </div>
+
+      {caricamento && <p className="g-hint">Caricamento...</p>}
+      {!caricamento && luoghi.length === 0 && (
+        <p className="g-hint">Nessun contenuto ancora inserito qui.</p>
+      )}
+
+      {luoghi.map((l) => (
+        <div key={l.id} className="g-place">
+          <div className="pl-top">
+            <span className="pl-name">{l.nome}</span>
+            {l.prezzo && <span className="g-pill">{l.prezzo}</span>}
+            {l.voto && <span className="g-pill rate">★ {l.voto}</span>}
+          </div>
+          {l.categoria && <div className="pl-cat">{l.categoria}</div>}
+          {l.descrizione && <p className="pl-desc">{l.descrizione}</p>}
+
+          {(l.distanza || l.maps || l.telefono) && (
+            <div className="pl-meta">
+              {l.distanza && <span className="pl-dist">{l.distanza}</span>}
+              {l.maps && (
+                <a className="pl-act" href={l.maps} target="_blank" rel="noreferrer">
+                  🗺️ Mappa
+                </a>
+              )}
+              {l.telefono && (
+                <a className="pl-act" href={`tel:${l.telefono}`}>
+                  📞 Chiama
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

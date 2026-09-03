@@ -27,3 +27,13 @@ export const SEZIONI: Sezione[] = [
 
 // Chiavi delle sezioni di sistema — usate per distinguerle dalle sezioni custom (sezioni_extra).
 export const CHIAVI_BUILTIN = new Set(SEZIONI.map((s) => s.chiave))
+
+// Sezioni visibili nella guida ospiti di una struttura.
+// sezioniAttive = lista esplicita di chiavi da mostrare; null = tutte le sezioni
+// di sistema (le custom vanno comunque attivate a mano dall'host).
+// Usata da Home, TabBar e GennarinoFab: unica fonte del filtro.
+export function filtraVisibili(tutte: Sezione[], sezioniAttive: string[] | null): Sezione[] {
+  return tutte.filter((s) =>
+    sezioniAttive ? sezioniAttive.includes(s.chiave) : CHIAVI_BUILTIN.has(s.chiave)
+  )
+}

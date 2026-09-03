@@ -6,6 +6,18 @@ import type { ContestoHost } from './RichiedeLogin'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
 
+// Emoji tra cui scegliere l'icona di una sezione custom.
+const EMOJI = [
+  '🏠', '🛏️', '🔑', '📶', '🅿️', '🧺', '🌿', '🕯️',
+  '🏖️', '🏊', '⛱️', '🌊', '⛵', '🚤', '🐚', '🏄',
+  '🍝', '🍕', '🍷', '☕', '🍦', '🥐', '🍺', '🐟',
+  '🛒', '💊', '🏧', '🥖', '🧴', '🏪', '📮', '🛍️',
+  '🏛️', '⛪', '🖼️', '🎭', '📸', '🏰', '🗿', '⛲',
+  '🎡', '🎢', '🎯', '🚴', '🥾', '🧗', '🎣', '🎾',
+  '🗺️', '🚌', '🚕', '🚗', '🚲', '🚂', '✈️', '⛴️',
+  '♻️', '📋', '🚨', '📞', '🎉', '🎂', '💍', '🎓',
+]
+
 type SezioneExtra = {
   chiave: string
   icona: string
@@ -24,6 +36,7 @@ export default function SezioniExtra() {
 
   const [etichetta, setEtichetta] = useState('')
   const [icona, setIcona] = useState('')
+  const [pickerAperto, setPickerAperto] = useState(false)
   const [descrizione, setDescrizione] = useState('')
   const [tipo, setTipo] = useState<'testo' | 'elenco'>('testo')
   const [categoria, setCategoria] = useState('')
@@ -80,6 +93,7 @@ export default function SezioniExtra() {
       }
       setEtichetta('')
       setIcona('')
+      setPickerAperto(false)
       setDescrizione('')
       setCategoria('')
       setTipo('testo')
@@ -143,13 +157,34 @@ export default function SezioniExtra() {
         placeholder="Es. Per un'occasione speciale"
       />
 
-      <label className="text-xs text-gray-500">Icona (emoji)</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        value={icona}
-        onChange={(e) => setIcona(e.target.value)}
-        placeholder="🎉"
-      />
+      <label className="text-xs text-gray-500">Icona</label>
+      <div className="mb-3">
+        <button
+          type="button"
+          onClick={() => setPickerAperto((v) => !v)}
+          className="w-full border rounded-lg px-3 py-2 text-sm flex items-center justify-between"
+        >
+          <span>
+            <span className="text-lg mr-2">{icona || '📄'}</span>
+            {icona ? 'Cambia icona' : 'Scegli un’icona'}
+          </span>
+          <span className="text-gray-400">{pickerAperto ? '▲' : '▼'}</span>
+        </button>
+        {pickerAperto && (
+          <div className="mt-2 grid grid-cols-8 gap-1 border rounded-lg p-2 bg-white">
+            {EMOJI.map((e) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => { setIcona(e); setPickerAperto(false) }}
+                className={`text-xl rounded-md py-1 hover:bg-gray-100 ${icona === e ? 'bg-blue-100' : ''}`}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <label className="text-xs text-gray-500">Descrizione breve</label>
       <input

@@ -60,10 +60,12 @@ export default function TraduciGuida() {
           `non ${dati.nonRiusciti === 1 ? 'è riuscito' : 'sono riusciti'}. Riprova tra un minuto.`
         )
         if (dati.errore) setDettaglio(String(dati.errore))
-      } else if (fatti === 0) {
-        setEsito('Era già tutto tradotto ✓')
-      } else {
+      } else if (fatti > 0) {
         setEsito(`Fatto ✓ — ${dati.pagine} pagine e ${dati.luoghi} luoghi tradotti`)
+      } else if (dati.ripulite > 0) {
+        setEsito('Fatto ✓ — non c\'era testo nuovo da tradurre')
+      } else {
+        setEsito('Era già tutto tradotto ✓')
       }
 
       // Ricontiamo dal database invece di azzerare: così l'avviso resta giusto

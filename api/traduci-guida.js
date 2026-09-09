@@ -111,27 +111,41 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Non sei il proprietario di questa struttura' })
   }
 
-  // Si traduce SOLO ciò che serve: mai tradotto, o modificato dopo l'ultima traduzione
-  // (`da_tradurre`). Prima le pagine si ritraducevano tutte a ogni giro: spreco e rischio timeout.
-  const serve = (r) => r.da_tradurre === true || !r.traduzioni || Object.keys(r.traduzioni).length === 0
+  // Una riga è "non tradotta" se non ha ancora l'oggetto `traduzioni`.
+  const nonTradotta = (r) => !r.traduzioni || Object.keys(r.traduzioni).length === 0
 
   let nPagine = 0
   let nLuoghi = 0
   let nonRiusciti = 0
+  let ripulite = 0 // righe con il flag ma senza testo da tradurre: flag tolto e basta
   let ultimoErrore = ''
 
   try {
+    // --- Pagine di testo ---
+    // Si lavora solo ciò che serve: modificato dopo l'ultima traduzione (`da_tradurre`),
+    // oppure con del testo mai tradotto. Prima si ritraducevano tutte a ogni giro.
     const { data: pagine } = await supabase
       .from('pagine')
       .select('id, titolo, contenuto, traduzioni, da_tradurre')
       .eq('struttura_id', struttura_id)
 
-    await aLotti((pagine || []).filter(serve), 4, async (p) => {
+    const pagineDaFare = (pagine || []).filter(
+      (p) => p.da_tradurre === true || ((p.titolo || p.contenuto) && nonTradotta(p))
+    )
+    await aLotti(pagineDaFare, 4, async (p) => {
+      const campi = {}
+      if (p.titolo) campi.titolo = p.titolo
+      if (p.contenuto) campi.contenuto = p.contenuto
+      // Niente testo da tradurre: se ha il flag, toglilo (altrimenti resta "in sospeso" per sempre).
+      if (!Object.keys(campi).length) {
+        if (p.da_tradurre) {
+          await supabase.from('pagine').update({ da_tradurre: false }).eq('id', p.id)
+          ripulite += 1
+        }
+        return
+      }
       try {
-        const trad = await traduci(
-          { titolo: p.titolo, contenuto: p.contenuto },
-          'una pagina informativa della guida per gli ospiti di una casa vacanze'
-        )
+        const trad = await traduci(campi, 'una pagina informativa della guida per gli ospiti di una casa vacanze')
         if (trad) {
           await supabase.from('pagine').update({ traduzioni: trad, da_tradurre: false }).eq('id', p.id)
           nPagine += 1
@@ -143,17 +157,29 @@ export default async function handler(req, res) {
       }
     })
 
+    // --- Luoghi ---
     const { data: luoghi } = await supabase
       .from('luoghi')
       .select('id, descrizione, categoria, distanza, traduzioni, da_tradurre')
       .eq('struttura_id', struttura_id)
 
-    await aLotti((luoghi || []).filter(serve), 4, async (l) => {
+    const luoghiDaFare = (luoghi || []).filter(
+      (l) => l.da_tradurre === true || ((l.descrizione || l.categoria || l.distanza) && nonTradotta(l))
+    )
+    await aLotti(luoghiDaFare, 4, async (l) => {
+      const campi = {}
+      if (l.descrizione) campi.descrizione = l.descrizione
+      if (l.categoria) campi.categoria = l.categoria
+      if (l.distanza) campi.distanza = l.distanza
+      // Luogo con solo il nome: niente da tradurre, ma il flag va tolto lo stesso.
+      if (!Object.keys(campi).length) {
+        if (l.da_tradurre) {
+          await supabase.from('luoghi').update({ da_tradurre: false }).eq('id', l.id)
+          ripulite += 1
+        }
+        return
+      }
       try {
-        const campi = {}
-        if (l.descrizione) campi.descrizione = l.descrizione
-        if (l.categoria) campi.categoria = l.categoria
-        if (l.distanza) campi.distanza = l.distanza
         const trad = await traduci(campi, 'una scheda di un luogo consigliato agli ospiti')
         if (trad) {
           await supabase.from('luoghi').update({ traduzioni: trad, da_tradurre: false }).eq('id', l.id)
@@ -169,6 +195,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       pagine: nPagine,
       luoghi: nLuoghi,
+      ripulite,
       nonRiusciti,
       errore: nonRiusciti > 0 ? ultimoErrore : undefined,
     })

@@ -63,7 +63,10 @@ export default async function handler(req, res) {
       citta: citta || null,
       owner_user_id: userId,
       descrizione_casa: descrizione,
-      attivo: true,
+      // Nasce NON pubblica: l'host la prepara e poi la pubblica dal pannello
+      // ("Pubblica la guida" in Admin.tsx). Fino ad allora gli ospiti non la vedono;
+      // l'host sì (policy RLS "l'owner vede la propria", migration 0010).
+      attivo: false,
     })
     .select('id, slug, nome')
     .single()
@@ -71,6 +74,17 @@ export default async function handler(req, res) {
   if (erroreCreazione) {
     console.error(erroreCreazione)
     return res.status(500).json({ error: 'Errore nella creazione della struttura' })
+  }
+
+  // Segna la data di registrazione nell'elenco host autorizzati (per la pagina
+  // "Invita host"). Best-effort: se la riga non c'è o fallisce, non blocca nulla.
+  const emailHost = (userData.user.email || '').trim().toLowerCase()
+  if (emailHost) {
+    const { error: erroreRegistrato } = await supabase
+      .from('host_autorizzati')
+      .update({ registrato_il: new Date().toISOString() })
+      .eq('email', emailHost)
+    if (erroreRegistrato) console.error('registrato_il non aggiornato:', erroreRegistrato)
   }
 
   return res.status(200).json({ struttura: nuovaStruttura })

@@ -47,7 +47,8 @@ haplyhost/
 │   │                          uguale in GestisciSezione.tsx): false → l'endpoint torna 503 senza chiamare AI.
 │   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding; prezzo e voto
 │   │                          scritti nelle colonne `proposte.prezzo`/`voto`) | 'claude' (fallback spento: Haiku + web_search_20250305).
-│   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta attivo=true
+│   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta
+│   │                          attivo=FALSE (l'host pubblica dal pannello), e segna host_autorizzati.registrato_il (best-effort)
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
 │   ├── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
 │   │                          di invito (supabase.auth.admin.generateLink), DELETE rimuove dall'elenco e prova a eliminare
@@ -91,8 +92,10 @@ haplyhost/
 │       │                          abilitano a mano (Dashboard Supabase → Authentication → Users → Invite / Add user).
 │       ├── RichiedeLogin.tsx    ← guardia di autenticazione: verifica sessione E risolve la struttura di cui l'utente è owner_user_id, passa entrambi con <Outlet context>
 │       ├── Admin.tsx            ← dashboard host: bottoni "Gestisci X" / "Modifica X" generati da `useSezioni()`. Se l'host non ha ancora una struttura, mostra <CreaStruttura />.
+│       │                          Se la guida è spenta (attivo=false): card "Primi passi" (checklist con pagine/luoghi rilevati) + "Pubblica la guida".
+│       │                          Se è online: riga "🟢 La guida è online" + "Metti offline" (conferma). Il flag va su `strutture.attivo` (UPDATE owner).
 │       │                          Sezione "PIATTAFORMA" (solo se email === VITE_ADMIN_EMAIL): link a /admin/invita-host e /admin/sezioni-extra
-│       ├── CreaStruttura.tsx    ← form onboarding (nome, indirizzo, link) → POST /api/importa-casa
+│       ├── CreaStruttura.tsx    ← form onboarding (nome, indirizzo, link) → POST /api/importa-casa → la struttura nasce spenta, poi window.location='/admin'
 │       ├── InvitaHost.tsx       ← rotta /admin/invita-host, SOLO superadmin: form (email, nome riferimento, piano, note) → POST /api/host-autorizzati
 │       │                          → mostra il link di invito da copiare e mandare. Sotto, l'elenco degli host già autorizzati.
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
@@ -137,7 +140,9 @@ strutture (
   accento text,           -- migration 0005: colore d'accento della guida (hex). NULL = teal di default
   copertina_url text,     -- migration 0005: link immagine hero. NULL = gradiente dal colore accento
   note_gennarino text,    -- migration 0007: testo libero dell'host, solo per il prompt di Gennarino (non è una sezione guida)
-  attivo boolean, creato_il timestamptz,
+  attivo boolean,          -- guida pubblica (visibile agli ospiti) sì/no. importa-casa.js la crea a false;
+  --                          l'host pubblica da Admin.tsx ("Pubblica la guida"). L'owner vede la propria anche se false (migration 0010)
+  creato_il timestamptz,
   owner_user_id uuid references auth.users(id) on delete set null   -- ON DELETE SET NULL da migration 0002:
   --   cancellare un utente Auth NON cancella/blocca la sua struttura (diventa senza proprietario)
   -- ⚠️ link_riferimento: documentata in passato ma NON presente nel DB reale (verificato 30/08/2026).
@@ -187,7 +192,7 @@ proposte (   -- output di Scout, in attesa di approvazione host
 host_autorizzati (   -- email autorizzate dal superadmin a diventare host (vedi supabase/migrations/0001)
   email text pk, nome_riferimento text, piano text,   -- piano: 'guida' | 'concierge' | 'portfolio'
   note text, autorizzato_il timestamptz default now(),
-  registrato_il timestamptz   -- popolato quando l'host crea la struttura (Incremento B, non ancora fatto)
+  registrato_il timestamptz   -- popolato da importa-casa.js quando l'host crea la struttura (best-effort)
   -- RLS on, zero policy: solo server-side con service role, via api/host-autorizzati.js
 )
 
@@ -283,7 +288,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - **Reskin della guida ospiti** (migration 0005, verificato in prod 03/09/2026): design system "g-*" in `src/index.css` (spirito StayFlow: Nunito, hero, griglia emoji, barra in basso `TabBar`, FAB `GennarinoFab`, modalità chiara/scura). Due leve per l'host in ModificaCasa: colore d'accento (`strutture.accento`, 5 preset, iniettato come `--g-accent` inline sullo `.g-shell`) e foto di copertina — **"Carica foto"** (upload su Storage bucket `copertine`, migration 0006) o link incollato. Schede luogo con pastiglie prezzo/voto (`luoghi.prezzo`/`voto` da Scout). Selettore emoji in SezioniExtra. "+ Aggiungi un luogo a mano" in GestisciSezione. Il pannello admin resta su Tailwind grezzo (reskin editoriale rimandato). "Il consiglio di oggi": rimandato.
 - **Multilingua della guida ospiti** (IT/EN/FR/DE/ES, nessuna migration): all'apertura la guida si mette nella lingua del telefono (`navigator.language`), con selettore 🌐 in alto a destra (scelta ricordata in localStorage). Testi fissi da un dizionario (`src/lingua.ts` `T`); luoghi da `luoghi.traduzioni` con ripiego all'italiano; etichette sezioni tradotte (solo le 14 di sistema — le custom restano in italiano). Gennarino risponde nella lingua dell'ospite (`api/gennarino.js` accetta `lang`). Le pagine di testo e i luoghi senza traduzione si riempiono con **"Traduci la guida"** in ModificaCasa → `api/traduci-guida.js` (Haiku). Verificato frontend in locale 03/09/2026.
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
-- "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`, struttura creata con `attivo=true`. Testato con successo anche con un annuncio Airbnb.
+- "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`. Testato con successo anche con un annuncio Airbnb. **Aggiornato (09/09/2026)**: la struttura nasce `attivo=false` (bozza) e l'host la pubblica dal pannello; `host_autorizzati.registrato_il` viene segnato alla creazione.
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
 - Gennarino ora include nella knowledge base anche `descrizione_casa`, `host_telefono`, `max_ospiti` (prima `descrizione_casa` non era usata da nessuno). Verificato: risponde con i dettagli della casa presi da `descrizione_casa`.
 
@@ -291,7 +296,8 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - `Login.tsx` con `shouldCreateUser: false` — si accede solo con email già in Supabase Auth. Email sconosciuta → messaggio, non il link.
 - **Invito host**: tabella `host_autorizzati` + `api/host-autorizzati.js` (GET/POST/DELETE) + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link "PIATTAFORMA" nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email, genera il link di invito, e può rimuovere un host dall'elenco (il "Rimuovi" prova anche a eliminare l'account Auth, salta se ha già una struttura).
 - Serve `VITE_ADMIN_EMAIL` su Vercel + `.env.local` = email del superadmin (oggi `bernardinocalifano@gmail.com`, che possiede Villa Virginia).
-- **Incremento B non ancora fatto**: `importa-casa.js` non verifica `host_autorizzati` né popola `registrato_il` — oggi il vero blocco è solo `shouldCreateUser: false` a livello di login.
+- **Incremento B — parziale**: `importa-casa.js` popola `registrato_il` (fatto 09/09/2026), ma NON verifica ancora `host_autorizzati` come gate — oggi il vero blocco resta `shouldCreateUser: false` a livello di login (+ solo il superadmin genera link di invito). Nota: un host aggiunto a mano in Supabase Auth, saltando "Invita host", riuscirebbe comunque a creare la struttura.
+- **Guida in bozza + pubblicazione (09/09/2026)**: nuove strutture nascono `attivo=false`. `Admin.tsx` mostra la card "Primi passi" (checklist: pagine di testo ○/✓, luoghi ○/✓; + link a dati casa, colore/foto, sezioni, traduzioni) e il pulsante "Pubblica la guida" (→ `attivo=true`). Quando è online: "🟢 La guida è online" + "Metti offline" (con conferma). L'host vede/apre la propria guida anche da spenta (migration 0010). ⚠️ rough edge: un ospite anonimo che apre lo slug di una guida non pubblica vede "Struttura non trovata" (dal lato anon non si distingue da uno slug inesistente) — da ingentilire in futuro con una pagina "in allestimento".
 
 **Debiti tecnici aperti:**
 - Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` (in una migration) + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
@@ -301,10 +307,12 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - **Sezioni custom, follow-up**: modifica di una sezione custom esistente dalla UI (per ora solo elimina+ricrea); riordino da UI
   (per ora campo `ordine` solo via SQL); assegnare una sezione custom solo a certi host; pulizia righe `pagine`/`luoghi` orfane
   dopo l'eliminazione di una sezione.
-- **Onboarding v2** (gate + "Invita host" + scelta sezioni host [b] fatti — qui resta il seguito):
-  - (a) Incremento B: `importa-casa.js` verifica `host_autorizzati` e popola `registrato_il`; stato "registrato" mostrato in InvitaHost.
+- **Onboarding v2** (gate + "Invita host" + scelta sezioni host [b] + `registrato_il` + bozza/pubblicazione fatti — qui resta il seguito):
+  - (a) Incremento B, parte mancante: `importa-casa.js` deve anche *verificare* `host_autorizzati` (rifiutare un'email non in elenco).
   - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo
     per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
+  - (d) guida non pubblica lato ospite: pagina "in allestimento" invece di "Struttura non trovata" (serve un endpoint o una view che
+    dica "lo slug esiste ma non è pubblico" senza esporre la riga).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
 - Multilingua, follow-up: traduzione delle etichette delle sezioni **custom** (`sezioni_extra`, oggi solo italiano). Il segnale "traduzione da rifare" è fatto (`da_tradurre` su pagine+luoghi → avviso ambra in `/admin` e in `/admin/traduzioni`; `traduci-guida.js` lo azzera).
 - Ottimizzazione foto di copertina: l'upload (`ModificaCasa` → bucket `copertine`) non ridimensiona l'immagine — un JPEG da telefono può essere pesante. Client-side resize (canvas) prima dell'upload, tetto attuale 5 MB. Le trasformazioni immagine di Supabase richiedono il piano Pro. Pulizia dei file orfani non fatta.

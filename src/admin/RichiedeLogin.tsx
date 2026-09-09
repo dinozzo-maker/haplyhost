@@ -5,7 +5,7 @@ import type { Session } from '@supabase/supabase-js'
 
 export type ContestoHost = {
   session: Session
-  struttura: { id: string; nome: string; slug: string } | null
+  struttura: { id: string; nome: string; slug: string; attivo: boolean } | null
 }
 
 export default function RichiedeLogin() {
@@ -26,7 +26,7 @@ export default function RichiedeLogin() {
 
       const { data: struttura } = await supabase
         .from('strutture')
-        .select('id, nome, slug')
+        .select('id, nome, slug, attivo')
         .eq('owner_user_id', session.user.id)
         .maybeSingle()
 

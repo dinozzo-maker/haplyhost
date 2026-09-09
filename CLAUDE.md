@@ -41,8 +41,10 @@ haplyhost/
 │   │                          DUE chiamate a `MODELLO_GEMINI` (`generateContent`; interruttore `MOTORE_GENNARINO`): 1) piccola,
 │   │                          riconosce la lingua dell'ospite; 2) la risposta, con quella lingua come vincolo. Carattere napoletano
 │   │                          nel system prompt (con esempi). `lang` dal body = ripiego. Strip `*`/`#` markdown.
-│   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku pagine (tutte) + luoghi senza traduzioni O con `da_tradurre=true` (en/fr/de/es)
-│   │                          → `*.traduzioni`, e azzera `da_tradurre`. Lotti di 4. `vercel.json` maxDuration 60. Pulsante in `/admin/traduzioni`.
+│   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku (max_tokens 16k, 1 retry sul JSON storto) pagine + luoghi con
+│   │                          `da_tradurre=true` O senza `traduzioni` (en/fr/de/es) → `*.traduzioni`, e azzera `da_tradurre`.
+│   │                          Lotti di 4. Fallimenti per-riga non bloccano: risposta `{pagine,luoghi,nonRiusciti,errore?}`,
+│   │                          il flag resta se la riga non è stata tradotta. `vercel.json` maxDuration 60. Pulsante in `/admin/traduzioni`.
 │   ├── scout.js             ← cerca nuovi luoghi per una sezione, li salva in `proposte`. `RICERCHE_ATTIVE` (booleano,
 │   │                          uguale in GestisciSezione.tsx): false → l'endpoint torna 503 senza chiamare AI.
 │   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding; prezzo e voto

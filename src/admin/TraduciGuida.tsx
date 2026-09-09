@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { ContestoHost } from './RichiedeLogin'
@@ -7,29 +7,33 @@ export default function TraduciGuida() {
   const { struttura } = useOutletContext<ContestoHost>()
   const [traducendo, setTraducendo] = useState(false)
   const [esito, setEsito] = useState('')
+  const [dettaglio, setDettaglio] = useState('')
   const [daTradurre, setDaTradurre] = useState(0)
 
-  useEffect(() => {
+  const conta = useCallback(async (): Promise<number> => {
     const sid = struttura?.id
-    if (!sid) return
-    let vivo = true
-    ;(async () => {
-      try {
-        const [p, l] = await Promise.all([
-          supabase.from('pagine').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('da_tradurre', true),
-          supabase.from('luoghi').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('da_tradurre', true),
-        ])
-        if (vivo) setDaTradurre((p.count ?? 0) + (l.count ?? 0))
-      } catch {
-        if (vivo) setDaTradurre(0)
-      }
-    })()
-    return () => { vivo = false }
+    if (!sid) return 0
+    try {
+      const [p, l] = await Promise.all([
+        supabase.from('pagine').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('da_tradurre', true),
+        supabase.from('luoghi').select('id', { count: 'exact', head: true }).eq('struttura_id', sid).eq('da_tradurre', true),
+      ])
+      return (p.count ?? 0) + (l.count ?? 0)
+    } catch {
+      return 0
+    }
   }, [struttura])
+
+  useEffect(() => {
+    let vivo = true
+    conta().then((n) => { if (vivo) setDaTradurre(n) })
+    return () => { vivo = false }
+  }, [conta])
 
   async function traduci() {
     if (!struttura) return
     setEsito('')
+    setDettaglio('')
     setTraducendo(true)
 
     const { data: sessionData } = await supabase.auth.getSession()
@@ -48,8 +52,23 @@ export default function TraduciGuida() {
         setEsito(dati.error || 'Traduzione non riuscita, riprova.')
         return
       }
-      setEsito(`Tradotte ${dati.pagine} pagine e ${dati.luoghi} luoghi ✓`)
-      setDaTradurre(0)
+
+      const fatti = (dati.pagine ?? 0) + (dati.luoghi ?? 0)
+      if (dati.nonRiusciti > 0) {
+        setEsito(
+          `Tradotti ${fatti} test${fatti === 1 ? 'o' : 'i'}, ma ${dati.nonRiusciti} ` +
+          `non ${dati.nonRiusciti === 1 ? 'è riuscito' : 'sono riusciti'}. Riprova tra un minuto.`
+        )
+        if (dati.errore) setDettaglio(String(dati.errore))
+      } else if (fatti === 0) {
+        setEsito('Era già tutto tradotto ✓')
+      } else {
+        setEsito(`Fatto ✓ — ${dati.pagine} pagine e ${dati.luoghi} luoghi tradotti`)
+      }
+
+      // Ricontiamo dal database invece di azzerare: così l'avviso resta giusto
+      // anche se qualche testo non è stato tradotto.
+      setDaTradurre(await conta())
     } catch {
       setEsito('Errore di connessione, riprova.')
     } finally {
@@ -78,7 +97,7 @@ export default function TraduciGuida() {
       </p>
       <p className="text-xs text-gray-400 mb-4">
         Rilancialo ogni volta che modifichi un testo: le traduzioni non si aggiornano da sole.
-        Ci vuole circa un minuto.
+        Traduce solo quello che è cambiato, ci vuole meno di un minuto.
       </p>
 
       {daTradurre > 0 && (
@@ -96,6 +115,7 @@ export default function TraduciGuida() {
         {traducendo ? 'Sto traducendo, può volerci un minuto…' : 'Traduci la guida'}
       </button>
       {esito && <p className="text-sm text-gray-600 mt-3 text-center">{esito}</p>}
+      {dettaglio && <p className="text-xs text-gray-400 mt-1 text-center break-words">Dettaglio: {dettaglio}</p>}
     </div>
   )
 }

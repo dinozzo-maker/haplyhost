@@ -10,6 +10,7 @@ export default function GestisciPagina({ chiave, etichetta }: { chiave: string; 
   const [caricamento, setCaricamento] = useState(true)
   const [salvataggio, setSalvataggio] = useState(false)
   const [salvato, setSalvato] = useState(false)
+  const [errore, setErrore] = useState('')
 
   useEffect(() => {
     async function carica() {
@@ -33,8 +34,9 @@ export default function GestisciPagina({ chiave, etichetta }: { chiave: string; 
     if (!struttura) return
     setSalvataggio(true)
     setSalvato(false)
+    setErrore('')
 
-    await supabase
+    const { error } = await supabase
       .from('pagine')
       .upsert(
         // da_tradurre: il testo è cambiato, le traduzioni EN/FR/DE/ES vanno rifatte
@@ -43,6 +45,10 @@ export default function GestisciPagina({ chiave, etichetta }: { chiave: string; 
       )
 
     setSalvataggio(false)
+    if (error) {
+      setErrore('Errore nel salvataggio: ' + error.message)
+      return
+    }
     setSalvato(true)
   }
 
@@ -81,6 +87,7 @@ export default function GestisciPagina({ chiave, etichetta }: { chiave: string; 
           Salvato ✓ — poi rilancia <Link to="/admin/traduzioni" className="underline">Traduzioni della guida</Link>
         </p>
       )}
+      {errore && <p className="text-sm text-red-600 mt-2">{errore}</p>}
     </div>
   )
 }

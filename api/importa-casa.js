@@ -40,6 +40,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Sessione non valida, rifai il login' })
   }
   const userId = userData.user.id
+  const emailHost = (userData.user.email || '').trim().toLowerCase()
 
   const { data: esistente } = await supabase
     .from('strutture')
@@ -48,6 +49,27 @@ export default async function handler(req, res) {
     .maybeSingle()
   if (esistente) {
     return res.status(400).json({ error: 'Hai già una struttura registrata su questo account' })
+  }
+
+  // Cancello: l'email dev'essere tra gli host autorizzati (o essere il superadmin).
+  // Il link di invito lo genera solo il superadmin da /admin/invita-host, che scrive
+  // qui la riga; questo blocca chi arrivasse con un account Auth creato a mano.
+  const adminEmail = (process.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
+  if (emailHost !== adminEmail) {
+    const { data: autorizzato, error: erroreAutorizzato } = await supabase
+      .from('host_autorizzati')
+      .select('email')
+      .eq('email', emailHost)
+      .maybeSingle()
+    if (erroreAutorizzato) {
+      console.error('importa-casa: verifica host_autorizzati fallita', erroreAutorizzato)
+      return res.status(503).json({ error: "Non riesco a verificare l'autorizzazione adesso, riprova tra poco." })
+    }
+    if (!autorizzato) {
+      return res.status(403).json({
+        error: "Questa email non risulta tra gli host autorizzati. Scrivi all'amministratore di Haplyhost per l'attivazione.",
+      })
+    }
   }
 
   const { descrizione, citta } = await generaDescrizioneCasa({ nome, indirizzo, link })
@@ -78,7 +100,6 @@ export default async function handler(req, res) {
 
   // Segna la data di registrazione nell'elenco host autorizzati (per la pagina
   // "Invita host"). Best-effort: se la riga non c'è o fallisce, non blocca nulla.
-  const emailHost = (userData.user.email || '').trim().toLowerCase()
   if (emailHost) {
     const { error: erroreRegistrato } = await supabase
       .from('host_autorizzati')

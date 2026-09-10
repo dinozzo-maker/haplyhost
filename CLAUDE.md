@@ -51,8 +51,9 @@ haplyhost/
 │   │                          uguale in GestisciSezione.tsx): false → l'endpoint torna 503 senza chiamare AI.
 │   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding; prezzo e voto
 │   │                          scritti nelle colonne `proposte.prezzo`/`voto`) | 'claude' (fallback spento: Haiku + web_search_20250305).
-│   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}: genera descrizione_casa + citta (via lib/), imposta
-│   │                          attivo=FALSE (l'host pubblica dal pannello), e segna host_autorizzati.registrato_il (best-effort)
+│   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}. Prima: rifiuta se l'email non è in `host_autorizzati`
+│   │                          (403; salta il check se è il superadmin, `VITE_ADMIN_EMAIL`). Poi genera descrizione_casa + citta
+│   │                          (via lib/), imposta attivo=FALSE (l'host pubblica dal pannello), segna host_autorizzati.registrato_il.
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
 │   ├── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
 │   │                          di invito (supabase.auth.admin.generateLink), DELETE rimuove dall'elenco e prova a eliminare
@@ -300,7 +301,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - `Login.tsx` con `shouldCreateUser: false` — si accede solo con email già in Supabase Auth. Email sconosciuta → messaggio, non il link.
 - **Invito host**: tabella `host_autorizzati` + `api/host-autorizzati.js` (GET/POST/DELETE) + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link "PIATTAFORMA" nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email, genera il link di invito, e può rimuovere un host dall'elenco (il "Rimuovi" prova anche a eliminare l'account Auth, salta se ha già una struttura).
 - Serve `VITE_ADMIN_EMAIL` su Vercel + `.env.local` = email del superadmin (oggi `bernardinocalifano@gmail.com`, che possiede Villa Virginia).
-- **Incremento B — parziale**: `importa-casa.js` popola `registrato_il` (fatto 09/09/2026), ma NON verifica ancora `host_autorizzati` come gate — oggi il vero blocco resta `shouldCreateUser: false` a livello di login (+ solo il superadmin genera link di invito). Nota: un host aggiunto a mano in Supabase Auth, saltando "Invita host", riuscirebbe comunque a creare la struttura.
+- **Incremento B — fatto (09-10/09/2026)**: `importa-casa.js` popola `registrato_il` E verifica `host_autorizzati` (403 se l'email non è in elenco; carve-out per il superadmin `VITE_ADMIN_EMAIL`). Ora il flusso è chiuso su due livelli: login (`shouldCreateUser: false`) + questo check. Un account Auth creato a mano, saltando "Invita host", non riesce più a creare la struttura.
 - **Guida in bozza + pubblicazione (09/09/2026)**: nuove strutture nascono `attivo=false`. `Admin.tsx` mostra la card "Primi passi" (checklist: pagine di testo ○/✓, luoghi ○/✓; + link a dati casa, colore/foto, sezioni, traduzioni) e il pulsante "Pubblica la guida" (→ `attivo=true`). Quando è online: "🟢 La guida è online" + "Metti offline" (con conferma). L'host vede/apre la propria guida anche da spenta (migration 0010). ⚠️ rough edge: un ospite anonimo che apre lo slug di una guida non pubblica vede "Struttura non trovata" (dal lato anon non si distingue da uno slug inesistente) — da ingentilire in futuro con una pagina "in allestimento".
 
 **Debiti tecnici aperti:**
@@ -311,8 +312,7 @@ in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero
 - **Sezioni custom, follow-up**: modifica di una sezione custom esistente dalla UI (per ora solo elimina+ricrea); riordino da UI
   (per ora campo `ordine` solo via SQL); assegnare una sezione custom solo a certi host; pulizia righe `pagine`/`luoghi` orfane
   dopo l'eliminazione di una sezione.
-- **Onboarding v2** (gate + "Invita host" + scelta sezioni host [b] + `registrato_il` + bozza/pubblicazione fatti — qui resta il seguito):
-  - (a) Incremento B, parte mancante: `importa-casa.js` deve anche *verificare* `host_autorizzati` (rifiutare un'email non in elenco).
+- **Onboarding v2** (gate + "Invita host" + scelta sezioni host [b] + `registrato_il` + verifica `host_autorizzati` + bozza/pubblicazione fatti — qui resta il seguito):
   - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo
     per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
   - (d) guida non pubblica lato ospite: pagina "in allestimento" invece di "Struttura non trovata" (serve un endpoint o una view che

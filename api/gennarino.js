@@ -93,12 +93,35 @@ async function rilevaLinguaDomanda(messaggi, fallback) {
   }
 }
 
+// Tetti sull'input. `/api/gennarino` è pubblico e senza login: il chiamante decide
+// `domanda` e `storico`, e senza limiti potrebbe gonfiare il prompt a piacere
+// (costo + spazzatura nella tabella `domande`). I dati della struttura (luoghi,
+// pagine) invece li mette il server: quelli sono grandi quanto li ha fatti l'host.
+// ⚠️ Manca ancora un rate limit vero (per IP): serve uno store esterno (es. Upstash).
+const MAX_DOMANDA = 1500      // una domanda di un ospite non è mai così lunga
+const MAX_MESSAGGI = 12       // ~6 scambi: abbastanza contesto per la chat
+const MAX_CONTENUTO_MSG = 2000 // per singolo messaggio dello storico
+
+function pulisciStorico(grezzo) {
+  return (Array.isArray(grezzo) ? grezzo : [])
+    .slice(-MAX_MESSAGGI)
+    .map((m) => ({
+      role: m && m.role === 'assistant' ? 'assistant' : 'user',
+      content: String((m && m.content) || '').slice(0, MAX_CONTENUTO_MSG),
+    }))
+    .filter((m) => m.content)
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Metodo non permesso' })
   }
 
-  const { struttura_id, domanda, storico = [], lang } = req.body
+  const body = req.body || {}
+  const struttura_id = typeof body.struttura_id === 'string' ? body.struttura_id : ''
+  const domanda = String(body.domanda || '').trim().slice(0, MAX_DOMANDA)
+  const storico = pulisciStorico(body.storico)
+  const lang = body.lang
 
   if (!struttura_id || !domanda) {
     return res.status(400).json({ error: 'Dati mancanti' })

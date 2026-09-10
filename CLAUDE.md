@@ -41,6 +41,8 @@ haplyhost/
 │   │                          DUE chiamate a `MODELLO_GEMINI` (`generateContent`; interruttore `MOTORE_GENNARINO`): 1) piccola,
 │   │                          riconosce la lingua dell'ospite; 2) la risposta, con quella lingua come vincolo. Carattere napoletano
 │   │                          nel system prompt (con esempi). `lang` dal body = ripiego. Strip `*`/`#` markdown.
+│   │                          Endpoint PUBBLICO: `domanda` capata a 1500 char, `storico` alle ultime 12 righe (2000 char l'una)
+│   │                          — `pulisciStorico()`. Manca ancora un rate limit per IP (serve store esterno, es. Upstash).
 │   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku (max_tokens 16k, 1 retry sul JSON storto) pagine + luoghi con
 │   │                          `da_tradurre=true` O (con testo) senza `traduzioni` (en/fr/de/es) → `*.traduzioni`, e azzera `da_tradurre`.
 │   │                          Una riga col flag ma senza testo da tradurre (es. luogo con solo il nome) → flag tolto lo stesso
@@ -275,10 +277,13 @@ Mitigazioni fatte:
   spento (`MOTORE_SCOUT='claude'`). Scout riattivato (`RICERCHE_ATTIVE = true`).
 - `vercel.json`: `maxDuration: 60` per `api/scout.js` (le chiamate Gemini+grounding durano ~10-18s).
 
-Mitigazioni da fare (in ordine): ricarica automatica Anthropic + tetto di spesa sulla Console;
-workspace/chiave API separati per sviluppo vs produzione; cache del prompt + tetto a `domanda`/`storico`
-in `gennarino.js` (oggi il system prompt con 55 luoghi + 6 pagine riparte intero a ogni messaggio, e
-`storico` è illimitato e controllato dal chiamante su un endpoint pubblico); cache 24h su
+Fatto (10/09/2026): **tetto a `domanda`/`storico` in `gennarino.js`** — `domanda` ≤ 1500 char, `storico`
+alle ultime 12 righe da 2000 char (`pulisciStorico`); `maxLength` anche sull'input in `Gennarino.tsx`.
+Mitigazioni ancora da fare (in ordine): **rate limit per IP su `/api/gennarino`** (endpoint pubblico,
+serve uno store esterno tipo Upstash — l'unica falla rimasta); ricarica automatica Anthropic + tetto di
+spesa sulla Console; workspace/chiave API separati per sviluppo vs produzione; cache del prompt (il
+system prompt con 69 luoghi + 6 pagine riparte intero a ogni messaggio — su Claude si può usare
+`cache_control`, su Gemini il caching è implicito e ha una soglia minima di token); cache 24h su
 `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata in chat il 01/09).
 
 ## Stato attuale (fine agosto 2026)

@@ -59,6 +59,7 @@ export default function Gennarino() {
       <div className="g-composer">
         <input
           value={testo}
+          maxLength={1500}
           onChange={(e) => setTesto(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && invia()}
           placeholder={T[lingua].gennarinoPlaceholder}

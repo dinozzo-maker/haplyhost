@@ -27,8 +27,10 @@ export default function Gennarino() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ struttura_id: struttura.id, domanda, storico: messaggi, lang: lingua }),
       })
-      const dati = await res.json()
-      setMessaggi([...nuovaCronologia, { role: 'assistant', content: dati.risposta || T[lingua].gennarinoErrore }])
+      const dati = await res.json().catch(() => ({}))
+      // 429 = troppe domande in poco tempo: mostra il messaggio del server, non l'errore generico.
+      const risposta = dati.risposta || (res.status === 429 && dati.error) || T[lingua].gennarinoErrore
+      setMessaggi([...nuovaCronologia, { role: 'assistant', content: risposta }])
     } catch {
       setMessaggi([...nuovaCronologia, { role: 'assistant', content: T[lingua].gennarinoErrore }])
     } finally {

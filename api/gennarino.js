@@ -97,10 +97,15 @@ async function rilevaLinguaDomanda(messaggi, fallback) {
 // `domanda` e `storico`, e senza limiti potrebbe gonfiare il prompt a piacere
 // (costo + spazzatura nella tabella `domande`). I dati della struttura (luoghi,
 // pagine) invece li mette il server: quelli sono grandi quanto li ha fatti l'host.
-// ⚠️ Manca ancora un rate limit vero (per IP): serve uno store esterno (es. Upstash).
 const MAX_DOMANDA = 1500      // una domanda di un ospite non è mai così lunga
 const MAX_MESSAGGI = 12       // ~6 scambi: abbastanza contesto per la chat
 const MAX_CONTENUTO_MSG = 2000 // per singolo messaggio dello storico
+
+// Rate limit grezzo, per struttura: conta le righe scritte in `domande` nell'ultimo
+// minuto (nessuno store nuovo). È un dosso, non un muro — una raffica simultanea può
+// passare (le righe si scrivono a fine risposta), ma il martellamento continuo si taglia.
+// Per una difesa vera serve un rate limit per IP (store esterno, es. Upstash).
+const MAX_AL_MINUTO = 15
 
 function pulisciStorico(grezzo) {
   return (Array.isArray(grezzo) ? grezzo : [])
@@ -125,6 +130,15 @@ export default async function handler(req, res) {
 
   if (!struttura_id || !domanda) {
     return res.status(400).json({ error: 'Dati mancanti' })
+  }
+
+  const { count: recenti } = await supabase
+    .from('domande')
+    .select('id', { count: 'exact', head: true })
+    .eq('struttura_id', struttura_id)
+    .gte('creato_il', new Date(Date.now() - 60_000).toISOString())
+  if ((recenti ?? 0) >= MAX_AL_MINUTO) {
+    return res.status(429).json({ error: 'Troppe domande in poco tempo. Riprova tra un minuto.' })
   }
 
   const linguaGuida = NOMI_LINGUA[lang] ? lang : 'it'

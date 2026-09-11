@@ -1,7 +1,12 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { CHIAVE_STRUTTURA_SELEZIONATA } from './RichiedeLogin'
 
-export default function CreaStruttura() {
+// `aggiuntiva`: usato sia per la primissima struttura di un host (Admin.tsx la mostra
+// quando non ne ha ancora nessuna) sia per aggiungerne un'altra (rotta /admin/nuova-struttura,
+// per chi ha più proprietà). Stesso form, cambia solo il testo introduttivo.
+export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boolean }) {
   const [nome, setNome] = useState('')
   const [indirizzo, setIndirizzo] = useState('')
   const [link, setLink] = useState('')
@@ -31,6 +36,13 @@ export default function CreaStruttura() {
         setCaricamento(false)
         return
       }
+      // Fa comparire subito la struttura appena creata (non necessariamente la prima
+      // in ordine di data, che è quella scelta di default dopo il ricaricamento).
+      try {
+        if (dati.struttura?.id) localStorage.setItem(CHIAVE_STRUTTURA_SELEZIONATA, dati.struttura.id)
+      } catch {
+        // navigazione privata: non grave, si parte dalla prima struttura
+      }
       window.location.href = '/admin'
     } catch {
       setErrore('Errore di connessione, riprova.')
@@ -40,7 +52,10 @@ export default function CreaStruttura() {
 
   return (
     <div className="max-w-sm mx-auto p-6">
-      <h1 className="text-xl font-bold mb-1">Crea la tua struttura</h1>
+      {aggiuntiva && <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>}
+      <h1 className={`text-xl font-bold mb-1 ${aggiuntiva ? 'mt-2' : ''}`}>
+        {aggiuntiva ? 'Aggiungi un\'altra struttura' : 'Crea la tua struttura'}
+      </h1>
       <p className="text-sm text-gray-500 mb-4">
         Proveremo a scrivere da soli la descrizione della casa leggendo il link. Funziona meglio con siti semplici; con Airbnb o Booking potrebbe non riuscire a leggere tutto — potrai comunque correggere il testo dopo, dal pannello.
       </p>

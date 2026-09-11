@@ -42,14 +42,9 @@ export default async function handler(req, res) {
   const userId = userData.user.id
   const emailHost = (userData.user.email || '').trim().toLowerCase()
 
-  const { data: esistente } = await supabase
-    .from('strutture')
-    .select('id')
-    .eq('owner_user_id', userId)
-    .maybeSingle()
-  if (esistente) {
-    return res.status(400).json({ error: 'Hai già una struttura registrata su questo account' })
-  }
+  // Un host può avere più strutture (pannello: selettore in Admin.tsx quando ne ha
+  // più di una) — niente più blocco "ne hai già una". Il limite, se servirà in base
+  // al piano (Guida/Concierge/Portfolio), va aggiunto qui in futuro.
 
   // Cancello: l'email dev'essere tra gli host autorizzati (o essere il superadmin).
   // Il link di invito lo genera solo il superadmin da /admin/invita-host, che scrive

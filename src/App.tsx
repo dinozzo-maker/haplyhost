@@ -7,6 +7,7 @@ import Gennarino from './Gennarino'
 import Login from './admin/Login'
 import RichiedeLogin from './admin/RichiedeLogin'
 import Admin from './admin/Admin'
+import CreaStruttura from './admin/CreaStruttura'
 import ModificaCasa from './admin/ModificaCasa'
 import NoteGennarino from './admin/NoteGennarino'
 import DomandeOspiti from './admin/DomandeOspiti'
@@ -26,6 +27,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/admin" element={<RichiedeLogin />}>
         <Route index element={<Admin />} />
+        <Route path="nuova-struttura" element={<CreaStruttura aggiuntiva />} />
         <Route path="modifica-casa" element={<ModificaCasa />} />
         <Route path="note" element={<NoteGennarino />} />
         <Route path="domande" element={<DomandeOspiti />} />

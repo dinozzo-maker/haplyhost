@@ -98,12 +98,21 @@ haplyhost/
 │       ├── Login.tsx            ← login via magic link email (Supabase OTP, nessuna password). `shouldCreateUser: false`:
 │       │                          si accede solo con un'email GIÀ esistente in Supabase Auth. Le nuove email si
 │       │                          abilitano a mano (Dashboard Supabase → Authentication → Users → Invite / Add user).
-│       ├── RichiedeLogin.tsx    ← guardia di autenticazione: verifica sessione E risolve la struttura di cui l'utente è owner_user_id, passa entrambi con <Outlet context>
+│       ├── RichiedeLogin.tsx    ← guardia di autenticazione: verifica sessione E risolve TUTTE le strutture di cui l'utente è
+│       │                          owner_user_id (di solito una). Tiene quale sia "selezionata" (localStorage
+│       │                          `haply-struttura-selezionata`, come la lingua della guida ospiti) e la passa con <Outlet context>
+│       │                          come `struttura` (retrocompatibile: ogni pagina /admin/* la legge così, invariata) +
+│       │                          `strutture`/`selezionaStruttura` per chi ne ha più di una. Niente rotte /admin/:id/...
 │       ├── Admin.tsx            ← dashboard host: bottoni "Gestisci X" / "Modifica X" generati da `useSezioni()`. Se l'host non ha ancora una struttura, mostra <CreaStruttura />.
+│       │                          Se ne ha più di una: tendina "Struttura" in cima (cambia `selezionaStruttura`, niente reload).
+│       │                          Link "+ Aggiungi un'altra struttura" → /admin/nuova-struttura sempre visibile (anche con una sola).
 │       │                          Se la guida è spenta (attivo=false): card "Primi passi" (checklist con pagine/luoghi rilevati) + "Pubblica la guida".
 │       │                          Se è online: riga "🟢 La guida è online" + "Metti offline" (conferma). Il flag va su `strutture.attivo` (UPDATE owner).
 │       │                          Sezione "PIATTAFORMA" (solo se email === VITE_ADMIN_EMAIL): link a /admin/invita-host e /admin/sezioni-extra
-│       ├── CreaStruttura.tsx    ← form onboarding (nome, indirizzo, link) → POST /api/importa-casa → la struttura nasce spenta, poi window.location='/admin'
+│       ├── CreaStruttura.tsx    ← form onboarding (nome, indirizzo, link) → POST /api/importa-casa → la struttura nasce spenta;
+│       │                          la segna come selezionata (localStorage) e window.location='/admin'. Prop `aggiuntiva`: riusato
+│       │                          sia per la primissima struttura (da Admin.tsx, senza il prop) sia da /admin/nuova-struttura
+│       │                          (con `aggiuntiva`, per chi ne vuole un'altra) — stesso form, cambia solo il testo introduttivo
 │       ├── InvitaHost.tsx       ← rotta /admin/invita-host, SOLO superadmin: form (email, nome riferimento, piano, note) → POST /api/host-autorizzati
 │       │                          → mostra il link di invito da copiare e mandare. Sotto, l'elenco degli host già autorizzati.
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
@@ -131,7 +140,7 @@ haplyhost/
 ## Pattern architetturali importanti
 
 1. **Le sezioni si iterano da `useSezioni().tutte`**, non da `SEZIONI` direttamente. `SEZIONI` (in `sezioni.ts`) sono le 14 di sistema; `useSezioni()` le unisce alle righe di `sezioni_extra` (custom del superadmin). `App.tsx`, `Home.tsx`, `Admin.tsx`, `SezioniGuida.tsx` generano rotte/bottoni da `tutte`. Una sezione di sistema nuova = una riga in `sezioni.ts`; una sezione custom = riga in `sezioni_extra` (dalla pagina `/admin/sezioni-extra`). Non toccare le rotte a mano. `App.tsx` ha una rotta `*` sotto `/admin` che tiene gli URL `/admin/...` sconosciuti dentro il pannello (loading → redirect a `/admin`) invece di farli cadere sulla rotta ospite `/:slug`.
-2. **Multi-tenancy lato host**: `RichiedeLogin.tsx` risolve `struttura` a partire da `owner_user_id = auth.uid()` e la passa via `Outlet context` a tutte le pagine `/admin/*`. Nessun componente admin deve cercare una struttura per slug fisso — oggi ogni host ha **una sola struttura** (nessuna tabella ponte per host multi-proprietà, da aggiungere se servirà).
+2. **Multi-tenancy lato host**: `RichiedeLogin.tsx` risolve *tutte* le strutture con `owner_user_id = auth.uid()` (di solito una) e passa via `Outlet context` quella "selezionata" come `struttura` a tutte le pagine `/admin/*` — nessun componente admin deve cercare una struttura per slug fisso, tutti leggono `struttura` dal contesto e restano validi anche per un host con più proprietà. Un host con più strutture (10/09/2026, niente tabella ponte: `owner_user_id` è già una FK non-unica, un utente può possedere più righe di `strutture`) le cambia da una tendina in `Admin.tsx`; la scelta vive in `localStorage`, non nell'URL.
 3. **Multi-tenancy lato ospite**: `Struttura.tsx` risolve la struttura dallo `:slug` nell'URL, la passa via `Outlet context` a `Home`, `SezionePage`, `PaginaStatica`, `Gennarino`.
 4. **Componenti generici parametrizzati**, non uno per sezione: `GestisciSezione` prende `{sezione, etichetta}`, `GestisciPagina` prende `{chiave, etichetta}`, `PaginaStatica` prende `{chiave}`. Estendere questi invece di crearne di nuovi.
 5. Le funzioni in `/api` che devono scrivere bypassando l'RLS (log domande, creazione struttura durante onboarding, lettura cross-tenant) usano `SUPABASE_SERVICE_ROLE_KEY`. Le funzioni normali del frontend usano sempre la anon key.
@@ -301,6 +310,13 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 - **Multilingua della guida ospiti** (IT/EN/FR/DE/ES, nessuna migration): all'apertura la guida si mette nella lingua del telefono (`navigator.language`), con selettore 🌐 in alto a destra (scelta ricordata in localStorage). Testi fissi da un dizionario (`src/lingua.ts` `T`); luoghi da `luoghi.traduzioni` con ripiego all'italiano; etichette sezioni tradotte (solo le 14 di sistema — le custom restano in italiano). Gennarino risponde nella lingua dell'ospite (`api/gennarino.js` accetta `lang`). Le pagine di testo e i luoghi senza traduzione si riempiono con **"Traduci la guida"** in ModificaCasa → `api/traduci-guida.js` (Haiku). Verificato frontend in locale 03/09/2026.
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`. Testato con successo anche con un annuncio Airbnb. **Aggiornato (09/09/2026)**: la struttura nasce `attivo=false` (bozza) e l'host la pubblica dal pannello; `host_autorizzati.registrato_il` viene segnato alla creazione.
+- **Host con più strutture (10/09/2026)**: rimosso il blocco "ne hai già una" in `importa-casa.js` — un host può creare più
+  strutture (limite di piano non ancora applicato). `RichiedeLogin.tsx` le risolve tutte e tiene quella "selezionata"
+  (`localStorage`); `Admin.tsx` mostra una tendina per cambiarla quando sono più di una, e sempre il link
+  "+ Aggiungi un'altra struttura" (`/admin/nuova-struttura`, riusa `<CreaStruttura aggiuntiva>`). Nessuna migration, nessuna
+  policy RLS nuova: `owner_user_id` era già una FK non-unica e le policy scoped (`luoghi`/`pagine`/`proposte`/`domande`) erano
+  già `struttura_id in (select ... where owner_user_id = auth.uid())`, quindi già multi-struttura di natura loro. Le altre
+  pagine admin (GestisciSezione, ModificaCasa, ecc.) non toccate: leggono `struttura` dal contesto come sempre.
 - **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
 - Gennarino ora include nella knowledge base anche `descrizione_casa`, `host_telefono`, `max_ospiti` (prima `descrizione_casa` non era usata da nessuno). Verificato: risponde con i dettagli della casa presi da `descrizione_casa`.
 
@@ -331,4 +347,6 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 - **Reskin del pannello admin**: la guida ospiti è riskinnata (design system `g-*`); l'admin resta su Tailwind grezzo. Serve un impianto grafico dedicato più sobrio/editoriale (mockup "v2" già approvato a voce), separato da `g-*`.
 - **"Il consiglio di oggi"**: c'era nel mockup del reskin (chiamata AI a costo), rimosso su richiesta. Da riprendere quando c'è budget AI e cache.
 - Passaggio da Vercel Hobby a Pro (obbligatorio prima di fatturare a un cliente vero, per via dei termini d'uso non-commerciali del piano gratuito)
-- Gestione di un host con più strutture (oggi il modello presume una struttura per host)
+- ~~Gestione di un host con più strutture~~ — **fatto (10/09/2026)**, vedi "Funzionante e pubblicato". Follow-up
+  possibile: un tetto al numero di strutture in base al piano (`host_autorizzati.piano`), oggi illimitato per
+  chiunque sia autorizzato.

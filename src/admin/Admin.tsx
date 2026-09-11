@@ -24,7 +24,7 @@ function Passo({ fatto, to, children }: { fatto?: boolean; to: string; children:
 }
 
 export default function Admin() {
-  const { session, struttura } = useOutletContext<ContestoHost>()
+  const { session, struttura, strutture, selezionaStruttura } = useOutletContext<ContestoHost>()
   const { tutte: SEZIONI } = useSezioni()
   const isSuperadmin = !!ADMIN_EMAIL && session.user.email?.toLowerCase() === ADMIN_EMAIL
 
@@ -33,9 +33,15 @@ export default function Admin() {
   const [nLuoghi, setNLuoghi] = useState<number | null>(null)
 
   // Stato "guida online": copia locale, così i pulsanti Pubblica/Offline aggiornano
-  // subito il pannello. Si inizializza dal contesto; dopo una modifica in DB il
-  // pannello si riapre comunque da capo (redirect / reload).
+  // subito il pannello. Va risincronizzata quando cambia la struttura selezionata
+  // (chi ne ha più d'una può cambiarla qui senza ricaricare la pagina) — pattern
+  // "adjust state during render" di React, niente useEffect/niente warning.
   const [attivo, setAttivo] = useState(!!struttura?.attivo)
+  const [attivoDi, setAttivoDi] = useState(struttura?.id)
+  if (struttura?.id !== attivoDi) {
+    setAttivoDi(struttura?.id)
+    setAttivo(!!struttura?.attivo)
+  }
   const [cambioStato, setCambioStato] = useState(false)
   const [erroreStato, setErroreStato] = useState('')
 
@@ -60,7 +66,7 @@ export default function Admin() {
       }
     })()
     return () => { vivo = false }
-  }, [struttura])
+  }, [struttura?.id])
 
   async function cambiaPubblicazione(nuovo: boolean) {
     if (!struttura) return
@@ -88,7 +94,25 @@ export default function Admin() {
   return (
     <div className="max-w-sm mx-auto p-6">
       <h1 className="text-xl font-bold mb-2">Sei dentro, {session.user.email}</h1>
-      <p className="text-sm text-gray-500 mb-6">Pannello host — {struttura?.nome}</p>
+
+      {strutture.length > 1 ? (
+        <div className="mb-6">
+          <label className="text-xs text-gray-500">Struttura</label>
+          <select
+            className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
+            value={struttura.id}
+            onChange={(e) => selezionaStruttura(e.target.value)}
+          >
+            {strutture.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nome}{s.attivo ? '' : ' (bozza)'}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500 mb-6">Pannello host — {struttura.nome}</p>
+      )}
 
       {attivo ? (
         <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm mb-4">
@@ -176,6 +200,9 @@ export default function Admin() {
         >
           👀 Vedi la guida degli ospiti
         </a>
+        <Link to="/admin/nuova-struttura" className="block text-sm text-blue-600 px-3 pt-1">
+          + Aggiungi un'altra struttura
+        </Link>
       </div>
 
       {isSuperadmin && (

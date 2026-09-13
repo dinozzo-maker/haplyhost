@@ -14,7 +14,7 @@ const MOTORE_SCOUT = 'gemini'
 
 // Opzioni offerte in src/admin/GestisciSezione.tsx — tenere allineate. Qualsiasi altro
 // valore arrivi dal body viene ignorato e si usa il default (5 km).
-const RAGGI_KM = [1, 5, 15, 30, 100]
+const RAGGI_KM = [1, 5, 15, 30, 150]
 const RAGGIO_DEFAULT_KM = 5
 
 const CATEGORIE = {

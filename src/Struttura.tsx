@@ -20,6 +20,10 @@ export type StrutturaRow = {
 export default function Struttura() {
   const { slug } = useParams()
   const [struttura, setStruttura] = useState<StrutturaRow | null>(null)
+  // La RLS pubblica nasconde una struttura con attivo=false esattamente come uno slug
+  // sbagliato (data = null in entrambi i casi): per distinguerle si chiede a un
+  // endpoint minimo (api/verifica-slug) se lo slug esiste, senza rivelarne i dati.
+  const [nonPubblica, setNonPubblica] = useState(false)
   const [caricamento, setCaricamento] = useState(true)
 
   useEffect(() => {
@@ -30,6 +34,16 @@ export default function Struttura() {
         .eq('slug', slug)
         .single()
 
+      if (!data && slug) {
+        try {
+          const res = await fetch(`/api/verifica-slug?slug=${encodeURIComponent(slug)}`)
+          const dati = await res.json()
+          setNonPubblica(!!dati.esiste)
+        } catch {
+          // controllo non riuscito: resta il messaggio generico "non trovata"
+        }
+      }
+
       setStruttura(data)
       setCaricamento(false)
     }
@@ -38,7 +52,7 @@ export default function Struttura() {
 
   return (
     <LinguaProvider>
-      <Guscio slug={slug ?? ''} struttura={struttura} caricamento={caricamento} />
+      <Guscio slug={slug ?? ''} struttura={struttura} nonPubblica={nonPubblica} caricamento={caricamento} />
     </LinguaProvider>
   )
 }
@@ -46,16 +60,20 @@ export default function Struttura() {
 function Guscio({
   slug,
   struttura,
+  nonPubblica,
   caricamento,
 }: {
   slug: string
   struttura: StrutturaRow | null
+  nonPubblica: boolean
   caricamento: boolean
 }) {
   const { lingua } = useLingua()
 
   if (caricamento) return <p className="g-stato">{T[lingua].caricamento}</p>
-  if (!struttura) return <p className="g-stato">{T[lingua].strutturaNonTrovata}</p>
+  if (!struttura) {
+    return <p className="g-stato">{nonPubblica ? T[lingua].guidaInAllestimento : T[lingua].strutturaNonTrovata}</p>
+  }
 
   // Colore d'accento della struttura: iniettato come variabile CSS sullo shell,
   // così i derivati color-mix (--g-accent-d, --g-grad-b, ...) si ricalcolano da qui.

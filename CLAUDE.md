@@ -61,8 +61,10 @@ haplyhost/
 │   ├── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
 │   │                          di invito (supabase.auth.admin.generateLink), DELETE rimuove dall'elenco e prova a eliminare
 │   │                          l'account Auth (fallisce di proposito se l'host ha già una struttura). Service role, tabella `host_autorizzati`.
-│   └── sezioni-extra.js     ← SOLO superadmin: POST crea una sezione custom (genera slug da etichetta, rifiuta collisioni con
-│                              le 14 di sistema / rotte riservate), DELETE la elimina. Tabella `sezioni_extra`, service role.
+│   ├── sezioni-extra.js     ← SOLO superadmin: POST crea una sezione custom (genera slug da etichetta, rifiuta collisioni con
+│   │                          le 14 di sistema / rotte riservate), DELETE la elimina. Tabella `sezioni_extra`, service role.
+│   └── verifica-slug.js     ← pubblico, volutamente minimo: GET ?slug=... → { esiste: bool }, nient'altro. Usato da Struttura.tsx
+│                              per il messaggio "guida in allestimento" senza esporre i dati di una struttura non pubblica.
 ├── lib/
 │   └── genera-descrizione-casa.js  ← codice condiviso da importa-casa.js e aggiorna-casa.js: legge il link, chiede a Claude {descrizione, citta}.
 │                                     Sta FUORI da api/ apposta, così Vercel non lo tratta come un endpoint serverless.
@@ -84,7 +86,9 @@ haplyhost/
 │   │                          `invalidaCacheSezioni()` dopo crea/elimina RIALLINEA tutti i consumatori montati (pub/sub interno):
 │   │                          serve perché App.tsx genera le rotte da qui e non si rimonta. Usato da App, Home, Admin, SezioniGuida.
 │   ├── Struttura.tsx        ← rotta layout su /:slug — risolve lo slug in `strutture` (incl. `sezioni_attive`, `accento`, `copertina_url`).
-│   │                          Rende `.g-shell` (con --g-accent inline) + <Outlet context> + <GennarinoFab> + <TabBar>
+│   │                          Rende `.g-shell` (con --g-accent inline) + <Outlet context> + <GennarinoFab> + <TabBar>. Se non
+│   │                          trova la riga (RLS pubblica: solo attivo=true), chiede a /api/verifica-slug se lo slug esiste
+│   │                          comunque → "guida in allestimento" invece di "struttura non trovata" per una bozza non pubblicata.
 │   ├── TabBar.tsx           ← barra fissa in basso della guida: Home + prime 2 sezioni 'elenco' visibili + Gennarino
 │   ├── GennarinoFab.tsx     ← bottone tondo galleggiante → /:slug/gennarino; nascosto sulla rotta chat o se la sezione chat è spenta
 │   ├── Home.tsx             ← hero (gradiente o `copertina_url`) + griglia `.g-tile` da `filtraVisibili()` (esclusa la voce chat)
@@ -325,7 +329,7 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 - **Invito host**: tabella `host_autorizzati` + `api/host-autorizzati.js` (GET/POST/DELETE) + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link "PIATTAFORMA" nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email, genera il link di invito, e può rimuovere un host dall'elenco (il "Rimuovi" prova anche a eliminare l'account Auth, salta se ha già una struttura).
 - Serve `VITE_ADMIN_EMAIL` su Vercel + `.env.local` = email del superadmin (oggi `bernardinocalifano@gmail.com`, che possiede Villa Virginia).
 - **Incremento B — fatto (09-10/09/2026)**: `importa-casa.js` popola `registrato_il` E verifica `host_autorizzati` (403 se l'email non è in elenco; carve-out per il superadmin `VITE_ADMIN_EMAIL`). Ora il flusso è chiuso su due livelli: login (`shouldCreateUser: false`) + questo check. Un account Auth creato a mano, saltando "Invita host", non riesce più a creare la struttura.
-- **Guida in bozza + pubblicazione (09/09/2026)**: nuove strutture nascono `attivo=false`. `Admin.tsx` mostra la card "Primi passi" (checklist: pagine di testo ○/✓, luoghi ○/✓; + link a dati casa, colore/foto, sezioni, traduzioni) e il pulsante "Pubblica la guida" (→ `attivo=true`). Quando è online: "🟢 La guida è online" + "Metti offline" (con conferma). L'host vede/apre la propria guida anche da spenta (migration 0010). ⚠️ rough edge: un ospite anonimo che apre lo slug di una guida non pubblica vede "Struttura non trovata" (dal lato anon non si distingue da uno slug inesistente) — da ingentilire in futuro con una pagina "in allestimento".
+- **Guida in bozza + pubblicazione (09/09/2026)**: nuove strutture nascono `attivo=false`. `Admin.tsx` mostra la card "Primi passi" (checklist: pagine di testo ○/✓, luoghi ○/✓; + link a dati casa, colore/foto, sezioni, traduzioni) e il pulsante "Pubblica la guida" (→ `attivo=true`). Quando è online: "🟢 La guida è online" + "Metti offline" (con conferma). L'host vede/apre la propria guida anche da spenta (migration 0010). **Aggiornato (13/09/2026)**: un ospite anonimo che apre lo slug di una guida non pubblica ora vede "Questa guida non è ancora pubblica" invece di "Struttura non trovata" — `api/verifica-slug.js` (endpoint pubblico, ritorna solo `{esiste}`) fa la distinzione senza esporre i dati della struttura.
 
 **Debiti tecnici aperti:**
 - Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` (in una migration) + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
@@ -335,11 +339,10 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 - **Sezioni custom, follow-up**: modifica di una sezione custom esistente dalla UI (per ora solo elimina+ricrea); riordino da UI
   (per ora campo `ordine` solo via SQL); assegnare una sezione custom solo a certi host; pulizia righe `pagine`/`luoghi` orfane
   dopo l'eliminazione di una sezione.
-- **Onboarding v2** (gate + "Invita host" + scelta sezioni host [b] + `registrato_il` + verifica `host_autorizzati` + bozza/pubblicazione fatti — qui resta il seguito):
+- **Onboarding v2** (gate + "Invita host" + scelta sezioni host [b] + `registrato_il` + verifica `host_autorizzati` +
+  bozza/pubblicazione + (d) pagina "in allestimento" fatti — qui resta il seguito):
   - (c) opzionale: struttura pre-compilata nell'invito (nome/indirizzo già in `host_autorizzati`), e/o Scout di partenza solo
     per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
-  - (d) guida non pubblica lato ospite: pagina "in allestimento" invece di "Struttura non trovata" (serve un endpoint o una view che
-    dica "lo slug esiste ma non è pubblico" senza esporre la riga).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
 - Multilingua, follow-up: traduzione delle etichette delle sezioni **custom** (`sezioni_extra`, oggi solo italiano). Il segnale "traduzione da rifare" è fatto (`da_tradurre` su pagine+luoghi → avviso ambra in `/admin` e in `/admin/traduzioni`; `traduci-guida.js` lo azzera).
 - Ottimizzazione foto di copertina: l'upload (`ModificaCasa` → bucket `copertine`) non ridimensiona l'immagine — un JPEG da telefono può essere pesante. Client-side resize (canvas) prima dell'upload, tetto attuale 5 MB. Le trasformazioni immagine di Supabase richiedono il piano Pro. Pulizia dei file orfani non fatta.

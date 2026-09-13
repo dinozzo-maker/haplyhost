@@ -15,6 +15,8 @@ export type StrutturaRow = {
   accento: string | null
   copertina_url: string | null
   host_telefono: string | null
+  lat: number | null
+  lng: number | null
 }
 
 export default function Struttura() {
@@ -30,7 +32,7 @@ export default function Struttura() {
     async function carica() {
       const { data } = await supabase
         .from('strutture')
-        .select('id, nome, citta, sezioni_attive, accento, copertina_url, host_telefono')
+        .select('id, nome, citta, sezioni_attive, accento, copertina_url, host_telefono, lat, lng')
         .eq('slug', slug)
         .single()
 

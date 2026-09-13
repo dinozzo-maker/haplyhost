@@ -108,9 +108,26 @@ const IT = {
   gennarinoPlaceholder: 'Scrivi qui…',
   gennarinoInvia: 'Invia',
   gennarinoErrore: 'Non sono riuscito a rispondere, riprova tra poco.',
+  salutoNotte: 'Buonanotte',
+  salutoMattina: 'Buongiorno',
+  salutoPomeriggio: 'Buon pomeriggio',
+  salutoSera: 'Buonasera',
+  oggiTiConsiglio: 'Oggi ti consiglio',
+  chiediAGennarino: 'Chiedi a Gennarino',
+  chiediAGennarinoSub: 'Risposte subito su spiagge, ristoranti e regole della casa',
+  esplora: 'Esplora la guida',
 } as const
 
-type ChiaveTesto = keyof typeof IT
+export type ChiaveTesto = keyof typeof IT
+
+// Saluto in base all'ora del telefono dell'ospite (niente identità del singolo
+// ospite: la guida resta anonima, solo il momento della giornata cambia).
+export function saluto(testi: Record<ChiaveTesto, string>, ora: number = new Date().getHours()): string {
+  if (ora < 6) return testi.salutoNotte
+  if (ora < 12) return testi.salutoMattina
+  if (ora < 18) return testi.salutoPomeriggio
+  return testi.salutoSera
+}
 
 export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
   it: IT,
@@ -135,6 +152,14 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     gennarinoPlaceholder: 'Type here…',
     gennarinoInvia: 'Send',
     gennarinoErrore: "I couldn't reply, please try again shortly.",
+    salutoNotte: 'Good night',
+    salutoMattina: 'Good morning',
+    salutoPomeriggio: 'Good afternoon',
+    salutoSera: 'Good evening',
+    oggiTiConsiglio: "Today's pick",
+    chiediAGennarino: 'Ask Gennarino',
+    chiediAGennarinoSub: 'Instant answers on beaches, restaurants and house rules',
+    esplora: 'Explore the guide',
   },
   fr: {
     tornaHome: "Retour à l'accueil",
@@ -157,6 +182,14 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     gennarinoPlaceholder: 'Écrivez ici…',
     gennarinoInvia: 'Envoyer',
     gennarinoErrore: "Je n'ai pas pu répondre, réessayez dans un instant.",
+    salutoNotte: 'Bonne nuit',
+    salutoMattina: 'Bonjour',
+    salutoPomeriggio: 'Bon après-midi',
+    salutoSera: 'Bonsoir',
+    oggiTiConsiglio: 'Notre conseil du jour',
+    chiediAGennarino: 'Demander à Gennarino',
+    chiediAGennarinoSub: 'Réponses immédiates sur les plages, restaurants et le règlement intérieur',
+    esplora: 'Explorer le guide',
   },
   de: {
     tornaHome: 'Zurück zur Startseite',
@@ -179,6 +212,14 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     gennarinoPlaceholder: 'Hier schreiben…',
     gennarinoInvia: 'Senden',
     gennarinoErrore: 'Ich konnte nicht antworten, bitte versuchen Sie es gleich noch einmal.',
+    salutoNotte: 'Gute Nacht',
+    salutoMattina: 'Guten Morgen',
+    salutoPomeriggio: 'Guten Tag',
+    salutoSera: 'Guten Abend',
+    oggiTiConsiglio: 'Unser Tipp für heute',
+    chiediAGennarino: 'Gennarino fragen',
+    chiediAGennarinoSub: 'Sofortige Antworten zu Stränden, Restaurants und Hausordnung',
+    esplora: 'Guide entdecken',
   },
   es: {
     tornaHome: 'Volver al inicio',
@@ -201,5 +242,13 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     gennarinoPlaceholder: 'Escribe aquí…',
     gennarinoInvia: 'Enviar',
     gennarinoErrore: 'No he podido responder, inténtalo de nuevo en un momento.',
+    salutoNotte: 'Buenas noches',
+    salutoMattina: 'Buenos días',
+    salutoPomeriggio: 'Buenas tardes',
+    salutoSera: 'Buenas noches',
+    oggiTiConsiglio: 'Hoy te recomendamos',
+    chiediAGennarino: 'Pregunta a Gennarino',
+    chiediAGennarinoSub: 'Respuestas al instante sobre playas, restaurantes y normas de la casa',
+    esplora: 'Explora la guía',
   },
 }

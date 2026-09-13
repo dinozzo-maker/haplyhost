@@ -13,7 +13,7 @@ const RAGGI = [
   { km: 5, etichetta: 'In zona, in auto (circa 5 km)' },
   { km: 15, etichetta: 'Più lontano, in auto (circa 15 km)' },
   { km: 30, etichetta: 'Gita di giornata (circa 30 km)' },
-  { km: 150, etichetta: 'Oltre (circa 150 km)' },
+  { km: 150, etichetta: 'Escursione lontana' },
 ]
 
 type LuogoRow = {

@@ -188,6 +188,38 @@ export default function Admin() {
         </Link>
       )}
 
+      {/* Solo desktop: la barra laterale copre già la navigazione, qui un colpo d'occhio
+          sui numeri veri della struttura (niente statistiche finte) + le azioni più comuni. */}
+      <div className="hidden lg:grid lg:grid-cols-3 lg:gap-3 lg:mb-3">
+        <div className="bg-white shadow rounded-xl p-4">
+          <p className="text-2xl font-bold tabular-nums">{nLuoghi ?? '—'}</p>
+          <p className="text-xs text-gray-500 mt-0.5">luoghi in guida</p>
+        </div>
+        <div className="bg-white shadow rounded-xl p-4">
+          <p className="text-2xl font-bold tabular-nums">{nPagine ?? '—'}</p>
+          <p className="text-xs text-gray-500 mt-0.5">pagine di testo</p>
+        </div>
+        <div className="bg-white shadow rounded-xl p-4">
+          <p className={`text-2xl font-bold tabular-nums ${daTradurre > 0 ? 'text-amber-600' : ''}`}>{daTradurre}</p>
+          <p className="text-xs text-gray-500 mt-0.5">test{daTradurre === 1 ? 'o' : 'i'} da tradurre</p>
+        </div>
+      </div>
+
+      <div className="hidden lg:grid lg:grid-cols-2 lg:gap-3 lg:mb-6">
+        <a href={`/${struttura.slug}`} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <Eye className="w-4 h-4 text-gray-400 shrink-0" /> Vedi la guida
+        </a>
+        <Link to="/admin/modifica-casa" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <Settings className="w-4 h-4 text-gray-400 shrink-0" /> Dati della casa
+        </Link>
+        <Link to="/admin/sezioni-guida" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <LayoutGrid className="w-4 h-4 text-gray-400 shrink-0" /> Sezioni della guida
+        </Link>
+        <Link to="/admin/traduzioni" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <Languages className="w-4 h-4 text-gray-400 shrink-0" /> Traduzioni della guida
+        </Link>
+      </div>
+
       <div className="flex flex-col gap-2 mb-6 lg:hidden">
         <Link to="/admin/modifica-casa" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
           <Settings className="w-4 h-4 text-gray-400 shrink-0" /> Modifica dati della casa

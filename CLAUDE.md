@@ -86,6 +86,9 @@ haplyhost/
 │   ├── LinguaProvider.tsx   ← `<LinguaProvider>` (stato lingua + `<html lang>`); montato in Struttura.tsx. Diviso da lingua.ts per il fast-refresh
 │   ├── SelettoreLingua.tsx  ← riga di 5 pastiglie (sigla, niente più bandiere emoji dal 13/09/2026), reso in Home.tsx sotto la copertina. Non c'è sulle sottopagine: la scelta è ricordata
 │   ├── supabaseClient.ts    ← client Supabase con anon key (sicuro lato browser)
+│   ├── immagine.ts          ← (13/09/2026) `ridimensionaImmagine()`: compressione lato client di una foto prima di caricarla
+│   │                          (max 1920px, JPEG 0.85, rispetta l'EXIF) — condivisa da ModificaCasa.tsx (copertina struttura)
+│   │                          e GestisciSezione.tsx (foto di un luogo). Un solo posto dove cambiare le regole di compressione
 │   ├── sezioni.ts           ← le 14 sezioni DI SISTEMA: {chiave, icona, etichetta, tipo, descrizione?} + `CHIAVI_BUILTIN` (Set)
 │   │                          + `filtraVisibili(tutte, sezioni_attive)` (filtro guida, usato da Home/TabBar/GennarinoFab).
 │   │                          tipo: 'elenco' (lista da tabella luoghi) | 'testo' (pagina da tabella pagine) | 'chat' (Gennarino).
@@ -155,8 +158,9 @@ haplyhost/
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
 │       │                          su `strutture` (RLS owner). Blocco "Aspetto della guida": 5 preset colore (`accento`) + foto
-│       │                          copertina — `ridimensionaImmagine()` la porta lato client a un lato massimo 1920px + JPEG qualità
-│       │                          0.85 (`imageOrientation: 'from-image'` per l'EXIF) prima di caricarla; se fallisce usa il file
+│       │                          copertina — `ridimensionaImmagine()` (da `../immagine.ts`, condivisa con GestisciSezione.tsx dal
+│       │                          13/09/2026) la porta lato client a un lato massimo 1920px + JPEG qualità 0.85
+│       │                          (`imageOrientation: 'from-image'` per l'EXIF) prima di caricarla; se fallisce usa il file
 │       │                          originale. "Carica foto" (upload su Storage bucket `copertine`, salva SUBITO `copertina_url`)
 │       │                          o link incollato (in `<details>`, staged). Riquadro "Rigenera la descrizione" → POST /api/aggiorna-casa
 │       ├── NoteGennarino.tsx     ← rotta /admin/note (link nel pannello): textarea `strutture.note_gennarino` → UPDATE diretto.
@@ -173,7 +177,11 @@ haplyhost/
 │       │                          modifica inline + "Elimina questo luogo" (DELETE, dentro la modifica), "+ Aggiungi un luogo a mano"
 │       │                          (INSERT), tendina "Raggio di ricerca" (`RAGGI`, 1/5/15/30/150 km) + "Cerca nuovi luoghi" (Scout,
 │       │                          manda `raggio_km`) + proposte da Accettare/Rifiutare. Campi condivisi modifica/nuovo:
-│       │                          <CampiLuogo> (nome/descrizione/distanza/prezzo/voto/maps/telefono). Salva/aggiungi/accetta → `da_tradurre=true`
+│       │                          <CampiLuogo> (nome/descrizione/distanza/prezzo/voto/maps/telefono). Salva/aggiungi/accetta → `da_tradurre=true`.
+│       │                          Foto del luogo (13/09/2026, solo in modifica — non nel form "nuovo luogo": serve un id già
+│       │                          esistente): stesso schema di ModificaCasa (`ridimensionaImmagine()` da `../immagine.ts`), salvata
+│       │                          SUBITO in `luoghi.foto_url` (non aspetta "Salva"), bucket `copertine` condiviso, percorso
+│       │                          `luoghi/<struttura_id>/<luogo_id>-<timestamp>.jpg`. Miniatura anche nell'elenco "GIÀ PRESENTI"
 │       └── GestisciPagina.tsx   ← UNICO componente riusato per tutte e 6 le sezioni 'testo': editor titolo+contenuto su `pagine`.
 │                                  Salva → upsert con `da_tradurre=true` + ricorda di rilanciare "Traduzioni della guida"
 ```
@@ -218,6 +226,8 @@ luoghi (
   sezione text, nome text, icona text, etichetta text, categoria text,
   descrizione text, distanza text, maps text, telefono text,
   prezzo text, voto text,   -- migration 0005: fascia di prezzo (es. "15-25 €") e voto Google (es. "4,5"), da Scout
+  foto_url text,   -- migration 0011 (13/09/2026): foto del singolo luogo, caricata a mano dall'host in
+  --                  GestisciSezione.tsx (bucket Storage "copertine", percorso "luoghi/<struttura_id>/...")
   ordine int, attivo boolean, traduzioni jsonb, da_tradurre boolean
 )
 -- index (struttura_id, sezione, ordine)
@@ -289,7 +299,8 @@ pulsante "Carica foto" in ModificaCasa), `0007_note_gennarino.sql` (colonna `str
 letta da `api/gennarino.js` — SQL prima del push), `0008_domande_lettura_host.sql` (RLS su `domande` +
 policy SELECT per l'host, per la pagina `/admin/domande`), `0009_pagine_da_tradurre.sql` (colonna
 `pagine.da_tradurre` + azzera i flag vestigiali di `luoghi.da_tradurre`), `0010_strutture_select_owner.sql`
-(policy SELECT `strutture` per l'owner). Lo schema sopra resta la fonte di verità scritta;
+(policy SELECT `strutture` per l'owner), `0011_luoghi_foto.sql` (colonna `luoghi.foto_url`, 13/09/2026 —
+lanciata dall'utente su Supabase su mia richiesta, prima del push del codice che la legge). Lo schema sopra resta la fonte di verità scritta;
 restano NON tracciati la colonna `link_riferimento` e la policy RLS `strutture` per owner. Da qui in
 avanti ogni `ALTER TABLE` / `CREATE POLICY` va in un file numerato lì dentro. ⚠️ Quando una migration
 aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), lanciare l'SQL
@@ -355,6 +366,7 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 - **Via le emoji, dentro icone professionali (13/09/2026)** — primo passo del redesign strategico discusso con l'host (mockup + 5 punti proposti). Libreria `lucide-react`. Le 14 icone di sistema passano da emoji a nomi-icona (`src/sezioni.ts`), renderizzate ovunque tramite `<Icona nome={...} />` (`src/Icona.tsx` + registro `src/icone.ts`): un nome mancante o non riconosciuto ricade su un'icona generica, mai testo grezzo — copre anche le vecchie sezioni custom con l'emoji ancora salvata in `sezioni_extra.icona`. Toccati: griglia Home, barra in basso, FAB Gennarino, intestazioni sezione/pagina, pulsanti WhatsApp/Chiama/Mappa, pulsante "Cerca nuovi luoghi", selettore lingua (ora solo sigla IT/EN/FR/DE/ES, niente più bandiere — stessa scelta in `/admin/domande` per la lingua della domanda), checklist "Primi passi" + indicatore online + link di navigazione del pannello host, selettore icone di `/admin/sezioni-extra`. **Lasciati apposta, non sono l'emoji del problema**: le stelline di voto (★, non un pittogramma colorato), i segni ✓/✕ nei testi di conferma ("Salvato ✓" e simili), e l'emoji dentro il testo libero di `luoghi.distanza` (convenzione dati esistente, es. "🚶 7 min a piedi" — cambiarla tocca i dati reali e il prompt di Scout, è un lavoro a parte). Verificato in locale sulla guida ospiti (browser); lato pannello host solo build + type-check + lint puliti (richiede login magic-link, non simulabile in automatico). Prossimi passi del redesign: vestito nuovo del pannello admin (barra laterale fatta, sotto), poi Home come dashboard concierge.
 - **Pannello host: barra laterale su schermi larghi (13/09/2026)** — continuazione del redesign, direzione scelta a vista da un confronto A/B (mockup, non nel repo): mobile resta "sobrio" com'era, desktop diventa "dashboard SaaS". Nuovo `AdminShell.tsx` (vedi struttura del repo sopra): da 1024px in su ogni pagina di `/admin/*` ha una barra laterale con tutta la navigazione; sotto i 1024px zero cambiamenti, verificato confrontando il testo reso alle due larghezze. Verificato in locale con un contesto host finto (creato e rimosso nella stessa sessione, mai nel repo) perché il login vero richiede il link via email. Nella stessa sessione, subito dopo: su desktop la home (`Admin.tsx`) guadagna anche 3 tessere con numeri veri (luoghi in guida, pagine di testo, test da tradurre — dati già calcolati per la checklist, nessuna query nuova) + una griglia di 4 scorciatoie (Vedi la guida, Dati della casa, Sezioni della guida, Traduzioni), `hidden lg:grid`. Niente statistiche finte, come da principio deciso col cliente.
 - **Home ospiti come dashboard concierge (13/09/2026)** — punto 2 del redesign strategico (punto 5, Free+Commissioni, **abbandonato a parole dal cliente lo stesso giorno**: resta il modello a 3 piani). Hero: saluto per fascia oraria (`saluto()` in lingua.ts, in base all'ora del telefono — niente identità ospite) + pallino meteo (`Meteo.tsx`, Open-Meteo, gratis, senza chiave, da `strutture.lat/lng`). Sotto: scorciatoia `.g-ask` "Chiedi a Gennarino" sempre visibile, e card `.g-today` "Oggi ti consiglio" — un luogo tra i meglio votati delle sezioni visibili, **scelto senza AI** (ruota una volta al giorno, non ad ogni apertura) per non ripetere l'incidente di costo del 31/08/2026 che aveva già fatto togliere una versione IA di questa stessa idea. Griglia sezioni invariata sotto, con l'etichetta "Esplora la guida". Non fatto: saluto con il nome dell'ospite (servirebbe un'identità ospite, una feature a sé). Verificato in locale in italiano e inglese, chiaro e scuro.
+- **Foto per singolo luogo (13/09/2026)** — punto 3 del redesign strategico, versione minima scelta apposta: upload manuale dell'host in `GestisciSezione.tsx` (uguale per tutte e 7 le sezioni elenco, nessuna sezione privilegiata via codice — l'host decide da dove iniziare), **niente fetch automatico** da API esterne (avrebbe voluto dire un altro fronte di costo, proprio dopo l'incidente del 31/08). Riusa in tutto e per tutto il meccanismo già in produzione per la copertina della struttura: `ridimensionaImmagine()` estratta in `src/immagine.ts` (prima viveva solo dentro ModificaCasa.tsx), stesso bucket Storage `copertine`. Migration `0011_luoghi_foto.sql` (`luoghi.foto_url`) lanciata dall'utente su richiesta, prima del push. Guest-side: `SezionePage.tsx` mostra la foto come intestazione della scheda `.g-place` (140px, object-fit cover) quando c'è, nessun cambiamento quando manca. **Debito noto, non affrontato qui**: la policy Storage del bucket `copertine` (migration 0006) non è scoped per host — un host autenticato potrebbe in teoria sovrascrivere il file di un altro se ne indovinasse il percorso esatto. Era già così per le copertine da quando esistono più host (10/09/2026); questa funzione aggiunge uso allo stesso bucket ma non peggiora la policy. Da chiudere con una vera policy scoped per `struttura_id` quando c'è tempo. **Verificato**: lettura lato ospite (query reale, nessun errore) e interfaccia admin (con dati reali di Villa Virginia, tramite un contesto finto rimosso a fine verifica) in locale; il caricamento vero di un file richiede una sessione autenticata reale (bucket Storage: policy INSERT per `authenticated`), non simulabile in automatico — verificato dall'utente dopo il push.
 - **Multilingua della guida ospiti** (IT/EN/FR/DE/ES, nessuna migration): all'apertura la guida si mette nella lingua del telefono (`navigator.language`), con selettore in alto a destra (scelta ricordata in localStorage). Testi fissi da un dizionario (`src/lingua.ts` `T`); luoghi da `luoghi.traduzioni` con ripiego all'italiano; etichette sezioni tradotte (solo le 14 di sistema — le custom restano in italiano). Gennarino risponde nella lingua dell'ospite (`api/gennarino.js` accetta `lang`). Le pagine di testo e i luoghi senza traduzione si riempiono con **"Traduci la guida"** in ModificaCasa → `api/traduci-guida.js` (Haiku). Verificato frontend in locale 03/09/2026.
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
 - "Casa da un link": creazione struttura da {nome, indirizzo, link}, con generazione automatica di `descrizione_casa` + `citta`. Testato con successo anche con un annuncio Airbnb. **Aggiornato (09/09/2026)**: la struttura nasce `attivo=false` (bozza) e l'host la pubblica dal pannello; `host_autorizzati.registrato_il` viene segnato alla creazione.
@@ -377,6 +389,7 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 
 **Debiti tecnici aperti:**
 - Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` (in una migration) + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
+- **Storage bucket `copertine` non scoped per host** (migration 0006, da quando esisteva un solo host): la policy consente a QUALSIASI `authenticated` di scrivere ovunque nel bucket, non solo nella propria cartella. Innocuo finché un host non indovina il percorso esatto di un altro, ma non è una vera garanzia — ora che ci sono più host (10/09/2026) e due funzioni scrivono lì (copertina struttura, foto dei luoghi dal 13/09/2026) andrebbe chiuso con una policy scoped su `struttura_id` (i percorsi sono già organizzati per struttura, serve solo la policy).
 
 **Non ancora iniziato:**
 - **Sezioni custom, follow-up**: modifica di una sezione custom esistente dalla UI (per ora solo elimina+ricrea); riordino da UI

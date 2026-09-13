@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { ridimensionaImmagine } from '../immagine'
 import type { ContestoHost } from './RichiedeLogin'
 import { Search } from 'lucide-react'
 
@@ -27,6 +28,7 @@ type LuogoRow = {
   maps: string
   telefono: string
   attivo: boolean
+  foto_url: string | null
 }
 
 type Bozza = {
@@ -94,11 +96,13 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const [cercando, setCercando] = useState(false)
   const [esitoScout, setEsitoScout] = useState('')
   const [raggio, setRaggio] = useState(5)
+  const [caricamentoFotoId, setCaricamentoFotoId] = useState<string | null>(null)
+  const [fotoEsito, setFotoEsito] = useState('') // '' | 'ok' | messaggio d'errore
 
   async function caricaTutto(id: string) {
     const { data: dl } = await supabase
       .from('luoghi')
-      .select('id, nome, descrizione, distanza, prezzo, voto, maps, telefono, attivo')
+      .select('id, nome, descrizione, distanza, prezzo, voto, maps, telefono, attivo, foto_url')
       .eq('struttura_id', id)
       .eq('sezione', sezione)
       .order('ordine')
@@ -130,6 +134,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   function apriModifica(l: LuogoRow) {
     setNuovo(false)
     setModificaId(l.id)
+    setFotoEsito('')
     setBozza({
       nome: l.nome,
       descrizione: l.descrizione || '',
@@ -176,6 +181,69 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     setSalvataggio(false)
     setNuovo(false)
     await caricaTutto(strutturaId)
+  }
+
+  // Foto di un luogo: stesso schema della copertina in ModificaCasa.tsx (compressione
+  // client-side, upload su Storage, poi salva subito il link — non aspetta "Salva").
+  // Bucket condiviso "copertine", percorso separato per struttura e luogo.
+  async function caricaFotoLuogo(l: LuogoRow, file: File) {
+    if (!strutturaId) return
+    setFotoEsito('')
+    if (!file.type.startsWith('image/')) {
+      setFotoEsito('Serve un file immagine (jpg, png…).')
+      return
+    }
+    if (file.size > 30 * 1024 * 1024) {
+      setFotoEsito('Immagine troppo pesante (massimo 30 MB).')
+      return
+    }
+    setCaricamentoFotoId(l.id)
+
+    let daCaricare: File = file
+    try {
+      daCaricare = await ridimensionaImmagine(file)
+    } catch {
+      // ridimensionamento non riuscito: si prova comunque col file originale
+    }
+
+    if (daCaricare.size > 8 * 1024 * 1024) {
+      setCaricamentoFotoId(null)
+      setFotoEsito('Immagine ancora troppo pesante dopo la compressione, provane un\'altra.')
+      return
+    }
+
+    const ext = (daCaricare.name.match(/\.([a-z0-9]+)$/i)?.[1] || 'jpg').toLowerCase()
+    const percorso = `luoghi/${strutturaId}/${l.id}-${Date.now()}.${ext}`
+
+    const caricamento = await supabase.storage
+      .from('copertine')
+      .upload(percorso, daCaricare, { upsert: true, cacheControl: '3600' })
+    if (caricamento.error) {
+      setCaricamentoFotoId(null)
+      setFotoEsito('Caricamento non riuscito: ' + caricamento.error.message)
+      return
+    }
+
+    const { data: pub } = supabase.storage.from('copertine').getPublicUrl(percorso)
+    const { error } = await supabase.from('luoghi').update({ foto_url: pub.publicUrl }).eq('id', l.id)
+
+    setCaricamentoFotoId(null)
+    if (error) {
+      setFotoEsito('Foto caricata ma non salvata: ' + error.message)
+      return
+    }
+    setLuoghi((prev) => prev.map((x) => (x.id === l.id ? { ...x, foto_url: pub.publicUrl } : x)))
+    setFotoEsito('ok')
+  }
+
+  async function rimuoviFotoLuogo(l: LuogoRow) {
+    setFotoEsito('')
+    const { error } = await supabase.from('luoghi').update({ foto_url: null }).eq('id', l.id)
+    if (error) {
+      setFotoEsito('Non sono riuscito a togliere la foto: ' + error.message)
+      return
+    }
+    setLuoghi((prev) => prev.map((x) => (x.id === l.id ? { ...x, foto_url: null } : x)))
   }
 
   async function elimina(l: LuogoRow) {
@@ -328,6 +396,41 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
           <div key={l.id} className="bg-white shadow rounded-xl p-3">
             {modificaId === l.id ? (
               <div className="flex flex-col gap-2">
+                <label className="text-xs text-gray-500">Foto del luogo</label>
+                {l.foto_url && (
+                  <img src={l.foto_url} alt="" className="w-full h-28 object-cover rounded-lg border" />
+                )}
+                <div className="flex gap-2">
+                  <label
+                    className={`flex-1 text-center border rounded-lg py-2 text-sm cursor-pointer ${
+                      caricamentoFotoId === l.id ? 'opacity-50' : 'border-blue-600 text-blue-600'
+                    }`}
+                  >
+                    {caricamentoFotoId === l.id ? 'Carico...' : l.foto_url ? 'Cambia foto' : 'Carica foto'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={caricamentoFotoId === l.id}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        e.target.value = ''
+                        if (f) caricaFotoLuogo(l, f)
+                      }}
+                    />
+                  </label>
+                  {l.foto_url && (
+                    <button type="button" onClick={() => rimuoviFotoLuogo(l)} className="border rounded-lg px-3 text-sm text-red-600">
+                      Rimuovi
+                    </button>
+                  )}
+                </div>
+                {fotoEsito && (
+                  fotoEsito === 'ok'
+                    ? <p className="text-green-600 text-xs">Foto aggiornata ✓</p>
+                    : <p className="text-red-600 text-xs">{fotoEsito}</p>
+                )}
+
                 <CampiLuogo bozza={bozza} setBozza={setBozza} />
                 <div className="flex gap-2 mt-2">
                   <button onClick={() => salva(l.id)} disabled={salvataggio} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50">
@@ -343,7 +446,10 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
               </div>
             ) : (
               <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
+                {l.foto_url && (
+                  <img src={l.foto_url} alt="" className="w-12 h-12 object-cover rounded-lg shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-sm">{l.nome}</p>
                   {(l.distanza || l.prezzo || l.voto) && (
                     <p className="text-xs text-gray-400">

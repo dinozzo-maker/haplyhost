@@ -18,6 +18,7 @@ type LuogoRow = {
   prezzo: string | null
   voto: string | null
   categoria: string | null
+  foto_url: string | null
   traduzioni: Record<string, Record<string, string>> | null
 }
 
@@ -35,7 +36,7 @@ export default function SezionePage() {
     async function carica() {
       const { data } = await supabase
         .from('luoghi')
-        .select('id, nome, descrizione, distanza, maps, telefono, prezzo, voto, categoria, traduzioni')
+        .select('id, nome, descrizione, distanza, maps, telefono, prezzo, voto, categoria, foto_url, traduzioni')
         .eq('struttura_id', struttura.id)
         .eq('sezione', sezione)
         .eq('attivo', true)
@@ -70,29 +71,32 @@ export default function SezionePage() {
         const distanza = campoTradotto(l.distanza, l.traduzioni, 'distanza', lingua)
         return (
           <div key={l.id} className="g-place">
-            <div className="pl-top">
-              <span className="pl-name">{l.nome}</span>
-              {l.prezzo && <span className="g-pill">{l.prezzo}</span>}
-              {l.voto && <span className="g-pill rate">★ {l.voto}</span>}
-            </div>
-            {categoria && <div className="pl-cat">{categoria}</div>}
-            {descrizione && <p className="pl-desc">{descrizione}</p>}
-
-            {(distanza || l.maps || l.telefono) && (
-              <div className="pl-meta">
-                {distanza && <span className="pl-dist">{distanza}</span>}
-                {l.maps && (
-                  <a className="pl-act" href={l.maps} target="_blank" rel="noreferrer">
-                    <IconaMappa size={14} /> {T[lingua].azMappa}
-                  </a>
-                )}
-                {l.telefono && (
-                  <a className="pl-act" href={`tel:${l.telefono}`}>
-                    <Phone size={14} /> {T[lingua].azChiama}
-                  </a>
-                )}
+            {l.foto_url && <img src={l.foto_url} alt="" className="pl-foto" />}
+            <div className="pl-content">
+              <div className="pl-top">
+                <span className="pl-name">{l.nome}</span>
+                {l.prezzo && <span className="g-pill">{l.prezzo}</span>}
+                {l.voto && <span className="g-pill rate">★ {l.voto}</span>}
               </div>
-            )}
+              {categoria && <div className="pl-cat">{categoria}</div>}
+              {descrizione && <p className="pl-desc">{descrizione}</p>}
+
+              {(distanza || l.maps || l.telefono) && (
+                <div className="pl-meta">
+                  {distanza && <span className="pl-dist">{distanza}</span>}
+                  {l.maps && (
+                    <a className="pl-act" href={l.maps} target="_blank" rel="noreferrer">
+                      <IconaMappa size={14} /> {T[lingua].azMappa}
+                    </a>
+                  )}
+                  {l.telefono && (
+                    <a className="pl-act" href={`tel:${l.telefono}`}>
+                      <Phone size={14} /> {T[lingua].azChiama}
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )
       })}

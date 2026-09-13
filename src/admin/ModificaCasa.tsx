@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { ridimensionaImmagine } from '../immagine'
 import type { ContestoHost } from './RichiedeLogin'
 
 type DatiCasa = {
@@ -99,32 +100,6 @@ export default function ModificaCasa() {
   function aggiorna(campo: keyof DatiCasa, valore: string) {
     setDati((d) => ({ ...d, [campo]: valore }))
     setSalvato(false)
-  }
-
-  // Un JPEG da telefono può pesare 8-15 MB: qui si porta al lato massimo di 1920px
-  // e si ricomprime in JPEG prima di caricarlo. `imageOrientation: 'from-image'`
-  // rispetta la rotazione EXIF (altrimenti una foto verticale può uscire ruotata).
-  // Se il ridimensionamento non riesce (formato non supportato, browser vecchio),
-  // chi chiama ricade sul file originale — non deve mai bloccare il caricamento.
-  async function ridimensionaImmagine(file: File, latoMassimo = 1920, qualita = 0.85): Promise<File> {
-    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-    const scala = Math.min(1, latoMassimo / Math.max(bitmap.width, bitmap.height))
-    const larghezza = Math.round(bitmap.width * scala)
-    const altezza = Math.round(bitmap.height * scala)
-
-    const canvas = document.createElement('canvas')
-    canvas.width = larghezza
-    canvas.height = altezza
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('Canvas non disponibile')
-    ctx.drawImage(bitmap, 0, 0, larghezza, altezza)
-    bitmap.close()
-
-    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', qualita))
-    if (!blob) throw new Error('Conversione immagine non riuscita')
-
-    const nome = file.name.replace(/\.[a-z0-9]+$/i, '') + '.jpg'
-    return new File([blob], nome, { type: 'image/jpeg' })
   }
 
   // Carica un'immagine su Storage e salva SUBITO il link (non aspetta il pulsante "Salva":

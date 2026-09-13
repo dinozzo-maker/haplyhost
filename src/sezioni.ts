@@ -11,20 +11,20 @@ export type Sezione = {
 }
 
 export const SEZIONI: Sezione[] = [
-  { chiave: 'casa', icona: '🏠', etichetta: 'Casa & Wi-Fi', tipo: 'testo' },
-  { chiave: 'piscina', icona: '🏊', etichetta: 'Piscina', tipo: 'testo' },
-  { chiave: 'spiagge', icona: '🏖️', etichetta: 'Spiagge', tipo: 'elenco' },
-  { chiave: 'mangiare', icona: '🍝', etichetta: 'Dove Mangiare', tipo: 'elenco' },
-  { chiave: 'vicinanze', icona: '🛒', etichetta: 'Nelle Vicinanze', tipo: 'elenco' },
-  { chiave: 'visitare', icona: '🏛️', etichetta: 'Cosa Visitare', tipo: 'elenco' },
-  { chiave: 'divertimento', icona: '🎡', etichetta: 'Svago e Attività', tipo: 'elenco' },
-  { chiave: 'gite', icona: '🗺️', etichetta: 'Gite e Escursioni', tipo: 'elenco' },
-  { chiave: 'trasporti', icona: '🚌', etichetta: 'Trasporti', tipo: 'elenco' },
-  { chiave: 'differenziata', icona: '♻️', etichetta: 'Differenziata', tipo: 'testo' },
-  { chiave: 'regole', icona: '📋', etichetta: 'Regole Casa', tipo: 'testo' },
-  { chiave: 'emergenze', icona: '🚨', etichetta: 'Emergenze', tipo: 'testo' },
-  { chiave: 'contatti', icona: '📞', etichetta: 'Contatti', tipo: 'testo' },
-  { chiave: 'gennarino', icona: '🤵', etichetta: 'Chiedi a Gennarino', tipo: 'chat' },
+  { chiave: 'casa', icona: 'home', etichetta: 'Casa & Wi-Fi', tipo: 'testo' },
+  { chiave: 'piscina', icona: 'waves', etichetta: 'Piscina', tipo: 'testo' },
+  { chiave: 'spiagge', icona: 'umbrella', etichetta: 'Spiagge', tipo: 'elenco' },
+  { chiave: 'mangiare', icona: 'utensils-crossed', etichetta: 'Dove Mangiare', tipo: 'elenco' },
+  { chiave: 'vicinanze', icona: 'shopping-bag', etichetta: 'Nelle Vicinanze', tipo: 'elenco' },
+  { chiave: 'visitare', icona: 'landmark', etichetta: 'Cosa Visitare', tipo: 'elenco' },
+  { chiave: 'divertimento', icona: 'party-popper', etichetta: 'Svago e Attività', tipo: 'elenco' },
+  { chiave: 'gite', icona: 'map', etichetta: 'Gite e Escursioni', tipo: 'elenco' },
+  { chiave: 'trasporti', icona: 'bus', etichetta: 'Trasporti', tipo: 'elenco' },
+  { chiave: 'differenziata', icona: 'recycle', etichetta: 'Differenziata', tipo: 'testo' },
+  { chiave: 'regole', icona: 'clipboard-list', etichetta: 'Regole Casa', tipo: 'testo' },
+  { chiave: 'emergenze', icona: 'triangle-alert', etichetta: 'Emergenze', tipo: 'testo' },
+  { chiave: 'contatti', icona: 'phone', etichetta: 'Contatti', tipo: 'testo' },
+  { chiave: 'gennarino', icona: 'message-circle', etichetta: 'Chiedi a Gennarino', tipo: 'chat' },
 ]
 
 // Chiavi delle sezioni di sistema — usate per distinguerle dalle sezioni custom (sezioni_extra).

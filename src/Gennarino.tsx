@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
 import { conNome, T, useLingua } from './lingua'
+import { MessageCircle } from 'lucide-react'
 
 type Messaggio = { role: 'user' | 'assistant'; content: string }
 
@@ -41,7 +42,7 @@ export default function Gennarino() {
   return (
     <div className="g-chat">
       <div className="g-peek">
-        <span className="p-emo">🤵</span>
+        <span className="p-emo"><MessageCircle /></span>
         <div>
           <div className="p-title">Gennarino</div>
           <div className="p-sub">{conNome(T[lingua].gennarinoSottotitolo, struttura.nome)}</div>

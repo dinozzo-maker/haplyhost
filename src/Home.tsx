@@ -5,6 +5,7 @@ import { etichettaSezione, filtraVisibili } from './sezioni'
 import { T, useLingua } from './lingua'
 import SelettoreLingua from './SelettoreLingua'
 import { useSezioni } from './useSezioni'
+import { Icona } from './Icona'
 
 export default function Home() {
   const struttura = useOutletContext<StrutturaRow>()
@@ -37,7 +38,7 @@ export default function Home() {
       <div className="g-grid">
         {tessere.map((s) => (
           <Link key={s.chiave} to={`/${slug}/${s.chiave}`} className="g-tile">
-            <span className="emo">{s.icona}</span>
+            <span className="emo"><Icona nome={s.icona} /></span>
             <span className="lbl">{etichettaSezione(s, lingua)}</span>
           </Link>
         ))}

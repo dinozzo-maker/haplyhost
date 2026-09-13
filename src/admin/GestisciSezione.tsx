@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { ContestoHost } from './RichiedeLogin'
+import { Search } from 'lucide-react'
 
 // INTERRUTTORE: deve restare uguale a RICERCHE_ATTIVE in api/scout.js.
 // false = pulsante nascosto e ricerche bloccate.
@@ -255,9 +256,9 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
           <button
             onClick={cercaNuovi}
             disabled={cercando || !strutturaId}
-            className="w-full bg-green-600 text-white rounded-lg py-2 text-sm mb-4 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2 text-sm mb-4 disabled:opacity-50"
           >
-            {cercando ? 'Gennarino sta cercando online...' : '🔍 Cerca nuovi luoghi'}
+            {cercando ? 'Gennarino sta cercando online...' : <><Search className="w-4 h-4" /> Cerca nuovi luoghi</>}
           </button>
           {esitoScout && <p className="text-sm text-gray-600 -mt-2 mb-4">{esitoScout}</p>}
         </>

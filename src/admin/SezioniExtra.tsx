@@ -3,20 +3,14 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { invalidaCacheSezioni } from '../useSezioni'
 import type { ContestoHost } from './RichiedeLogin'
+import { Icona } from '../Icona'
+import { ICONE_SCELTA } from '../icone'
+import { ChevronUp, ChevronDown } from 'lucide-react'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
 
-// Emoji tra cui scegliere l'icona di una sezione custom.
-const EMOJI = [
-  '🏠', '🛏️', '🔑', '📶', '🅿️', '🧺', '🌿', '🕯️',
-  '🏖️', '🏊', '⛱️', '🌊', '⛵', '🚤', '🐚', '🏄',
-  '🍝', '🍕', '🍷', '☕', '🍦', '🥐', '🍺', '🐟',
-  '🛒', '💊', '🏧', '🥖', '🧴', '🏪', '📮', '🛍️',
-  '🏛️', '⛪', '🖼️', '🎭', '📸', '🏰', '🗿', '⛲',
-  '🎡', '🎢', '🎯', '🚴', '🥾', '🧗', '🎣', '🎾',
-  '🗺️', '🚌', '🚕', '🚗', '🚲', '🚂', '✈️', '⛴️',
-  '♻️', '📋', '🚨', '📞', '🎉', '🎂', '💍', '🎓',
-]
+// Icone tra cui scegliere per una sezione custom, in righe tematiche (vedi icone.tsx).
+const ICONE_PIATTE = ICONE_SCELTA.flat()
 
 type SezioneExtra = {
   chiave: string
@@ -164,22 +158,22 @@ export default function SezioniExtra() {
           onClick={() => setPickerAperto((v) => !v)}
           className="w-full border rounded-lg px-3 py-2 text-sm flex items-center justify-between"
         >
-          <span>
-            <span className="text-lg mr-2">{icona || '📄'}</span>
+          <span className="inline-flex items-center">
+            <Icona nome={icona} className="w-5 h-5 mr-2 text-gray-600" />
             {icona ? 'Cambia icona' : 'Scegli un’icona'}
           </span>
-          <span className="text-gray-400">{pickerAperto ? '▲' : '▼'}</span>
+          {pickerAperto ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
         </button>
         {pickerAperto && (
           <div className="mt-2 grid grid-cols-8 gap-1 border rounded-lg p-2 bg-white">
-            {EMOJI.map((e) => (
+            {ICONE_PIATTE.map((nomeIcona) => (
               <button
-                key={e}
+                key={nomeIcona}
                 type="button"
-                onClick={() => { setIcona(e); setPickerAperto(false) }}
-                className={`text-xl rounded-md py-1 hover:bg-gray-100 ${icona === e ? 'bg-blue-100' : ''}`}
+                onClick={() => { setIcona(nomeIcona); setPickerAperto(false) }}
+                className={`flex items-center justify-center rounded-md py-1.5 hover:bg-gray-100 ${icona === nomeIcona ? 'bg-blue-100' : ''}`}
               >
-                {e}
+                <Icona nome={nomeIcona} className="w-5 h-5 text-gray-700" />
               </button>
             ))}
           </div>
@@ -234,7 +228,9 @@ export default function SezioniExtra() {
           <div key={s.chiave} className="bg-white shadow rounded-xl p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-sm font-medium">{s.icona} {s.etichetta}</p>
+                <p className="text-sm font-medium inline-flex items-center gap-1.5">
+                  <Icona nome={s.icona} className="w-4 h-4 shrink-0 text-gray-600" /> {s.etichetta}
+                </p>
                 <p className="text-xs text-gray-400">
                   {s.tipo === 'elenco' ? 'lista di luoghi' : 'pagina di testo'}
                   {s.tipo === 'elenco' && s.categoria ? ` · cerca: ${s.categoria}` : ''}

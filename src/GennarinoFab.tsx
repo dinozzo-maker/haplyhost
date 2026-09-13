@@ -3,6 +3,7 @@ import { useSezioni } from './useSezioni'
 import { etichettaSezione, filtraVisibili } from './sezioni'
 import { useLingua } from './lingua'
 import type { StrutturaRow } from './Struttura'
+import { Icona } from './Icona'
 
 // Bottone tondo galleggiante che porta alla chat di Gennarino.
 // Nascosto quando la sezione chat non è visibile o quando si è già sulla sua pagina.
@@ -17,7 +18,7 @@ export default function GennarinoFab({ slug, struttura }: { slug: string; strutt
 
   return (
     <Link to={`/${slug}/${chat.chiave}`} className="g-fab" aria-label={etichettaSezione(chat, lingua)}>
-      {chat.icona}
+      <Icona nome={chat.icona} />
     </Link>
   )
 }

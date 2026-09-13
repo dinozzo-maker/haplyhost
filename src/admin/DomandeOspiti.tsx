@@ -11,10 +11,6 @@ type Domanda = {
   creato_il: string
 }
 
-const BANDIERA: Record<string, string> = {
-  it: '🇮🇹', en: '🇬🇧', fr: '🇫🇷', de: '🇩🇪', es: '🇪🇸',
-}
-
 function quando(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) +
@@ -77,7 +73,12 @@ export default function DomandeOspiti() {
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-medium">
-                {d.lang && d.lang !== 'it' ? (BANDIERA[d.lang] ?? '') + ' ' : ''}{d.domanda}
+                {d.lang && d.lang !== 'it' && (
+                  <span className="text-[10px] font-bold text-gray-400 border border-gray-300 rounded px-1 mr-1.5 align-middle">
+                    {d.lang.toUpperCase()}
+                  </span>
+                )}
+                {d.domanda}
               </p>
               <span className="text-xs text-gray-400 shrink-0 mt-0.5">{quando(d.creato_il)}</span>
             </div>

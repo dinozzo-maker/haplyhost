@@ -3,6 +3,7 @@ import { useSezioni } from './useSezioni'
 import { etichettaSezione, filtraVisibili } from './sezioni'
 import { T, useLingua } from './lingua'
 import type { StrutturaRow } from './Struttura'
+import { Icona } from './Icona'
 
 // Barra fissa in basso nella guida ospiti: Home + le prime 2 sezioni "elenco"
 // visibili + Gennarino (se la sezione chat è visibile).
@@ -16,18 +17,18 @@ export default function TabBar({ slug, struttura }: { slug: string; struttura: S
   return (
     <nav className="g-tabbar" aria-label={T[lingua].navigazione}>
       <NavLink to={`/${slug}`} end>
-        <span className="t-emo">🏠</span>
+        <span className="t-emo"><Icona nome="home" /></span>
         {T[lingua].tabHome}
       </NavLink>
       {elenchi.map((s) => (
         <NavLink key={s.chiave} to={`/${slug}/${s.chiave}`}>
-          <span className="t-emo">{s.icona}</span>
+          <span className="t-emo"><Icona nome={s.icona} /></span>
           {etichettaSezione(s, lingua)}
         </NavLink>
       ))}
       {chat && (
         <NavLink to={`/${slug}/${chat.chiave}`}>
-          <span className="t-emo">{chat.icona}</span>
+          <span className="t-emo"><Icona nome={chat.icona} /></span>
           Gennarino
         </NavLink>
       )}

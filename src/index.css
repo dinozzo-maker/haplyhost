@@ -158,8 +158,12 @@
   box-shadow: 0 12px 20px -12px rgb(var(--g-sh) / 0.22);
 }
 .g-tile .emo {
-  font-size: 26px;
-  line-height: 1;
+  display: flex;
+  color: var(--g-accent-d);
+}
+.g-tile .emo svg {
+  width: 26px;
+  height: 26px;
 }
 .g-tile .lbl {
   font-size: 11px;
@@ -179,7 +183,12 @@
   box-shadow: 0 2px 8px -3px rgb(var(--g-sh) / 0.08);
 }
 .g-peek .p-emo {
-  font-size: 22px;
+  display: flex;
+  color: var(--g-accent-d);
+}
+.g-peek .p-emo svg {
+  width: 22px;
+  height: 22px;
 }
 .g-peek .p-title {
   font-size: 15px;
@@ -247,6 +256,9 @@
   color: var(--g-ink-2);
 }
 .g-place .pl-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--g-accent-d);
 }
 
@@ -400,14 +412,18 @@
   color: var(--g-ink-2);
 }
 .g-tabbar a .t-emo {
-  font-size: 18px;
-  filter: grayscale(0.35) opacity(0.8);
+  display: flex;
+  opacity: 0.8;
+}
+.g-tabbar a .t-emo svg {
+  width: 18px;
+  height: 18px;
 }
 .g-tabbar a[aria-current="page"] {
   color: var(--g-accent-d);
 }
 .g-tabbar a[aria-current="page"] .t-emo {
-  filter: none;
+  opacity: 1;
 }
 
 /* --- selettore lingua: riga di bandiere sotto la copertina --- */
@@ -449,11 +465,14 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 24px;
   background: var(--g-accent);
   color: #fff;
   box-shadow: 0 10px 24px -6px color-mix(in srgb, var(--g-accent) 60%, transparent),
     0 3px 8px rgb(var(--g-sh) / 0.2);
+}
+.g-fab svg {
+  width: 24px;
+  height: 24px;
 }
 
 @media (prefers-reduced-motion: reduce) {

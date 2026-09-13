@@ -28,7 +28,7 @@ function mappa(r: {
 }): Sezione {
   return {
     chiave: r.chiave,
-    icona: r.icona || '📄',
+    icona: r.icona || 'sparkles',
     etichetta: r.etichetta,
     descrizione: r.descrizione ?? undefined,
     tipo: (r.tipo === 'elenco' ? 'elenco' : 'testo') as TipoSezione,

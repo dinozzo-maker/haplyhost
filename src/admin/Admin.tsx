@@ -5,18 +5,22 @@ import { supabase } from '../supabaseClient'
 import { useSezioni } from '../useSezioni'
 import type { ContestoHost } from './RichiedeLogin'
 import CreaStruttura from './CreaStruttura'
+import {
+  Settings, NotebookPen, MessageCircleQuestion, LayoutGrid, Languages, Eye,
+  UserPlus, Puzzle, CircleCheck, Circle, ArrowRight, TriangleAlert,
+} from 'lucide-react'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
 
 // Una riga della checklist "Primi passi". `fatto` indefinito = passo di rifinitura
 // (freccia, nessuna spunta); true/false = passo che sappiamo controllare da soli.
 function Passo({ fatto, to, children }: { fatto?: boolean; to: string; children: ReactNode }) {
-  const segno = fatto === undefined ? '→' : fatto ? '✓' : '○'
+  const Segno = fatto === undefined ? ArrowRight : fatto ? CircleCheck : Circle
   const colore = fatto ? 'text-green-600' : 'text-gray-400'
   return (
     <li>
       <Link to={to} className="flex items-center gap-2 text-blue-800 hover:underline">
-        <span className={`w-4 text-center ${colore}`}>{segno}</span>
+        <Segno className={`w-4 h-4 shrink-0 ${colore}`} />
         <span>{children}</span>
       </Link>
     </li>
@@ -116,8 +120,9 @@ export default function Admin() {
 
       {attivo ? (
         <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm mb-4">
-          <span className="text-green-800">
-            🟢 La guida è online —{' '}
+          <span className="text-green-800 inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+            La guida è online —{' '}
             <a href={`/${struttura.slug}`} target="_blank" rel="noreferrer" className="underline">
               aprila
             </a>
@@ -169,36 +174,39 @@ export default function Admin() {
       {daTradurre > 0 && (
         <Link
           to="/admin/traduzioni"
-          className="block bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-3 text-sm mb-4"
+          className="flex items-start gap-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-3 text-sm mb-4"
         >
-          ⚠️ Hai modificato {daTradurre} test{daTradurre === 1 ? 'o' : 'i'} dopo l'ultima traduzione.
-          Rilancia "Traduzioni della guida".
+          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            Hai modificato {daTradurre} test{daTradurre === 1 ? 'o' : 'i'} dopo l'ultima traduzione.
+            Rilancia "Traduzioni della guida".
+          </span>
         </Link>
       )}
 
       <div className="flex flex-col gap-2 mb-6">
-        <Link to="/admin/modifica-casa" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
-          ⚙️ Modifica dati della casa
+        <Link to="/admin/modifica-casa" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <Settings className="w-4 h-4 text-gray-400 shrink-0" /> Modifica dati della casa
         </Link>
-        <Link to="/admin/note" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
-          📝 Note per Gennarino
+        <Link to="/admin/note" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <NotebookPen className="w-4 h-4 text-gray-400 shrink-0" /> Note per Gennarino
         </Link>
-        <Link to="/admin/domande" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
-          💬 Domande degli ospiti
+        <Link to="/admin/domande" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <MessageCircleQuestion className="w-4 h-4 text-gray-400 shrink-0" /> Domande degli ospiti
         </Link>
-        <Link to="/admin/sezioni-guida" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
-          🧩 Sezioni della guida
+        <Link to="/admin/sezioni-guida" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <LayoutGrid className="w-4 h-4 text-gray-400 shrink-0" /> Sezioni della guida
         </Link>
-        <Link to="/admin/traduzioni" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
-          🌐 Traduzioni della guida
+        <Link to="/admin/traduzioni" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+          <Languages className="w-4 h-4 text-gray-400 shrink-0" /> Traduzioni della guida
         </Link>
         <a
           href={`/${struttura.slug}`}
           target="_blank"
           rel="noreferrer"
-          className="block bg-white shadow rounded-xl p-3 text-sm font-medium"
+          className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium"
         >
-          👀 Vedi la guida degli ospiti
+          <Eye className="w-4 h-4 text-gray-400 shrink-0" /> Vedi la guida degli ospiti
         </a>
         <Link to="/admin/nuova-struttura" className="block text-sm text-blue-600 px-3 pt-1">
           + Aggiungi un'altra struttura
@@ -209,11 +217,11 @@ export default function Admin() {
         <>
           <p className="text-xs font-medium text-gray-400 mb-2">PIATTAFORMA</p>
           <div className="flex flex-col gap-2 mb-6">
-            <Link to="/admin/invita-host" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
-              👤 Invita un nuovo host
+            <Link to="/admin/invita-host" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+              <UserPlus className="w-4 h-4 text-gray-400 shrink-0" /> Invita un nuovo host
             </Link>
-            <Link to="/admin/sezioni-extra" className="block bg-white shadow rounded-xl p-3 text-sm font-medium">
-              🧩 Sezioni della piattaforma
+            <Link to="/admin/sezioni-extra" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
+              <Puzzle className="w-4 h-4 text-gray-400 shrink-0" /> Sezioni della piattaforma
             </Link>
           </div>
         </>

@@ -5,6 +5,7 @@ import { SEZIONI } from '../sezioni'
 import type { Sezione } from '../sezioni'
 import { useSezioni } from '../useSezioni'
 import type { ContestoHost } from './RichiedeLogin'
+import { Icona } from '../Icona'
 
 const GRUPPI: { titolo: string; tipo: Sezione['tipo'] }[] = [
   { titolo: 'ELENCHI', tipo: 'elenco' },
@@ -107,7 +108,9 @@ export default function SezioniGuida() {
               {items.map((s) => (
                 <label key={s.chiave} className="bg-white shadow rounded-xl p-3 flex items-start justify-between gap-3 cursor-pointer">
                   <span className="min-w-0">
-                    <span className="text-sm font-medium">{s.icona} {s.etichetta}</span>
+                    <span className="text-sm font-medium inline-flex items-center gap-1.5">
+                      <Icona nome={s.icona} className="w-4 h-4 shrink-0 text-gray-500" /> {s.etichetta}
+                    </span>
                     {s.descrizione && <span className="block text-xs text-gray-500 mt-0.5">{s.descrizione}</span>}
                   </span>
                   <input

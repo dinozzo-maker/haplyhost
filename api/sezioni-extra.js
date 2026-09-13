@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     const tipoPulito = tipo === 'elenco' ? 'elenco' : 'testo'
     const { error } = await supabase.from('sezioni_extra').insert({
       chiave,
-      icona: (icona || '').trim() || '📄',
+      icona: (icona || '').trim() || 'sparkles',
       etichetta: etichettaPulita,
       descrizione: (descrizione || '').trim() || null,
       tipo: tipoPulito,

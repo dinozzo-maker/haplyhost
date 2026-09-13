@@ -6,6 +6,8 @@ import type { StrutturaRow } from './Struttura'
 import { campoTradotto, FRASI_TELEFONO, T, useLingua } from './lingua'
 import { etichettaSezione } from './sezioni'
 import { useSezioni } from './useSezioni'
+import { Icona } from './Icona'
+import { MessageCircle, Phone } from 'lucide-react'
 
 // Numeri di telefono nel testo → chip "chiama". I codici brevi di emergenza
 // (112, 118…) solo nella pagina emergenze; i numeri lunghi ovunque.
@@ -80,7 +82,7 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
       </Link>
 
       <div className="g-peek">
-        <span className="p-emo">{info?.icona ?? '📄'}</span>
+        <span className="p-emo"><Icona nome={info?.icona} /></span>
         <div>
           <div className="p-title">{titolo}</div>
           {info?.descrizione && <div className="p-sub">{info.descrizione}</div>}
@@ -97,11 +99,11 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
         <div className="g-contatti">
           {waNumero && (
             <a className="g-btn-wa" href={`https://wa.me/${waNumero}`} target="_blank" rel="noreferrer">
-              💬 WhatsApp
+              <MessageCircle size={18} /> WhatsApp
             </a>
           )}
           <a className="g-btn-tel" href={`tel:${telHref}`}>
-            📞 {T[lingua].azChiama}
+            <Phone size={18} /> {T[lingua].azChiama}
           </a>
         </div>
       )}

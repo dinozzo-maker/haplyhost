@@ -5,6 +5,8 @@ import type { StrutturaRow } from './Struttura'
 import { campoTradotto, T, useLingua } from './lingua'
 import { etichettaSezione } from './sezioni'
 import { useSezioni } from './useSezioni'
+import { Icona } from './Icona'
+import { Map as IconaMappa, Phone } from 'lucide-react'
 
 type LuogoRow = {
   id: string
@@ -52,7 +54,7 @@ export default function SezionePage() {
       </Link>
 
       <div className="g-peek">
-        <span className="p-emo">{info?.icona ?? '📍'}</span>
+        <span className="p-emo"><Icona nome={info?.icona} /></span>
         <div>
           <div className="p-title">{info ? etichettaSezione(info, lingua) : sezione}</div>
           <div className="p-sub">{info?.descrizione || T[lingua].sottotitoloSezione}</div>
@@ -81,12 +83,12 @@ export default function SezionePage() {
                 {distanza && <span className="pl-dist">{distanza}</span>}
                 {l.maps && (
                   <a className="pl-act" href={l.maps} target="_blank" rel="noreferrer">
-                    🗺️ {T[lingua].azMappa}
+                    <IconaMappa size={14} /> {T[lingua].azMappa}
                   </a>
                 )}
                 {l.telefono && (
                   <a className="pl-act" href={`tel:${l.telefono}`}>
-                    📞 {T[lingua].azChiama}
+                    <Phone size={14} /> {T[lingua].azChiama}
                   </a>
                 )}
               </div>

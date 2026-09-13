@@ -54,6 +54,8 @@ haplyhost/
 │   │                          uguale in GestisciSezione.tsx): false → l'endpoint torna 503 senza chiamare AI.
 │   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding; prezzo e voto
 │   │                          scritti nelle colonne `proposte.prezzo`/`voto`) | 'claude' (fallback spento: Haiku + web_search_20250305).
+│   │                          `raggio_km` dal body (1/5/15/30, `RAGGI_KM` — stesse opzioni di `RAGGI` in GestisciSezione.tsx;
+│   │                          altrimenti default 5) → nel prompt "entro circa N km da questo indirizzo" invece di "vicino a".
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}. Prima: rifiuta se l'email non è in `host_autorizzati`
 │   │                          (403; salta il check se è il superadmin, `VITE_ADMIN_EMAIL`). Poi genera descrizione_casa + citta
 │   │                          (via lib/), imposta attivo=FALSE (l'host pubblica dal pannello), segna host_autorizzati.registrato_il.
@@ -135,7 +137,8 @@ haplyhost/
 │       │                          selettore emoji, descrizione, tipo testo|elenco, categoria per Scout se elenco) → POST/DELETE /api/sezioni-extra.
 │       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco luoghi con toggle attivo/spento,
 │       │                          modifica inline + "Elimina questo luogo" (DELETE, dentro la modifica), "+ Aggiungi un luogo a mano"
-│       │                          (INSERT), "Cerca nuovi luoghi" (Scout) + proposte da Accettare/Rifiutare. Campi condivisi modifica/nuovo:
+│       │                          (INSERT), tendina "Raggio di ricerca" (`RAGGI`, 1/5/15/30 km) + "Cerca nuovi luoghi" (Scout,
+│       │                          manda `raggio_km`) + proposte da Accettare/Rifiutare. Campi condivisi modifica/nuovo:
 │       │                          <CampiLuogo> (nome/descrizione/distanza/prezzo/voto/maps/telefono). Salva/aggiungi/accetta → `da_tradurre=true`
 │       └── GestisciPagina.tsx   ← UNICO componente riusato per tutte e 6 le sezioni 'testo': editor titolo+contenuto su `pagine`.
 │                                  Salva → upsert con `da_tradurre=true` + ricorda di rilanciare "Traduzioni della guida"
@@ -309,7 +312,7 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
 - Pannello host: login magic-link, gestione on/off + modifica/elimina/**aggiungi a mano** luoghi su tutte le sezioni elenco (con distanza in lista), editor per le pagine testuali, link "Vedi la guida degli ospiti", pagina "Sezioni della guida" (scegli quali tessere mostrare agli ospiti — `strutture.sezioni_attive`)
 - **Sezioni custom del superadmin**: pagina `/admin/sezioni-extra` (solo superadmin) per creare/eliminare sezioni oltre le 14 di sistema, tipo testo o elenco. Vivono in `sezioni_extra`, si uniscono ovunque via `useSezioni()`, nascono spente per tutti gli host. **Prerequisito prod: migration 0004.**
-- Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (colonne `proposte.prezzo`/`voto`, copiati nel luogo all'accettazione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.**
+- Scout: ricerca nuovi luoghi con approvazione/rifiuto. Su Gemini + Maps grounding (`MOTORE_SCOUT`), riattivato. Restituisce anche prezzo e voto Google (colonne `proposte.prezzo`/`voto`, copiati nel luogo all'accettazione). Errori/esito veri mostrati nel pannello. **Prerequisito prod: `GEMINI_API_KEY` su Vercel.** **Raggio di ricerca (13/09/2026)**: tendina in `GestisciSezione.tsx` (1/5/15/30 km, default 5) → `raggio_km` nel prompt invece del generico "vicino a questo indirizzo".
 - **Reskin della guida ospiti** (migration 0005, verificato in prod 03/09/2026): design system "g-*" in `src/index.css` (spirito StayFlow: Nunito, hero, griglia emoji, barra in basso `TabBar`, FAB `GennarinoFab`, modalità chiara/scura). Due leve per l'host in ModificaCasa: colore d'accento (`strutture.accento`, 5 preset, iniettato come `--g-accent` inline sullo `.g-shell`) e foto di copertina — **"Carica foto"** (upload su Storage bucket `copertine`, migration 0006) o link incollato. Schede luogo con pastiglie prezzo/voto (`luoghi.prezzo`/`voto` da Scout). Selettore emoji in SezioniExtra. "+ Aggiungi un luogo a mano" in GestisciSezione. Il pannello admin resta su Tailwind grezzo (reskin editoriale rimandato). "Il consiglio di oggi": rimandato.
 - **Multilingua della guida ospiti** (IT/EN/FR/DE/ES, nessuna migration): all'apertura la guida si mette nella lingua del telefono (`navigator.language`), con selettore 🌐 in alto a destra (scelta ricordata in localStorage). Testi fissi da un dizionario (`src/lingua.ts` `T`); luoghi da `luoghi.traduzioni` con ripiego all'italiano; etichette sezioni tradotte (solo le 14 di sistema — le custom restano in italiano). Gennarino risponde nella lingua dell'ospite (`api/gennarino.js` accetta `lang`). Le pagine di testo e i luoghi senza traduzione si riempiono con **"Traduci la guida"** in ModificaCasa → `api/traduci-guida.js` (Haiku). Verificato frontend in locale 03/09/2026.
 - Base multi-tenant: `owner_user_id`, RLS scoped per host, un host vede/modifica solo la propria struttura
@@ -335,7 +338,6 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 - Colonna `strutture.link_riferimento`: documentata ma NON presente nel DB reale. Il codice non la tocca più. Da aggiungere con `ALTER TABLE` (in una migration) + reintrodurre in ModificaCasa/importa-casa/aggiorna-casa per ricordare l'ultimo link usato.
 
 **Non ancora iniziato:**
-- **Raggio di ricerca per Scout**: `scout.js` oggi dice solo "vicino a questo indirizzo". Aggiungere un selettore di distanza/raggio in `GestisciSezione` passato a `scout.js` e messo nel prompt.
 - **Sezioni custom, follow-up**: modifica di una sezione custom esistente dalla UI (per ora solo elimina+ricrea); riordino da UI
   (per ora campo `ordine` solo via SQL); assegnare una sezione custom solo a certi host; pulizia righe `pagine`/`luoghi` orfane
   dopo l'eliminazione di una sezione.

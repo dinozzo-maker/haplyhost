@@ -7,6 +7,14 @@ import type { ContestoHost } from './RichiedeLogin'
 // false = pulsante nascosto e ricerche bloccate.
 const RICERCHE_ATTIVE = true
 
+// Opzioni raggio di ricerca — i valori (km) devono restare uguali a RAGGI_KM in api/scout.js.
+const RAGGI = [
+  { km: 1, etichetta: 'A piedi (circa 1 km)' },
+  { km: 5, etichetta: 'In zona, in auto (circa 5 km)' },
+  { km: 15, etichetta: 'Più lontano, in auto (circa 15 km)' },
+  { km: 30, etichetta: 'Gita di giornata (circa 30 km)' },
+]
+
 type LuogoRow = {
   id: string
   nome: string
@@ -83,6 +91,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const [salvataggio, setSalvataggio] = useState(false)
   const [cercando, setCercando] = useState(false)
   const [esitoScout, setEsitoScout] = useState('')
+  const [raggio, setRaggio] = useState(5)
 
   async function caricaTutto(id: string) {
     const { data: dl } = await supabase
@@ -184,7 +193,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       const res = await fetch('/api/scout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ struttura_id: strutturaId, sezione }),
+        body: JSON.stringify({ struttura_id: strutturaId, sezione, raggio_km: raggio }),
       })
       const dati = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -232,6 +241,16 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
       {RICERCHE_ATTIVE ? (
         <>
+          <label className="text-xs text-gray-500">Raggio di ricerca</label>
+          <select
+            className="w-full border rounded-lg px-3 py-2 text-sm mb-2 bg-white"
+            value={raggio}
+            onChange={(e) => setRaggio(Number(e.target.value))}
+          >
+            {RAGGI.map((r) => (
+              <option key={r.km} value={r.km}>{r.etichetta}</option>
+            ))}
+          </select>
           <button
             onClick={cercaNuovi}
             disabled={cercando || !strutturaId}

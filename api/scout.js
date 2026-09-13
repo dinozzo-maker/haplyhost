@@ -12,6 +12,11 @@ const RICERCHE_ATTIVE = true
 // MOTORE: 'gemini' (Google Maps grounding, in uso) | 'claude' (ricerca web, fallback spento).
 const MOTORE_SCOUT = 'gemini'
 
+// Opzioni offerte in src/admin/GestisciSezione.tsx — tenere allineate. Qualsiasi altro
+// valore arrivi dal body viene ignorato e si usa il default (5 km).
+const RAGGI_KM = [1, 5, 15, 30]
+const RAGGIO_DEFAULT_KM = 5
+
 const CATEGORIE = {
   spiagge: 'spiagge e lidi',
   mangiare: 'ristoranti, pizzerie e trattorie',
@@ -35,13 +40,13 @@ function estraiArrayJson(testo) {
 }
 
 // ---- MOTORE GEMINI: Google Maps grounding (Interactions API) ----
-async function cercaConGemini({ struttura, categoria, daEscludere }) {
+async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
   const haCoord = struttura?.lat != null && struttura?.lng != null
   const tool = haCoord
     ? { type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }
     : { type: 'google_maps' }
 
-  const prompt = `Trova fino a 5 ${categoria} reali ed esistenti vicino a questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}. Devono esistere davvero, non inventare nulla.
+  const prompt = `Trova fino a 5 ${categoria} reali ed esistenti entro circa ${raggioKm} km da questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}. Devono esistere davvero, non inventare nulla.
 ${daEscludere.length ? `NON includere questi, già presenti nell'elenco: ${daEscludere.join(', ')}.` : ''}
 Per ciascun posto: nome esatto, una descrizione IN ITALIANO (massimo 200 caratteri, tono caldo per un ospite di casa vacanze), la distanza approssimativa in auto o a piedi da quell'indirizzo, la fascia di prezzo a persona SEMPRE in euro (es. "15-25 €"), la valutazione media Google (es. "4,5"), un link a Google Maps, un numero di telefono.
 Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
@@ -90,8 +95,8 @@ Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
 }
 
 // ---- MOTORE CLAUDE: ricerca web (fallback, oggi non selezionato) ----
-async function cercaConClaude({ struttura, categoria, daEscludere }) {
-  const prompt = `Cerca online fino a 5 ${categoria} reali ed esistenti vicino a questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}.
+async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
+  const prompt = `Cerca online fino a 5 ${categoria} reali ed esistenti entro circa ${raggioKm} km da questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}.
 
 Non includere questi, già presenti nell'elenco: ${daEscludere.join(', ') || 'nessuno'}.
 
@@ -164,10 +169,11 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Le ricerche online sono temporaneamente disattivate.' })
   }
 
-  const { struttura_id, sezione } = req.body
+  const { struttura_id, sezione, raggio_km } = req.body
   if (!struttura_id || !sezione) {
     return res.status(400).json({ error: 'Dati mancanti' })
   }
+  const raggioKm = RAGGI_KM.includes(Number(raggio_km)) ? Number(raggio_km) : RAGGIO_DEFAULT_KM
 
   const { data: struttura } = await supabase
     .from('strutture')
@@ -205,7 +211,7 @@ export default async function handler(req, res) {
 
   try {
     const cerca = MOTORE_SCOUT === 'claude' ? cercaConClaude : cercaConGemini
-    const trovate = await cerca({ struttura, categoria, daEscludere })
+    const trovate = await cerca({ struttura, categoria, daEscludere, raggioKm })
 
     const righe = trovate.map(c => ({
       struttura_id,

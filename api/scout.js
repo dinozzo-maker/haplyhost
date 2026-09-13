@@ -46,9 +46,12 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
     ? { type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }
     : { type: 'google_maps' }
 
-  const prompt = `Trova fino a 5 ${categoria} reali ed esistenti entro circa ${raggioKm} km da questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}. Devono esistere davvero, non inventare nulla.
+  const prompt = `Trova fino a 5 ${categoria} reali ed esistenti entro circa ${raggioKm} km da questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}.
+Il raggio di ${raggioKm} km è quello VERO da usare: non fermarti alle immediate vicinanze se ci sono mete più interessanti più lontane ma comunque dentro quel raggio.
+Se la categoria lo consente, includi anche mete raggiungibili solo in traghetto o nave (es. isole): non scartarle solo perché non ci si arriva in auto.
+Devono esistere davvero, non inventare nulla.
 ${daEscludere.length ? `NON includere questi, già presenti nell'elenco: ${daEscludere.join(', ')}.` : ''}
-Per ciascun posto: nome esatto, una descrizione IN ITALIANO (massimo 200 caratteri, tono caldo per un ospite di casa vacanze), la distanza approssimativa in auto o a piedi da quell'indirizzo, la fascia di prezzo a persona SEMPRE in euro (es. "15-25 €"), la valutazione media Google (es. "4,5"), un link a Google Maps, un numero di telefono.
+Per ciascun posto: nome esatto, una descrizione IN ITALIANO (massimo 200 caratteri, tono caldo per un ospite di casa vacanze), la distanza approssimativa da quell'indirizzo (in auto, a piedi, oppure "auto + traghetto" con tempo totale se è un'isola), la fascia di prezzo a persona SEMPRE in euro (es. "15-25 €"), la valutazione media Google (es. "4,5"), un link a Google Maps, un numero di telefono.
 Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
 [{"nome":"","descrizione":"","distanza":"","prezzo":"","voto":"","maps":"","telefono":""}]`
 
@@ -97,10 +100,11 @@ Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
 // ---- MOTORE CLAUDE: ricerca web (fallback, oggi non selezionato) ----
 async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
   const prompt = `Cerca online fino a 5 ${categoria} reali ed esistenti entro circa ${raggioKm} km da questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}.
+Il raggio di ${raggioKm} km è quello VERO da usare: non fermarti alle immediate vicinanze se ci sono mete più interessanti più lontane ma comunque dentro quel raggio. Se la categoria lo consente, includi anche mete raggiungibili solo in traghetto o nave (es. isole).
 
 Non includere questi, già presenti nell'elenco: ${daEscludere.join(', ') || 'nessuno'}.
 
-Per ciascun posto scrivi: nome, una breve descrizione in italiano (massimo 200 caratteri, tono amichevole), la distanza approssimativa dall'indirizzo indicato (es. "10 min in auto" o "5 min a piedi"), un link a Google Maps se lo trovi, un numero di telefono se lo trovi.
+Per ciascun posto scrivi: nome, una breve descrizione in italiano (massimo 200 caratteri, tono amichevole), la distanza approssimativa dall'indirizzo indicato (es. "10 min in auto", "5 min a piedi", o "auto + traghetto, circa 1h30" se è un'isola), un link a Google Maps se lo trovi, un numero di telefono se lo trovi.
 
 Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato esatto:
 [{"nome": "...", "descrizione": "...", "distanza": "...", "maps": "...", "telefono": "..."}]`

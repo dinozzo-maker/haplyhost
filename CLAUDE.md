@@ -55,7 +55,10 @@ haplyhost/
 │   │                          `MOTORE_SCOUT`: 'gemini' (in uso: Gemini 3.1 Flash-Lite + Maps grounding; prezzo e voto
 │   │                          scritti nelle colonne `proposte.prezzo`/`voto`) | 'claude' (fallback spento: Haiku + web_search_20250305).
 │   │                          `raggio_km` dal body (1/5/15/30/150, `RAGGI_KM` — stesse opzioni di `RAGGI` in GestisciSezione.tsx;
-│   │                          altrimenti default 5) → nel prompt "entro circa N km da questo indirizzo" invece di "vicino a".
+│   │                          altrimenti default 5) → nel prompt "entro circa N km", con rinforzo esplicito a non fermarsi alle
+│   │                          vicinanze immediate e a includere mete raggiungibili solo in traghetto/nave (isole). Il raggio è
+│   │                          solo testo nel prompt, non un vincolo vero sullo strumento di ricerca — su Maps grounding con un
+│   │                          modello piccolo (Flash-Lite) può restare comunque miope su mete lontane o isole (13/09/2026).
 │   ├── importa-casa.js      ← crea una struttura nuova da {nome, indirizzo, link}. Prima: rifiuta se l'email non è in `host_autorizzati`
 │   │                          (403; salta il check se è il superadmin, `VITE_ADMIN_EMAIL`). Poi genera descrizione_casa + citta
 │   │                          (via lib/), imposta attivo=FALSE (l'host pubblica dal pannello), segna host_autorizzati.registrato_il.

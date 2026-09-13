@@ -101,6 +101,32 @@ export default function ModificaCasa() {
     setSalvato(false)
   }
 
+  // Un JPEG da telefono può pesare 8-15 MB: qui si porta al lato massimo di 1920px
+  // e si ricomprime in JPEG prima di caricarlo. `imageOrientation: 'from-image'`
+  // rispetta la rotazione EXIF (altrimenti una foto verticale può uscire ruotata).
+  // Se il ridimensionamento non riesce (formato non supportato, browser vecchio),
+  // chi chiama ricade sul file originale — non deve mai bloccare il caricamento.
+  async function ridimensionaImmagine(file: File, latoMassimo = 1920, qualita = 0.85): Promise<File> {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+    const scala = Math.min(1, latoMassimo / Math.max(bitmap.width, bitmap.height))
+    const larghezza = Math.round(bitmap.width * scala)
+    const altezza = Math.round(bitmap.height * scala)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = larghezza
+    canvas.height = altezza
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas non disponibile')
+    ctx.drawImage(bitmap, 0, 0, larghezza, altezza)
+    bitmap.close()
+
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', qualita))
+    if (!blob) throw new Error('Conversione immagine non riuscita')
+
+    const nome = file.name.replace(/\.[a-z0-9]+$/i, '') + '.jpg'
+    return new File([blob], nome, { type: 'image/jpeg' })
+  }
+
   // Carica un'immagine su Storage e salva SUBITO il link (non aspetta il pulsante "Salva":
   // è un'azione a sé, con il suo bottone).
   async function caricaFoto(file: File) {
@@ -110,20 +136,33 @@ export default function ModificaCasa() {
       setFotoEsito('Serve un file immagine (jpg, png…).')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setFotoEsito('Immagine troppo pesante (massimo 5 MB). Rimpiccioliscila e riprova.')
+    if (file.size > 30 * 1024 * 1024) {
+      setFotoEsito('Immagine troppo pesante (massimo 30 MB).')
       return
     }
     setCaricamentoFoto(true)
 
+    let daCaricare: File = file
+    try {
+      daCaricare = await ridimensionaImmagine(file)
+    } catch {
+      // ridimensionamento non riuscito: si prova comunque col file originale
+    }
+
+    if (daCaricare.size > 8 * 1024 * 1024) {
+      setCaricamentoFoto(false)
+      setFotoEsito('Immagine ancora troppo pesante dopo la compressione, provane un\'altra.')
+      return
+    }
+
     const { data: s } = await supabase.auth.getSession()
     const uid = s.session?.user.id ?? 'anon'
-    const ext = (file.name.match(/\.([a-z0-9]+)$/i)?.[1] || 'jpg').toLowerCase()
+    const ext = (daCaricare.name.match(/\.([a-z0-9]+)$/i)?.[1] || 'jpg').toLowerCase()
     const percorso = `${uid}/${struttura.id}-${Date.now()}.${ext}`
 
     const caricamento = await supabase.storage
       .from('copertine')
-      .upload(percorso, file, { upsert: true, cacheControl: '3600' })
+      .upload(percorso, daCaricare, { upsert: true, cacheControl: '3600' })
     if (caricamento.error) {
       setCaricamentoFoto(false)
       setFotoEsito('Caricamento non riuscito: ' + caricamento.error.message)

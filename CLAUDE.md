@@ -124,7 +124,9 @@ haplyhost/
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo,
 │       │                          citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) → UPDATE diretto
 │       │                          su `strutture` (RLS owner). Blocco "Aspetto della guida": 5 preset colore (`accento`) + foto
-│       │                          copertina — "Carica foto" (upload su Storage bucket `copertine`, salva SUBITO `copertina_url`)
+│       │                          copertina — `ridimensionaImmagine()` la porta lato client a un lato massimo 1920px + JPEG qualità
+│       │                          0.85 (`imageOrientation: 'from-image'` per l'EXIF) prima di caricarla; se fallisce usa il file
+│       │                          originale. "Carica foto" (upload su Storage bucket `copertine`, salva SUBITO `copertina_url`)
 │       │                          o link incollato (in `<details>`, staged). Riquadro "Rigenera la descrizione" → POST /api/aggiorna-casa
 │       ├── NoteGennarino.tsx     ← rotta /admin/note (link nel pannello): textarea `strutture.note_gennarino` → UPDATE diretto.
 │       │                          Info pratiche libere per Gennarino, NON una sezione della guida
@@ -324,7 +326,7 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
   policy RLS nuova: `owner_user_id` era già una FK non-unica e le policy scoped (`luoghi`/`pagine`/`proposte`/`domande`) erano
   già `struttura_id in (select ... where owner_user_id = auth.uid())`, quindi già multi-struttura di natura loro. Le altre
   pagine admin (GestisciSezione, ModificaCasa, ecc.) non toccate: leggono `struttura` dal contesto come sempre.
-- **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026.
+- **"Modifica Casa"** (`src/admin/ModificaCasa.tsx` + `api/aggiorna-casa.js` + `lib/genera-descrizione-casa.js`, rotta `/admin/modifica-casa`, pulsante nel pannello): l'host modifica tutti i dati della struttura (nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti) con UPDATE diretto, e può rigenerare descrizione+citta da un nuovo link. Testato in produzione 30/08/2026. **Foto di copertina (13/09/2026)**: ridimensionata e ricompressa lato client (canvas, max 1920px, JPEG 0,85) prima dell'upload — un JPEG da telefono da 8-15 MB ora passa; tetto grezzo 30 MB in ingresso, 8 MB dopo la compressione (non dovrebbe mai scattare). Verificato in locale (browser, nessun login richiesto: pura logica canvas).
 - Gennarino ora include nella knowledge base anche `descrizione_casa`, `host_telefono`, `max_ospiti` (prima `descrizione_casa` non era usata da nessuno). Verificato: risponde con i dettagli della casa presi da `descrizione_casa`.
 
 **Gate registrazione host + invito superadmin (pubblicato, testato in prod 31/08/2026):**
@@ -347,7 +349,7 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
     per 2-3 sezioni chiave lanciato una alla volta dal frontend (ogni Scout ~10-18s).
 - Wi-Fi legato al soggiorno attivo (tabelle `strutture_segreti` e `soggiorni` pronte, nessuna UI/logica costruita)
 - Multilingua, follow-up: traduzione delle etichette delle sezioni **custom** (`sezioni_extra`, oggi solo italiano). Il segnale "traduzione da rifare" è fatto (`da_tradurre` su pagine+luoghi → avviso ambra in `/admin` e in `/admin/traduzioni`; `traduci-guida.js` lo azzera).
-- Ottimizzazione foto di copertina: l'upload (`ModificaCasa` → bucket `copertine`) non ridimensiona l'immagine — un JPEG da telefono può essere pesante. Client-side resize (canvas) prima dell'upload, tetto attuale 5 MB. Le trasformazioni immagine di Supabase richiedono il piano Pro. Pulizia dei file orfani non fatta.
+- Pulizia dei file orfani nel bucket `copertine` non fatta (quando si cambia/rimuove la foto, il file vecchio resta su Storage).
 - Visualizzazione dei sotto-blocchi "Aperitivi" e "Stellati" dentro la pagina "Dove Mangiare" (dati presenti in `luoghi` con quelle sezioni, nessuna UI dedicata — oggi sarebbero raggiungibili solo con un URL manuale tipo `/villavirginia/aperitivi`, non linkato da nessuna parte)
 - **Reskin del pannello admin**: la guida ospiti è riskinnata (design system `g-*`); l'admin resta su Tailwind grezzo. Serve un impianto grafico dedicato più sobrio/editoriale (mockup "v2" già approvato a voce), separato da `g-*`.
 - **"Il consiglio di oggi"**: c'era nel mockup del reskin (chiamata AI a costo), rimosso su richiesta. Da riprendere quando c'è budget AI e cache.

@@ -96,27 +96,31 @@ export default function Admin() {
   }
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <h1 className="text-xl font-bold mb-2">Sei dentro, {session.user.email}</h1>
+    <div className="max-w-sm mx-auto p-6 lg:max-w-xl lg:mx-0 lg:p-10">
+      {/* Su schermi larghi la barra laterale (AdminShell) mostra già email e struttura selezionata */}
+      <div className="lg:hidden">
+        <h1 className="text-xl font-bold mb-2">Sei dentro, {session.user.email}</h1>
 
-      {strutture.length > 1 ? (
-        <div className="mb-6">
-          <label className="text-xs text-gray-500">Struttura</label>
-          <select
-            className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-            value={struttura.id}
-            onChange={(e) => selezionaStruttura(e.target.value)}
-          >
-            {strutture.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nome}{s.attivo ? '' : ' (bozza)'}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <p className="text-sm text-gray-500 mb-6">Pannello host — {struttura.nome}</p>
-      )}
+        {strutture.length > 1 ? (
+          <div className="mb-6">
+            <label className="text-xs text-gray-500">Struttura</label>
+            <select
+              className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
+              value={struttura.id}
+              onChange={(e) => selezionaStruttura(e.target.value)}
+            >
+              {strutture.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}{s.attivo ? '' : ' (bozza)'}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 mb-6">Pannello host — {struttura.nome}</p>
+        )}
+      </div>
+      <h2 className="hidden lg:block text-2xl font-bold mb-6">{struttura.nome}</h2>
 
       {attivo ? (
         <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm mb-4">
@@ -184,7 +188,7 @@ export default function Admin() {
         </Link>
       )}
 
-      <div className="flex flex-col gap-2 mb-6">
+      <div className="flex flex-col gap-2 mb-6 lg:hidden">
         <Link to="/admin/modifica-casa" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
           <Settings className="w-4 h-4 text-gray-400 shrink-0" /> Modifica dati della casa
         </Link>
@@ -214,7 +218,7 @@ export default function Admin() {
       </div>
 
       {isSuperadmin && (
-        <>
+        <div className="lg:hidden">
           <p className="text-xs font-medium text-gray-400 mb-2">PIATTAFORMA</p>
           <div className="flex flex-col gap-2 mb-6">
             <Link to="/admin/invita-host" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
@@ -224,30 +228,32 @@ export default function Admin() {
               <Puzzle className="w-4 h-4 text-gray-400 shrink-0" /> Sezioni della piattaforma
             </Link>
           </div>
-        </>
+        </div>
       )}
 
-      <p className="text-xs font-medium text-gray-400 mb-2">ELENCHI</p>
-      <div className="flex flex-col gap-2 mb-6">
-        {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
-          <Link key={s.chiave} to={`/admin/${s.chiave}`} className="bg-white shadow rounded-xl p-3 text-sm font-medium">
-            Gestisci {s.etichetta}
-          </Link>
-        ))}
-      </div>
+      <div className="lg:hidden">
+        <p className="text-xs font-medium text-gray-400 mb-2">ELENCHI</p>
+        <div className="flex flex-col gap-2 mb-6">
+          {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
+            <Link key={s.chiave} to={`/admin/${s.chiave}`} className="bg-white shadow rounded-xl p-3 text-sm font-medium">
+              Gestisci {s.etichetta}
+            </Link>
+          ))}
+        </div>
 
-      <p className="text-xs font-medium text-gray-400 mb-2">PAGINE DI TESTO</p>
-      <div className="flex flex-col gap-2 mb-6">
-        {SEZIONI.filter((s) => s.tipo === 'testo').map((s) => (
-          <Link key={s.chiave} to={`/admin/${s.chiave}`} className="bg-white shadow rounded-xl p-3 text-sm font-medium">
-            Modifica {s.etichetta}
-          </Link>
-        ))}
-      </div>
+        <p className="text-xs font-medium text-gray-400 mb-2">PAGINE DI TESTO</p>
+        <div className="flex flex-col gap-2 mb-6">
+          {SEZIONI.filter((s) => s.tipo === 'testo').map((s) => (
+            <Link key={s.chiave} to={`/admin/${s.chiave}`} className="bg-white shadow rounded-xl p-3 text-sm font-medium">
+              Modifica {s.etichetta}
+            </Link>
+          ))}
+        </div>
 
-      <button onClick={() => supabase.auth.signOut()} className="text-sm text-red-600">
-        Esci
-      </button>
+        <button onClick={() => supabase.auth.signOut()} className="text-sm text-red-600">
+          Esci
+        </button>
+      </div>
     </div>
   )
 }

@@ -134,7 +134,8 @@ haplyhost/
 │   ├── SezionePage.tsx      ← sezioni 'elenco' — legge `luoghi` (+`prezzo`,`voto`,`categoria`); schede `.g-place` con pastiglie
 │   ├── telefono.tsx         ← (13/09/2026) `reTelefono(includeEmergenza)` + `conTelefoni()` (numeri di testo → chip `.g-tel`,
 │   │                          tel:) condivise da PaginaStatica.tsx e Gennarino.tsx; `contieneTelefono(testo, numero)` (confronto
-│   │                          sulle sole cifre) solo per Gennarino.tsx, per sapere se una risposta nomina IL numero degli host
+│   │                          sulle ultime 9 cifre, non su tutto il numero — vedi bug 14/09/2026 sotto) solo per Gennarino.tsx,
+│   │                          per sapere se una risposta nomina IL numero degli host
 │   ├── PaginaStatica.tsx    ← sezioni 'testo' — legge `pagine`; `.g-peek` + `.g-prose`. Sotto il testo, tasti WhatsApp (verde
 │   │                          #25D366 → wa.me) e Chiama (colore accento → tel:) se `strutture.host_telefono` c'è E la pagina è
 │   │                          `contatti` o nomina WhatsApp/telefono (`FRASI_TELEFONO`). Nel testo, i numeri di telefono diventano chip
@@ -374,6 +375,16 @@ Mitigazioni fatte:
 Fatto (10/09/2026) su `gennarino.js`: **tetto a `domanda`/`storico`** (`domanda` ≤ 1500 char, `storico`
 alle ultime 12 righe da 2000 char — `pulisciStorico`; `maxLength` anche sull'input in `Gennarino.tsx`)
 + **rate limit grezzo per struttura** (429 se >15 righe in `domande` nell'ultimo minuto — dosso, non muro).
+**Bug corretto (14/09/2026)**: i tasti WhatsApp/Chiama in chat (vedi Gennarino.tsx sopra) non
+comparivano mai. `struttura.host_telefono` è salvato con prefisso internazionale ("+39 335 173
+3758") ma Gennarino lo scrive quasi sempre senza ("335 173 3758", verificato in prod) — il confronto
+cercava il numero SALVATO per intero dentro al testo scritto dall'AI, e un testo più corto non può
+mai contenere una stringa più lunga. `contieneTelefono()` ora confronta solo le ultime 9 cifre (il
+prefisso internazionale è sempre davanti, non cambia la coda), funziona con o senza prefisso da
+entrambi i lati. Trovato da uno screenshot reale della produzione, non dalla verifica in locale (il
+test fatto allora usava lo stesso valore da entrambe le parti, quindi combaciava per costruzione
+senza provare il caso vero).
+
 Mitigazioni ancora da fare (in ordine): **rate limit per IP** vero su `/api/gennarino` (serve uno store
 esterno tipo Upstash — quello per struttura non ferma un attacco distribuito o a raffica); ricarica
 automatica Anthropic + tetto di spesa sulla Console; workspace/chiave API separati per sviluppo vs

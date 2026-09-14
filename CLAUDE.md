@@ -126,6 +126,11 @@ haplyhost/
 │   │                          invariata, la griglia `.g-tile` da `filtraVisibili()` (esclusa la voce chat) con l'etichetta
 │   │                          "Esplora la guida". Non fatto in questo passaggio: un saluto che conosce l'ospite per nome (la guida
 │   │                          resta anonima, servirebbe un'identità ospite — una feature a sé, non un ritocco grafico)
+│   ├── distanza.ts          ← (14/09/2026) `minutiDistanza(testo)` stima i minuti dal testo libero di `luoghi.distanza`
+│   │                          (numeri così come scritti, "7 min" più vicino di "10 min" a piedi o in auto che sia — stessa
+│   │                          convenzione del prompt di Gennarino; testo senza numeri → in fondo). `ordinaPerDistanza(righe,
+│   │                          campo)` le riordina dal più vicino al più lontano. Usata da SezionePage.tsx (lato ospite) e
+│   │                          GestisciSezione.tsx (lato admin, stesso ordine che vedrà l'ospite) al posto del solo `ordine`.
 │   ├── SezionePage.tsx      ← sezioni 'elenco' — legge `luoghi` (+`prezzo`,`voto`,`categoria`); schede `.g-place` con pastiglie
 │   ├── telefono.tsx         ← (13/09/2026) `reTelefono(includeEmergenza)` + `conTelefoni()` (numeri di testo → chip `.g-tel`,
 │   │                          tel:) condivise da PaginaStatica.tsx e Gennarino.tsx; `contieneTelefono(testo, numero)` (confronto
@@ -134,7 +139,10 @@ haplyhost/
 │   │                          #25D366 → wa.me) e Chiama (colore accento → tel:) se `strutture.host_telefono` c'è E la pagina è
 │   │                          `contatti` o nomina WhatsApp/telefono (`FRASI_TELEFONO`). Nel testo, i numeri di telefono diventano chip
 │   │                          `tel:` (`.g-tel`); i codici brevi 112/118… solo nella pagina `emergenze`
-│   ├── Gennarino.tsx        ← UI chat ospiti (`.g-chat`), chiama /api/gennarino, storico in stato React (nessuna persistenza).
+│   ├── Gennarino.tsx        ← UI chat ospiti (`.g-chat`), chiama /api/gennarino. Storico in `sessionStorage` (chiave
+│   │                          `haply-chat-<struttura.id>`, 14/09/2026): resta leggendo la guida nello stesso browser, si
+│   │                          dimentica quando lo si chiude — così un ospite futuro sullo stesso dispositivo non trova la
+│   │                          chat di quello precedente. Prima era solo stato React (spariva ad ogni cambio pagina).
 │   │                          `invia(domandaDiretta?)`: se arriva da Home.tsx con una domanda già scritta, la legge da
 │   │                          `location.state.domandaIniziale` e la invia da sola all'apertura (guardia via `useRef` contro un
 │   │                          doppio invio, stato di navigazione ripulito subito dopo). Ogni risposta: numeri linkificati
@@ -191,7 +199,9 @@ haplyhost/
 │       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona via
 │       │                          selettore icone lucide-react — righe tematiche da ICONE_SCELTA, non più emoji (13/09/2026) —,
 │       │                          descrizione, tipo testo|elenco, categoria per Scout se elenco) → POST/DELETE /api/sezioni-extra.
-│       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco luoghi con toggle attivo/spento,
+│       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco ordinato dal più vicino al più
+│       │                          lontano (`ordinaPerDistanza`, 14/09/2026 — riordinato anche dopo un salvataggio inline, se la
+│       │                          distanza cambia), con toggle attivo/spento,
 │       │                          modifica inline + "Elimina questo luogo" (DELETE, dentro la modifica), "+ Aggiungi un luogo a mano"
 │       │                          (INSERT), tendina "Raggio di ricerca" (`RAGGI`, 1/5/15/30/150 km) + "Cerca nuovi luoghi" (Scout,
 │       │                          manda `raggio_km`) + proposte da Accettare/Rifiutare. Campi condivisi modifica/nuovo:

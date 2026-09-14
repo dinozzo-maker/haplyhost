@@ -12,10 +12,29 @@ export default function Gennarino() {
   const location = useLocation()
   const navigate = useNavigate()
   const { lingua } = useLingua()
-  const [messaggi, setMessaggi] = useState<Messaggio[]>([])
+  // La cronologia vive in sessionStorage (per struttura): resta leggendo la guida finché
+  // resta aperto il browser, ma si dimentica quando lo si chiude — così un ospite futuro
+  // sullo stesso dispositivo non si ritrova la chat di quello precedente.
+  const [messaggi, setMessaggi] = useState<Messaggio[]>(() => {
+    try {
+      const grezzo = sessionStorage.getItem(`haply-chat-${struttura.id}`)
+      const dati = grezzo ? JSON.parse(grezzo) : null
+      return Array.isArray(dati) ? dati : []
+    } catch {
+      return []
+    }
+  })
   const [testo, setTesto] = useState('')
   const [caricamento, setCaricamento] = useState(false)
   const inviataIniziale = useRef(false)
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`haply-chat-${struttura.id}`, JSON.stringify(messaggi))
+    } catch {
+      // navigazione privata o storage pieno: la cronologia vale solo per questa visita
+    }
+  }, [struttura.id, messaggi])
 
   async function invia(domandaDiretta?: string) {
     const domanda = (domandaDiretta ?? testo).trim()

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { ridimensionaImmagine } from '../immagine'
+import { ordinaPerDistanza } from '../distanza'
 import type { ContestoHost } from './RichiedeLogin'
 import { Search } from 'lucide-react'
 
@@ -106,7 +107,9 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       .eq('struttura_id', id)
       .eq('sezione', sezione)
       .order('ordine')
-    setLuoghi(dl ?? [])
+    // Dal più vicino al più lontano, non nell'ordine di inserimento — stesso ordine che
+    // vede l'ospite nella guida.
+    setLuoghi(ordinaPerDistanza(dl ?? [], (l) => l.distanza))
 
     const { data: dp } = await supabase
       .from('proposte')
@@ -156,7 +159,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     setSalvataggio(true)
     // da_tradurre: il testo è cambiato, va rifatta la traduzione
     await supabase.from('luoghi').update({ ...bozza, da_tradurre: true }).eq('id', id)
-    setLuoghi(luoghi.map(l => l.id === id ? { ...l, ...bozza } : l))
+    setLuoghi(ordinaPerDistanza(luoghi.map(l => l.id === id ? { ...l, ...bozza } : l), (l) => l.distanza))
     setSalvataggio(false)
     setModificaId(null)
   }

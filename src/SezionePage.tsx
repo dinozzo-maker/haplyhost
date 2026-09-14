@@ -6,6 +6,7 @@ import { campoTradotto, T, useLingua } from './lingua'
 import { etichettaSezione } from './sezioni'
 import { useSezioni } from './useSezioni'
 import { Icona } from './Icona'
+import { ordinaPerDistanza } from './distanza'
 import { Map as IconaMappa, Phone } from 'lucide-react'
 
 type LuogoRow = {
@@ -46,7 +47,8 @@ export default function SezionePage() {
         .eq('attivo', true)
         .order('ordine')
 
-      setLuoghi(data ?? [])
+      // Dal più vicino al più lontano, non nell'ordine di inserimento.
+      setLuoghi(ordinaPerDistanza(data ?? [], (l) => l.distanza))
       setCaricamento(false)
     }
     carica()

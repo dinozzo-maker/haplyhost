@@ -1,33 +1,13 @@
-import { Fragment, useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import type { StrutturaRow } from './Struttura'
 import { campoTradotto, FRASI_TELEFONO, T, useLingua } from './lingua'
+import { conTelefoni, reTelefono } from './telefono'
 import { etichettaSezione } from './sezioni'
 import { useSezioni } from './useSezioni'
 import { Icona } from './Icona'
 import { MessageCircle, Phone } from 'lucide-react'
-
-// Numeri di telefono nel testo → chip "chiama". I codici brevi di emergenza
-// (112, 118…) solo nella pagina emergenze; i numeri lunghi ovunque.
-function reTelefono(paginaChiave: string): RegExp {
-  const parti = ['\\+?\\d{2,4}[ .\\-]?\\d{5,9}']
-  if (paginaChiave === 'emergenze') parti.unshift('\\b(?:11[2-8]|1(?:515|518|530))\\b')
-  return new RegExp(`(${parti.join('|')})`, 'g')
-}
-
-function conTelefoni(testo: string, re: RegExp): ReactNode {
-  if (!testo) return testo
-  return testo.split(re).map((p, i) => {
-    if (i % 2 === 0) return <Fragment key={i}>{p}</Fragment>
-    return (
-      <a key={i} className="g-tel" href={`tel:${p.replace(/[^\d+]/g, '')}`}>
-        {p.trim()}
-      </a>
-    )
-  })
-}
 
 type PaginaRow = {
   titolo: string
@@ -92,7 +72,7 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
       {caricamento && <p className="g-hint">{T[lingua].caricamento}</p>}
       {!caricamento && !pagina && <p className="g-hint">{T[lingua].paginaVuota}</p>}
       {!caricamento && pagina && (
-        <div className="g-prose">{conTelefoni(contenuto, reTelefono(chiave))}</div>
+        <div className="g-prose">{conTelefoni(contenuto, reTelefono(chiave === 'emergenze'))}</div>
       )}
 
       {mostraTasti && (

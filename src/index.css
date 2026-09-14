@@ -489,9 +489,17 @@
   padding: 14px 13px 12px;
   min-height: calc(100dvh - 78px);
 }
-.g-bubble {
+.g-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   align-self: flex-start;
   max-width: 85%;
+}
+.g-msg.mine {
+  align-self: flex-end;
+}
+.g-bubble {
   padding: 10px 13px;
   border-radius: 16px;
   font-size: 13px;
@@ -502,10 +510,12 @@
   box-shadow: 0 2px 8px -3px rgb(var(--g-sh) / 0.08);
 }
 .g-bubble.mine {
-  align-self: flex-end;
   background: var(--g-accent);
   border-color: transparent;
   color: #fff;
+}
+.g-msg .g-contatti {
+  align-self: stretch;
 }
 .g-composer {
   position: sticky;

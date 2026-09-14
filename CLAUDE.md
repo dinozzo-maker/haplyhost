@@ -40,7 +40,10 @@ haplyhost/
 │   ├── gennarino.js         ← chat AI ospiti: legge struttura (incl. `note_gennarino`) + luoghi + pagine, logga su `domande`.
 │   │                          DUE chiamate a `MODELLO_GEMINI` (`generateContent`; interruttore `MOTORE_GENNARINO`): 1) piccola,
 │   │                          riconosce la lingua dell'ospite; 2) la risposta, con quella lingua come vincolo. Carattere napoletano
-│   │                          nel system prompt (con esempi). `lang` dal body = ripiego. Strip `*`/`#` markdown.
+│   │                          nel system prompt (con esempi). `lang` dal body = ripiego. Strip `*`/`#` markdown. Se consiglia di
+│   │                          contattare gli host, il prompt gli impone sempre "un messaggio WhatsApp", mai "chiama/telefona"
+│   │                          (13/09/2026, preferenza esplicita dell'host) — src/Gennarino.tsx riconosce il numero nella risposta
+│   │                          e ci aggiunge i tasti WhatsApp/Chiama veri sotto quel messaggio.
 │   │                          Endpoint PUBBLICO: `domanda` capata a 1500 char, `storico` alle ultime 12 righe (2000 char l'una)
 │   │                          — `pulisciStorico()`. Rate limit grezzo per struttura: 429 se >15 righe in `domande` nell'ultimo
 │   │                          minuto (dosso, non muro — una raffica simultanea passa). Per-IP vero: ancora da fare (store esterno).
@@ -124,6 +127,9 @@ haplyhost/
 │   │                          "Esplora la guida". Non fatto in questo passaggio: un saluto che conosce l'ospite per nome (la guida
 │   │                          resta anonima, servirebbe un'identità ospite — una feature a sé, non un ritocco grafico)
 │   ├── SezionePage.tsx      ← sezioni 'elenco' — legge `luoghi` (+`prezzo`,`voto`,`categoria`); schede `.g-place` con pastiglie
+│   ├── telefono.tsx         ← (13/09/2026) `reTelefono(includeEmergenza)` + `conTelefoni()` (numeri di testo → chip `.g-tel`,
+│   │                          tel:) condivise da PaginaStatica.tsx e Gennarino.tsx; `contieneTelefono(testo, numero)` (confronto
+│   │                          sulle sole cifre) solo per Gennarino.tsx, per sapere se una risposta nomina IL numero degli host
 │   ├── PaginaStatica.tsx    ← sezioni 'testo' — legge `pagine`; `.g-peek` + `.g-prose`. Sotto il testo, tasti WhatsApp (verde
 │   │                          #25D366 → wa.me) e Chiama (colore accento → tel:) se `strutture.host_telefono` c'è E la pagina è
 │   │                          `contatti` o nomina WhatsApp/telefono (`FRASI_TELEFONO`). Nel testo, i numeri di telefono diventano chip
@@ -131,7 +137,11 @@ haplyhost/
 │   ├── Gennarino.tsx        ← UI chat ospiti (`.g-chat`), chiama /api/gennarino, storico in stato React (nessuna persistenza).
 │   │                          `invia(domandaDiretta?)`: se arriva da Home.tsx con una domanda già scritta, la legge da
 │   │                          `location.state.domandaIniziale` e la invia da sola all'apertura (guardia via `useRef` contro un
-│   │                          doppio invio, stato di navigazione ripulito subito dopo)
+│   │                          doppio invio, stato di navigazione ripulito subito dopo). Ogni risposta: numeri linkificati
+│   │                          (`conTelefoni`, con i codici brevi emergenza sempre inclusi — in chat può uscire qualsiasi
+│   │                          argomento); se nomina proprio il telefono degli host (`contieneTelefono`), sotto compaiono i
+│   │                          tasti WhatsApp/Chiama (13/09/2026, stessa coppia di PaginaStatica). Wrapper `.g-msg` per
+│   │                          allineare bolla + eventuali tasti come un unico blocco (prima l'allineamento stava su `.g-bubble`)
 │   └── admin/
 │       ├── Login.tsx            ← login via magic link email (Supabase OTP, nessuna password). `shouldCreateUser: false`:
 │       │                          si accede solo con un'email GIÀ esistente in Supabase Auth. Le nuove email si

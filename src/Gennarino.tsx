@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useOutletContext } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
 import { conNome, T, useLingua } from './lingua'
-import { MessageCircle } from 'lucide-react'
+import { conTelefoni, contieneTelefono, reTelefono } from './telefono'
+import { MessageCircle, Phone } from 'lucide-react'
 
 type Messaggio = { role: 'user' | 'assistant'; content: string }
 
@@ -56,6 +57,13 @@ export default function Gennarino() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state])
 
+  // Tasti WhatsApp/Chiama sotto una risposta che nomina proprio il telefono degli host
+  // (non un numero qualsiasi citato per un luogo): Gennarino lo scrive solo quando è lui
+  // a consigliare di contattarli, quindi la sua presenza nel testo è il segnale giusto.
+  const tel = (struttura.host_telefono ?? '').trim()
+  const waNumero = tel.replace(/\D/g, '')
+  const telHref = tel.replace(/[^\d+]/g, '')
+
   return (
     <div className="g-chat">
       <div className="g-peek">
@@ -69,11 +77,28 @@ export default function Gennarino() {
       {messaggi.length === 0 && (
         <p className="g-hint">{conNome(T[lingua].gennarinoHint, struttura.nome)}</p>
       )}
-      {messaggi.map((m, i) => (
-        <div key={i} className={m.role === 'user' ? 'g-bubble mine' : 'g-bubble'}>
-          {m.content}
-        </div>
-      ))}
+      {messaggi.map((m, i) => {
+        const mostraContatti = m.role === 'assistant' && !!tel && contieneTelefono(m.content, tel)
+        return (
+          <div key={i} className={m.role === 'user' ? 'g-msg mine' : 'g-msg'}>
+            <div className={m.role === 'user' ? 'g-bubble mine' : 'g-bubble'}>
+              {m.role === 'assistant' ? conTelefoni(m.content, reTelefono(true)) : m.content}
+            </div>
+            {mostraContatti && (
+              <div className="g-contatti">
+                {waNumero && (
+                  <a className="g-btn-wa" href={`https://wa.me/${waNumero}`} target="_blank" rel="noreferrer">
+                    <MessageCircle size={18} /> WhatsApp
+                  </a>
+                )}
+                <a className="g-btn-tel" href={`tel:${telHref}`}>
+                  <Phone size={18} /> {T[lingua].azChiama}
+                </a>
+              </div>
+            )}
+          </div>
+        )
+      })}
       {caricamento && <p className="g-hint">{T[lingua].gennarinoScrivendo}</p>}
 
       <div className="g-composer">

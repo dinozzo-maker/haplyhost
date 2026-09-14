@@ -1,15 +1,15 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, FormEvent } from 'react'
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext, useParams } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import type { StrutturaRow } from './Struttura'
 import { etichettaSezione, filtraVisibili } from './sezioni'
-import { campoTradotto, saluto, T, useLingua } from './lingua'
+import { campoTradotto, saluto, SUGGERIMENTI_GENNARINO, T, useLingua } from './lingua'
 import SelettoreLingua from './SelettoreLingua'
 import { useSezioni } from './useSezioni'
 import { Icona } from './Icona'
 import Meteo from './Meteo'
-import { MessageCircle, ChevronRight } from 'lucide-react'
+import { MessageCircle, Send } from 'lucide-react'
 
 type LuogoPick = {
   id: string
@@ -22,9 +22,11 @@ type LuogoPick = {
 export default function Home() {
   const struttura = useOutletContext<StrutturaRow>()
   const { slug } = useParams()
+  const navigate = useNavigate()
   const { tutte } = useSezioni()
   const { lingua } = useLingua()
   const [pick, setPick] = useState<LuogoPick | null>(null)
+  const [domanda, setDomanda] = useState('')
 
   // La chat vive nella barra in basso / nella FAB / nella nuova scorciatoia "Chiedi a
   // Gennarino" qui sotto, non tra le tessere.
@@ -70,6 +72,20 @@ export default function Home() {
   const descrizionePick = pick ? campoTradotto(pick.descrizione, pick.traduzioni, 'descrizione', lingua) : ''
   const sezionePick = tessere.find((s) => s.chiave === pick?.sezione)
 
+  // Scrivere qui ed inviare porta già dentro la chat con la domanda in corso, invece di
+  // limitarsi ad aprirla vuota: Gennarino diventa il modo diretto di usare la guida, non
+  // solo una sezione tra le altre.
+  function chiediSubito(testo: string) {
+    const domandaPulita = testo.trim()
+    if (!domandaPulita || !chat) return
+    navigate(`/${slug}/${chat.chiave}`, { state: { domandaIniziale: domandaPulita } })
+  }
+
+  function inviaDomanda(e: FormEvent) {
+    e.preventDefault()
+    chiediSubito(domanda)
+  }
+
   return (
     <div className="g-page">
       <div className="g-hero" style={heroStile}>
@@ -85,16 +101,29 @@ export default function Home() {
       <SelettoreLingua />
 
       {chat && (
-        <Link to={`/${slug}/${chat.chiave}`} className="g-ask">
-          <span className="a-icon">
-            <MessageCircle className="w-5 h-5" />
+        <div className="g-ask">
+          <span className="a-title">
+            <MessageCircle className="w-4 h-4" /> {T[lingua].chiediAGennarino}
           </span>
-          <span className="a-body">
-            <span className="a-title">{T[lingua].chiediAGennarino}</span>
-            <span className="a-sub">{T[lingua].chiediAGennarinoSub}</span>
-          </span>
-          <ChevronRight className="w-4 h-4 a-arrow" />
-        </Link>
+          <form onSubmit={inviaDomanda} className="a-composer">
+            <input
+              value={domanda}
+              maxLength={1500}
+              onChange={(e) => setDomanda(e.target.value)}
+              placeholder={T[lingua].chiediPlaceholder}
+            />
+            <button type="submit" aria-label={T[lingua].gennarinoInvia}>
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+          <div className="a-chips">
+            {SUGGERIMENTI_GENNARINO[lingua].map((s) => (
+              <button key={s} type="button" onClick={() => chiediSubito(s)}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {pick && (

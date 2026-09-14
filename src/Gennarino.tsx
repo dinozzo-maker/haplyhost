@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate, useOutletContext } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
 import { conNome, T, useLingua } from './lingua'
 import { MessageCircle } from 'lucide-react'
@@ -8,13 +8,16 @@ type Messaggio = { role: 'user' | 'assistant'; content: string }
 
 export default function Gennarino() {
   const struttura = useOutletContext<StrutturaRow>()
+  const location = useLocation()
+  const navigate = useNavigate()
   const { lingua } = useLingua()
   const [messaggi, setMessaggi] = useState<Messaggio[]>([])
   const [testo, setTesto] = useState('')
   const [caricamento, setCaricamento] = useState(false)
+  const inviataIniziale = useRef(false)
 
-  async function invia() {
-    const domanda = testo.trim()
+  async function invia(domandaDiretta?: string) {
+    const domanda = (domandaDiretta ?? testo).trim()
     if (!domanda || caricamento) return
 
     const nuovaCronologia: Messaggio[] = [...messaggi, { role: 'user', content: domanda }]
@@ -38,6 +41,20 @@ export default function Gennarino() {
       setCaricamento(false)
     }
   }
+
+  // Arrivando dalla casella "Chiedi a Gennarino" in Home.tsx, la domanda viaggia nello
+  // stato di navigazione e parte da sola all'apertura — l'ospite non deve riscriverla.
+  // La guardia (ref) evita un doppio invio nel caso React rimonti il componente due
+  // volte (StrictMode in sviluppo); si toglie subito lo stato dalla history così
+  // "indietro" più avanti non la rimanda in automatico un'altra volta.
+  useEffect(() => {
+    const domandaIniziale = (location.state as { domandaIniziale?: string } | null)?.domandaIniziale
+    if (!domandaIniziale || inviataIniziale.current) return
+    inviataIniziale.current = true
+    navigate(location.pathname, { replace: true, state: null })
+    invia(domandaIniziale)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
 
   return (
     <div className="g-chat">
@@ -67,7 +84,7 @@ export default function Gennarino() {
           onKeyDown={(e) => e.key === 'Enter' && invia()}
           placeholder={T[lingua].gennarinoPlaceholder}
         />
-        <button onClick={invia} disabled={caricamento}>
+        <button onClick={() => invia()} disabled={caricamento}>
           {T[lingua].gennarinoInvia}
         </button>
       </div>

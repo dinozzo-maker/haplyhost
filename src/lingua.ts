@@ -86,6 +86,15 @@ export const FRASI_TELEFONO: Record<Lingua, string[]> = {
   es: ['por teléfono', 'al teléfono'],
 }
 
+// Esempi cliccabili sotto la casella "Chiedi a Gennarino" in Home.tsx.
+export const SUGGERIMENTI_GENNARINO: Record<Lingua, string[]> = {
+  it: ['Dove mangio stasera?', 'Come funziona il Wi-Fi?', 'A che ora è il check-out?'],
+  en: ['Where should I eat tonight?', 'How does the Wi-Fi work?', 'What time is check-out?'],
+  fr: ['Où dîner ce soir ?', 'Comment fonctionne le Wi-Fi ?', 'À quelle heure est le départ ?'],
+  de: ['Wo kann ich heute Abend essen?', 'Wie funktioniert das WLAN?', 'Wann ist der Check-out?'],
+  es: ['¿Dónde ceno esta noche?', '¿Cómo funciona el Wi-Fi?', '¿A qué hora es el check-out?'],
+}
+
 // ---- dizionario dei testi fissi della guida ----
 const IT = {
   tornaHome: 'Torna alla home',
@@ -116,6 +125,7 @@ const IT = {
   chiediAGennarino: 'Chiedi a Gennarino',
   chiediAGennarinoSub: 'Risposte subito su spiagge, ristoranti e regole della casa',
   esplora: 'Esplora la guida',
+  chiediPlaceholder: 'Scrivi una domanda…',
 } as const
 
 export type ChiaveTesto = keyof typeof IT
@@ -160,6 +170,7 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     chiediAGennarino: 'Ask Gennarino',
     chiediAGennarinoSub: 'Instant answers on beaches, restaurants and house rules',
     esplora: 'Explore the guide',
+    chiediPlaceholder: 'Type a question…',
   },
   fr: {
     tornaHome: "Retour à l'accueil",
@@ -190,6 +201,7 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     chiediAGennarino: 'Demander à Gennarino',
     chiediAGennarinoSub: 'Réponses immédiates sur les plages, restaurants et le règlement intérieur',
     esplora: 'Explorer le guide',
+    chiediPlaceholder: 'Écrivez une question…',
   },
   de: {
     tornaHome: 'Zurück zur Startseite',
@@ -220,6 +232,7 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     chiediAGennarino: 'Gennarino fragen',
     chiediAGennarinoSub: 'Sofortige Antworten zu Stränden, Restaurants und Hausordnung',
     esplora: 'Guide entdecken',
+    chiediPlaceholder: 'Schreib eine Frage…',
   },
   es: {
     tornaHome: 'Volver al inicio',
@@ -250,5 +263,6 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     chiediAGennarino: 'Pregunta a Gennarino',
     chiediAGennarinoSub: 'Respuestas al instante sobre playas, restaurantes y normas de la casa',
     esplora: 'Explora la guía',
+    chiediPlaceholder: 'Escribe una pregunta…',
   },
 }

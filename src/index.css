@@ -325,6 +325,11 @@
   border: 1px solid var(--g-line);
   border-radius: 16px;
   box-shadow: 0 2px 8px -3px rgb(var(--g-sh) / 0.08);
+  transition: box-shadow 0.3s, border-color 0.3s;
+}
+.g-place.evidenziato {
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--g-accent) 30%, transparent);
 }
 .g-place .pl-foto {
   display: block;

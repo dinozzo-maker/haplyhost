@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext, useParams } from 'react-router-dom'
+import { Link, useOutletContext, useParams, useLocation } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import type { StrutturaRow } from './Struttura'
 import { campoTradotto, T, useLingua } from './lingua'
@@ -25,12 +25,16 @@ type LuogoRow = {
 export default function SezionePage() {
   const struttura = useOutletContext<StrutturaRow>()
   const { slug, sezione } = useParams()
+  const { hash } = useLocation()
   const { tutte } = useSezioni()
   const { lingua } = useLingua()
   const [luoghi, setLuoghi] = useState<LuogoRow[]>([])
   const [caricamento, setCaricamento] = useState(true)
 
   const info = tutte.find((s) => s.chiave === sezione)
+  // Arrivando da "Oggi ti consiglio" (Home.tsx) il link porta a #luogo-<id>: una volta
+  // caricato l'elenco, si scorre fino a quella scheda e la si evidenzia.
+  const daEvidenziare = hash ? hash.slice(1) : null
 
   useEffect(() => {
     async function carica() {
@@ -47,6 +51,11 @@ export default function SezionePage() {
     }
     carica()
   }, [struttura.id, sezione])
+
+  useEffect(() => {
+    if (!daEvidenziare || caricamento) return
+    document.getElementById(daEvidenziare)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [daEvidenziare, caricamento])
 
   return (
     <div className="g-page">
@@ -70,7 +79,7 @@ export default function SezionePage() {
         const categoria = campoTradotto(l.categoria, l.traduzioni, 'categoria', lingua)
         const distanza = campoTradotto(l.distanza, l.traduzioni, 'distanza', lingua)
         return (
-          <div key={l.id} className="g-place">
+          <div key={l.id} id={`luogo-${l.id}`} className={`g-place${daEvidenziare === `luogo-${l.id}` ? ' evidenziato' : ''}`}>
             {l.foto_url && <img src={l.foto_url} alt="" className="pl-foto" />}
             <div className="pl-content">
               <div className="pl-top">

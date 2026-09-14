@@ -98,7 +98,7 @@ export default function Home() {
       )}
 
       {pick && (
-        <Link to={`/${slug}/${pick.sezione}`} className="g-today">
+        <Link to={`/${slug}/${pick.sezione}#luogo-${pick.id}`} className="g-today">
           <span className="t-badge">
             <Icona nome={sezionePick?.icona} />
           </span>

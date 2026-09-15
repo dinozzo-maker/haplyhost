@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { ridimensionaImmagine } from '../immagine'
 import type { ContestoHost } from './RichiedeLogin'
+import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
 
 type DatiCasa = {
   nome: string
@@ -250,222 +251,175 @@ export default function ModificaCasa() {
 
   if (!struttura) {
     return (
-      <div className="max-w-sm mx-auto p-6">
-        <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-        <p className="mt-4 text-sm">Non hai ancora una struttura da modificare.</p>
-      </div>
+      <PaginaAdmin titolo="Modifica dati della casa">
+        <p className="text-sm text-slate-500">Non hai ancora una struttura da modificare.</p>
+      </PaginaAdmin>
     )
   }
 
-  if (caricamento) return <p className="p-6 text-center">Caricamento...</p>
+  if (caricamento) return <p className="p-6 text-center text-sm text-slate-500">Caricamento...</p>
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-      <h1 className="text-xl font-bold mt-2 mb-4">Modifica dati della casa</h1>
+    <PaginaAdmin titolo="Modifica dati della casa">
+      <Sezione>
+        <Campo etichetta="Nome della struttura">
+          <input className={classeCampo} value={dati.nome} onChange={(e) => aggiorna('nome', e.target.value)} />
+        </Campo>
 
-      <label className="text-xs text-gray-500">Nome della struttura</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        value={dati.nome}
-        onChange={(e) => aggiorna('nome', e.target.value)}
-      />
-
-      <label className="text-xs text-gray-500">Indirizzo</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        value={dati.indirizzo}
-        onChange={(e) => aggiorna('indirizzo', e.target.value)}
-        placeholder="Via, numero civico, provincia"
-      />
-
-      <label className="text-xs text-gray-500">Città</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        value={dati.citta}
-        onChange={(e) => aggiorna('citta', e.target.value)}
-        placeholder="Es. Sorrento"
-      />
-
-      <label className="text-xs text-gray-500">Descrizione della casa</label>
-      <textarea
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-1"
-        rows={6}
-        value={dati.descrizione_casa}
-        onChange={(e) => aggiorna('descrizione_casa', e.target.value)}
-      />
-      <p className="text-xs text-gray-400 mb-3">
-        Gennarino usa questo testo per rispondere alle domande degli ospiti sulla casa.
-      </p>
-
-      <label className="text-xs text-gray-500">Nome host</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        value={dati.host_nome}
-        onChange={(e) => aggiorna('host_nome', e.target.value)}
-      />
-
-      <label className="text-xs text-gray-500">Telefono host</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-1"
-        value={dati.host_telefono}
-        onChange={(e) => aggiorna('host_telefono', e.target.value)}
-        placeholder="+39 333 1234567"
-      />
-      <p className="text-xs text-gray-400 mb-3">
-        Con il prefisso internazionale (+39…): la guida lo usa per i link "WhatsApp" e "Chiama".
-      </p>
-
-      <div className="flex gap-3 mb-3">
-        <div className="flex-1">
-          <label className="text-xs text-gray-500">Check-in</label>
+        <Campo etichetta="Indirizzo">
           <input
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-            value={dati.checkin}
-            onChange={(e) => aggiorna('checkin', e.target.value)}
-            placeholder="15:00"
+            className={classeCampo}
+            value={dati.indirizzo}
+            onChange={(e) => aggiorna('indirizzo', e.target.value)}
+            placeholder="Via, numero civico, provincia"
           />
+        </Campo>
+
+        <Campo etichetta="Città">
+          <input
+            className={classeCampo}
+            value={dati.citta}
+            onChange={(e) => aggiorna('citta', e.target.value)}
+            placeholder="Es. Sorrento"
+          />
+        </Campo>
+
+        <Campo etichetta="Descrizione della casa" aiuto="Gennarino usa questo testo per rispondere alle domande degli ospiti sulla casa.">
+          <textarea
+            className={classeCampo}
+            rows={6}
+            value={dati.descrizione_casa}
+            onChange={(e) => aggiorna('descrizione_casa', e.target.value)}
+          />
+        </Campo>
+
+        <Campo etichetta="Nome host">
+          <input className={classeCampo} value={dati.host_nome} onChange={(e) => aggiorna('host_nome', e.target.value)} />
+        </Campo>
+
+        <Campo etichetta="Telefono host" aiuto='Con il prefisso internazionale (+39…): la guida lo usa per i link "WhatsApp" e "Chiama".'>
+          <input
+            className={classeCampo}
+            value={dati.host_telefono}
+            onChange={(e) => aggiorna('host_telefono', e.target.value)}
+            placeholder="+39 333 1234567"
+          />
+        </Campo>
+
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <Campo etichetta="Check-in">
+              <input className={classeCampo} value={dati.checkin} onChange={(e) => aggiorna('checkin', e.target.value)} placeholder="15:00" />
+            </Campo>
+          </div>
+          <div className="flex-1">
+            <Campo etichetta="Check-out">
+              <input className={classeCampo} value={dati.checkout} onChange={(e) => aggiorna('checkout', e.target.value)} placeholder="10:00" />
+            </Campo>
+          </div>
         </div>
-        <div className="flex-1">
-          <label className="text-xs text-gray-500">Check-out</label>
+
+        <Campo etichetta="Ospiti massimi">
           <input
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-            value={dati.checkout}
-            onChange={(e) => aggiorna('checkout', e.target.value)}
-            placeholder="10:00"
+            type="number"
+            min="1"
+            className={classeCampo}
+            value={dati.max_ospiti}
+            onChange={(e) => aggiorna('max_ospiti', e.target.value)}
           />
-        </div>
-      </div>
+        </Campo>
+      </Sezione>
 
-      <label className="text-xs text-gray-500">Ospiti massimi</label>
-      <input
-        type="number"
-        min="1"
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-4"
-        value={dati.max_ospiti}
-        onChange={(e) => aggiorna('max_ospiti', e.target.value)}
-      />
+      <Sezione titolo="Aspetto della guida ospiti" nota="Due leve per dare identità alla guida senza toccare il resto.">
+        <Campo etichetta="Colore della guida" aiuto='Tinta di accento: bottoni, intestazione, pastiglie. Il default è "Mare".'>
+          <div className="flex gap-3 mt-1">
+            {COLORI.map((c) => {
+              const attivo = (dati.accento || '#12A69B') === c.hex
+              return (
+                <button
+                  key={c.hex}
+                  type="button"
+                  title={c.nome}
+                  aria-label={c.nome}
+                  aria-pressed={attivo}
+                  onClick={() => aggiorna('accento', c.hex)}
+                  className={`h-8 w-8 rounded-full transition ${attivo ? 'ring-2 ring-offset-2 ring-slate-800' : 'hover:scale-110'}`}
+                  style={{ background: c.hex }}
+                />
+              )
+            })}
+          </div>
+        </Campo>
 
-      <hr className="my-5 border-gray-200" />
-      <h2 className="text-sm font-bold mb-1">Aspetto della guida ospiti</h2>
-      <p className="text-xs text-gray-500 mb-3">
-        Due leve per dare identità alla guida senza toccare il resto.
-      </p>
+        <Campo etichetta="Foto di copertina">
+          {dati.copertina_url && (
+            <img src={dati.copertina_url} alt="Anteprima copertina" className="w-full h-32 object-cover rounded-xl border border-slate-200 mb-1" />
+          )}
+          <div className="flex gap-2">
+            <label
+              className={`flex-1 text-center rounded-xl py-2.5 text-sm font-semibold cursor-pointer transition ${
+                caricamentoFoto ? 'opacity-50 border border-slate-300 text-slate-400' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {caricamentoFoto ? 'Carico...' : dati.copertina_url ? 'Cambia foto' : 'Carica foto'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={caricamentoFoto}
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ''
+                  if (f) caricaFoto(f)
+                }}
+              />
+            </label>
+            {dati.copertina_url && (
+              <Pulsante type="button" variante="secondario" className="w-auto px-4 text-red-600 border-red-200 hover:bg-red-50" onClick={rimuoviFoto}>
+                Rimuovi
+              </Pulsante>
+            )}
+          </div>
+          {fotoEsito === 'ok' ? (
+            <span className="text-xs text-green-600">Foto di copertina aggiornata ✓</span>
+          ) : (
+            fotoEsito && <span className="text-xs text-red-600">{fotoEsito}</span>
+          )}
+        </Campo>
 
-      <label className="text-xs text-gray-500">Colore della guida</label>
-      <div className="flex gap-3 mt-1 mb-1">
-        {COLORI.map((c) => {
-          const attivo = (dati.accento || '#12A69B') === c.hex
-          return (
-            <button
-              key={c.hex}
-              type="button"
-              title={c.nome}
-              aria-label={c.nome}
-              aria-pressed={attivo}
-              onClick={() => aggiorna('accento', c.hex)}
-              className={`h-8 w-8 rounded-full transition ${attivo ? 'ring-2 ring-offset-2 ring-gray-700' : 'hover:scale-110'}`}
-              style={{ background: c.hex }}
-            />
-          )
-        })}
-      </div>
-      <p className="text-xs text-gray-400 mb-3">
-        Tinta di accento: bottoni, intestazione, pastiglie. Il default è "Mare".
-      </p>
-
-      <label className="text-xs text-gray-500">Foto di copertina</label>
-      {dati.copertina_url && (
-        <img
-          src={dati.copertina_url}
-          alt="Anteprima copertina"
-          className="w-full h-28 object-cover rounded-lg border mt-1 mb-2"
-        />
-      )}
-      <div className="flex gap-2">
-        <label
-          className={`flex-1 text-center border rounded-lg py-2 text-sm cursor-pointer ${
-            caricamentoFoto ? 'opacity-50' : 'border-blue-600 text-blue-600'
-          }`}
-        >
-          {caricamentoFoto ? 'Carico...' : dati.copertina_url ? 'Cambia foto' : 'Carica foto'}
+        <details>
+          <summary className="text-xs text-slate-400 cursor-pointer">oppure incolla un link a un'immagine</summary>
           <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={caricamentoFoto}
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              e.target.value = ''
-              if (f) caricaFoto(f)
-            }}
+            className={`${classeCampo} mt-2`}
+            value={dati.copertina_url}
+            onChange={(e) => aggiorna('copertina_url', e.target.value)}
+            placeholder="https://..."
           />
-        </label>
-        {dati.copertina_url && (
-          <button
-            type="button"
-            onClick={rimuoviFoto}
-            className="border rounded-lg px-3 text-sm text-red-600"
-          >
-            Rimuovi
-          </button>
-        )}
+          <p className="text-xs text-slate-400 mt-1">
+            Con il link, ricordati di premere "Salva" in fondo. Lascia vuoto per una tinta con il colore scelto sopra.
+          </p>
+        </details>
+      </Sezione>
+
+      <div className="flex flex-col gap-2">
+        <Pulsante onClick={salva} disabled={salvataggio}>
+          {salvataggio ? 'Salvo...' : 'Salva'}
+        </Pulsante>
+        {salvato && <Esito ok>Salvato ✓</Esito>}
+        {errore && <Esito ok={false}>{errore}</Esito>}
       </div>
-      {fotoEsito === 'ok' ? (
-        <p className="text-green-600 text-xs mt-1">Foto di copertina aggiornata ✓</p>
-      ) : (
-        fotoEsito && <p className="text-red-600 text-xs mt-1">{fotoEsito}</p>
-      )}
-      <details className="mt-2 mb-4">
-        <summary className="text-xs text-gray-400 cursor-pointer">oppure incolla un link a un'immagine</summary>
-        <input
-          className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
-          value={dati.copertina_url}
-          onChange={(e) => aggiorna('copertina_url', e.target.value)}
-          placeholder="https://..."
-        />
-        <p className="text-xs text-gray-400 mt-1">
-          Con il link, ricordati di premere "Salva" in fondo. Lascia vuoto per una tinta con il colore scelto sopra.
-        </p>
-      </details>
 
-      <button
-        onClick={salva}
-        disabled={salvataggio}
-        className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50"
+      <Sezione
+        titolo="Rigenera la descrizione da un link"
+        nota="Incolla il link dell'annuncio o del sito della casa: l'assistente lo rilegge e riscrive descrizione e città. Il testo attuale verrà sostituito (potrai comunque correggerlo qui sopra prima di salvare)."
       >
-        {salvataggio ? 'Salvo...' : 'Salva'}
-      </button>
-      {salvato && <p className="text-sm text-green-600 mt-2 text-center">Salvato ✓</p>}
-      {errore && <p className="text-red-600 text-sm mt-2">{errore}</p>}
-
-      <hr className="my-6 border-gray-200" />
-
-      <h2 className="text-sm font-bold mb-1">Rigenera la descrizione da un link</h2>
-      <p className="text-xs text-gray-500 mb-3">
-        Incolla il link dell'annuncio o del sito della casa: l'assistente lo rilegge e riscrive
-        descrizione e città. Il testo attuale verrà sostituito (potrai comunque correggerlo qui sopra
-        prima di salvare).
-      </p>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        value={link}
-        onChange={(e) => { setLink(e.target.value); setRigenerato(false) }}
-        placeholder="https://..."
-      />
-      <button
-        onClick={rigenera}
-        disabled={rigenerando}
-        className="w-full border border-blue-600 text-blue-600 rounded-lg py-2 text-sm disabled:opacity-50"
-      >
-        {rigenerando ? 'Sto rileggendo il link e riscrivendo...' : 'Rigenera descrizione'}
-      </button>
-      {rigenerato && (
-        <p className="text-sm text-green-600 mt-2 text-center">
-          Descrizione aggiornata ✓ Controllala qui sopra, poi premi Salva se vuoi ritoccarla.
-        </p>
-      )}
-      {erroreRigenera && <p className="text-red-600 text-sm mt-2">{erroreRigenera}</p>}
-    </div>
+        <input className={classeCampo} value={link} onChange={(e) => { setLink(e.target.value); setRigenerato(false) }} placeholder="https://..." />
+        <Pulsante variante="secondario" onClick={rigenera} disabled={rigenerando}>
+          {rigenerando ? 'Sto rileggendo il link e riscrivendo...' : 'Rigenera descrizione'}
+        </Pulsante>
+        {rigenerato && <Esito ok>Descrizione aggiornata ✓ Controllala qui sopra, poi premi Salva se vuoi ritoccarla.</Esito>}
+        {erroreRigenera && <Esito ok={false}>{erroreRigenera}</Esito>}
+      </Sezione>
+    </PaginaAdmin>
   )
 }

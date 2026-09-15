@@ -45,7 +45,7 @@ export default function AdminShell() {
   const pagine = tutte.filter((s) => s.tipo === 'testo')
 
   return (
-    <div className="lg:flex lg:min-h-screen lg:bg-slate-100">
+    <div className="min-h-screen bg-slate-50 lg:flex lg:bg-slate-100">
       <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 lg:h-screen lg:sticky lg:top-0 lg:bg-slate-900">
         <NavLink to="/admin" end className="flex items-center gap-2 px-5 pt-5 pb-4 text-sm font-bold text-white">
           <Home className="w-4 h-4 text-amber-400 shrink-0" /> Haplyhost

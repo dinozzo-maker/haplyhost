@@ -263,9 +263,13 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     setCercando(true)
     setEsitoScout('')
     try {
+      const { data: sessionData } = await supabase.auth.getSession()
       const res = await fetch('/api/scout', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${sessionData.session?.access_token || ''}`,
+        },
         body: JSON.stringify({ struttura_id: strutturaId, sezione, raggio_km: raggio }),
       })
       const dati = await res.json().catch(() => ({}))

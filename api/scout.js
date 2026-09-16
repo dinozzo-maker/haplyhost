@@ -173,17 +173,34 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Le ricerche online sono temporaneamente disattivate.' })
   }
 
-  const { struttura_id, sezione, raggio_km } = req.body
-  if (!struttura_id || !sezione) {
+  const { struttura_id, sezione, raggio_km } = req.body || {}
+  const tokenHeader = (req.headers.authorization || '').replace(/^Bearer /i, '')
+  const access_token = tokenHeader || req.body?.access_token
+  if (!struttura_id || !sezione || !access_token) {
     return res.status(400).json({ error: 'Dati mancanti' })
+  }
+
+  // Scout consuma crediti AI e crea proposte: non pu\u00f2 essere un endpoint pubblico.
+  // Verifichiamo sia la sessione sia che l'host possieda proprio la struttura su cui
+  // sta cercando. Stesso livello di protezione di aggiorna-casa e traduci-guida.
+  const { data: userData, error: erroreUtente } = await supabase.auth.getUser(access_token)
+  if (erroreUtente || !userData?.user) {
+    return res.status(401).json({ error: 'Sessione non valida, rifai il login' })
   }
   const raggioKm = RAGGI_KM.includes(Number(raggio_km)) ? Number(raggio_km) : RAGGIO_DEFAULT_KM
 
-  const { data: struttura } = await supabase
+  const { data: struttura, error: erroreStruttura } = await supabase
     .from('strutture')
-    .select('nome, indirizzo, citta, lat, lng')
+    .select('id, nome, indirizzo, citta, lat, lng, owner_user_id')
     .eq('id', struttura_id)
     .single()
+
+  if (erroreStruttura || !struttura) {
+    return res.status(404).json({ error: 'Struttura non trovata' })
+  }
+  if (struttura.owner_user_id !== userData.user.id) {
+    return res.status(403).json({ error: 'Non sei il proprietario di questa struttura' })
+  }
 
   const { data: esistenti } = await supabase
     .from('luoghi')

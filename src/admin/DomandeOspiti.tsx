@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { ContestoHost } from './RichiedeLogin'
+import { PaginaAdmin } from './ui'
 
 type Domanda = {
   id: string
@@ -43,25 +44,20 @@ export default function DomandeOspiti() {
 
   if (!struttura) {
     return (
-      <div className="max-w-sm mx-auto p-6">
-        <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-        <p className="mt-4 text-sm">Non hai ancora una struttura.</p>
-      </div>
+      <PaginaAdmin titolo="Domande degli ospiti">
+        <p className="text-sm text-slate-500">Non hai ancora una struttura.</p>
+      </PaginaAdmin>
     )
   }
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-      <h1 className="text-xl font-bold mt-2 mb-1">Domande degli ospiti</h1>
-      <p className="text-sm text-gray-500 mb-4">
-        Tutto quello che gli ospiti hanno chiesto a Gennarino. Utile per capire cosa manca nella
-        guida o cosa spiegare meglio.
-      </p>
-
-      {caricamento && <p className="text-sm">Caricamento...</p>}
+    <PaginaAdmin
+      titolo="Domande degli ospiti"
+      sottotitolo="Tutto quello che gli ospiti hanno chiesto a Gennarino. Utile per capire cosa manca nella guida o cosa spiegare meglio."
+    >
+      {caricamento && <p className="text-sm text-slate-500">Caricamento...</p>}
       {!caricamento && domande.length === 0 && (
-        <p className="text-sm text-gray-500">Nessuna domanda per ora.</p>
+        <p className="text-sm text-slate-500">Nessuna domanda per ora.</p>
       )}
 
       <div className="flex flex-col gap-2">
@@ -69,27 +65,27 @@ export default function DomandeOspiti() {
           <button
             key={d.id}
             onClick={() => setAperta(aperta === d.id ? null : d.id)}
-            className="bg-white shadow rounded-xl p-3 text-left"
+            className="bg-white border border-slate-200 shadow-sm rounded-xl p-3.5 text-left"
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-medium">
+              <p className="text-sm font-medium text-slate-900">
                 {d.lang && d.lang !== 'it' && (
-                  <span className="text-[10px] font-bold text-gray-400 border border-gray-300 rounded px-1 mr-1.5 align-middle">
+                  <span className="text-[10px] font-bold text-slate-400 border border-slate-300 rounded px-1 mr-1.5 align-middle">
                     {d.lang.toUpperCase()}
                   </span>
                 )}
                 {d.domanda}
               </p>
-              <span className="text-xs text-gray-400 shrink-0 mt-0.5">{quando(d.creato_il)}</span>
+              <span className="text-xs text-slate-400 shrink-0 mt-0.5">{quando(d.creato_il)}</span>
             </div>
             {aperta === d.id && (
-              <p className="text-xs text-gray-600 mt-2 whitespace-pre-line border-t pt-2">
+              <p className="text-xs text-slate-600 mt-2 whitespace-pre-line border-t border-slate-100 pt-2">
                 {d.risposta}
               </p>
             )}
           </button>
         ))}
       </div>
-    </div>
+    </PaginaAdmin>
   )
 }

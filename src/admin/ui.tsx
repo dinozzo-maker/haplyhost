@@ -12,20 +12,26 @@ import { ArrowLeft } from 'lucide-react'
 export function PaginaAdmin({
   titolo,
   sottotitolo,
+  indietro = true,
   children,
 }: {
   titolo: string
   sottotitolo?: ReactNode
+  // false solo per la primissima struttura di un host: non c'è ancora un pannello
+  // a cui tornare (Admin.tsx la mostra al posto della dashboard, non come rotta a sé)
+  indietro?: boolean
   children: ReactNode
 }) {
   return (
     <div className="max-w-sm mx-auto px-5 py-6 lg:max-w-xl lg:mx-0 lg:px-0 lg:py-10">
-      <Link
-        to="/admin"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition mb-5"
-      >
-        <ArrowLeft className="w-4 h-4" /> Torna al pannello
-      </Link>
+      {indietro && (
+        <Link
+          to="/admin"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition mb-5"
+        >
+          <ArrowLeft className="w-4 h-4" /> Torna al pannello
+        </Link>
+      )}
       <h1 className="text-2xl font-bold text-slate-900 tracking-tight text-balance">{titolo}</h1>
       {sottotitolo && <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">{sottotitolo}</p>}
       <div className="flex flex-col gap-6 mt-7">{children}</div>

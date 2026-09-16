@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { ContestoHost } from './RichiedeLogin'
+import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
 
@@ -150,109 +151,97 @@ export default function InvitaHost() {
 
   if (!isSuperadmin) {
     return (
-      <div className="max-w-sm mx-auto p-6">
-        <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-        <p className="mt-4 text-sm">Sezione riservata all'amministratore della piattaforma.</p>
-      </div>
+      <PaginaAdmin titolo="Invita un nuovo host">
+        <p className="text-sm text-slate-500">Sezione riservata all'amministratore della piattaforma.</p>
+      </PaginaAdmin>
     )
   }
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-      <h1 className="text-xl font-bold mt-2 mb-1">Invita un nuovo host</h1>
-      <p className="text-sm text-gray-500 mb-4">
-        Autorizza l'email del cliente e ottieni un link da mandargli. Solo le email autorizzate qui
-        possono accedere al pannello.
-      </p>
+    <PaginaAdmin
+      titolo="Invita un nuovo host"
+      sottotitolo="Autorizza l'email del cliente e ottieni un link da mandargli. Solo le email autorizzate qui possono accedere al pannello."
+    >
+      <Sezione>
+        <Campo etichetta="Email del cliente">
+          <input
+            className={classeCampo}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="cliente@esempio.com"
+          />
+        </Campo>
 
-      <label className="text-xs text-gray-500">Email del cliente</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="cliente@esempio.com"
-      />
+        <Campo etichetta="Nome di riferimento">
+          <input
+            className={classeCampo}
+            value={nomeRiferimento}
+            onChange={(e) => setNomeRiferimento(e.target.value)}
+            placeholder="Es. Mario Rossi — B&B Il Sole"
+          />
+        </Campo>
 
-      <label className="text-xs text-gray-500">Nome di riferimento</label>
-      <input
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        value={nomeRiferimento}
-        onChange={(e) => setNomeRiferimento(e.target.value)}
-        placeholder="Es. Mario Rossi — B&B Il Sole"
-      />
+        <Campo etichetta="Piano">
+          <select className={classeCampo} value={piano} onChange={(e) => setPiano(e.target.value)}>
+            {PIANI.map((p) => (
+              <option key={p.valore} value={p.valore}>{p.etichetta}</option>
+            ))}
+          </select>
+        </Campo>
 
-      <label className="text-xs text-gray-500">Piano</label>
-      <select
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3 bg-white"
-        value={piano}
-        onChange={(e) => setPiano(e.target.value)}
-      >
-        {PIANI.map((p) => (
-          <option key={p.valore} value={p.valore}>{p.etichetta}</option>
-        ))}
-      </select>
+        <Campo etichetta="Note (facoltative)">
+          <textarea className={classeCampo} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+        </Campo>
 
-      <label className="text-xs text-gray-500">Note (facoltative)</label>
-      <textarea
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-4"
-        rows={2}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-      />
+        <Pulsante onClick={invita} disabled={invio}>
+          {invio ? 'Sto creando l\'invito...' : 'Autorizza e genera il link'}
+        </Pulsante>
+        {errore && <Esito ok={false}>{errore}</Esito>}
 
-      <button
-        onClick={invita}
-        disabled={invio}
-        className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50"
-      >
-        {invio ? 'Sto creando l\'invito...' : 'Autorizza e genera il link'}
-      </button>
-      {errore && <p className="text-red-600 text-sm mt-2">{errore}</p>}
-
-      {link && (
-        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-3">
-          <p className="text-xs font-medium text-green-800 mb-2">Link di invito — mandalo al cliente</p>
-          <input readOnly value={link} className="w-full border rounded-lg px-2 py-1.5 text-xs mb-2 bg-white" />
-          <button onClick={copia} className="w-full border border-green-600 text-green-700 rounded-lg py-1.5 text-xs">
-            {copiato ? 'Copiato ✓' : 'Copia link'}
-          </button>
-        </div>
-      )}
-
-      <hr className="my-6 border-gray-200" />
-
-      <p className="text-xs font-medium text-gray-400 mb-2">HOST AUTORIZZATI ({lista.length})</p>
-      {caricamento && <p className="text-sm">Caricamento...</p>}
-      {erroreLista && <p className="text-sm text-gray-500">{erroreLista}</p>}
-      <div className="flex flex-col gap-2">
-        {lista.map((h) => (
-          <div key={h.email} className="bg-white shadow rounded-xl p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-medium text-sm break-all">{h.email}</p>
-                {h.nome_riferimento && <p className="text-xs text-gray-500">{h.nome_riferimento}</p>}
-              </div>
-              {h.email.toLowerCase() !== ADMIN_EMAIL && (
-                <button
-                  onClick={() => rimuovi(h.email)}
-                  disabled={rimozione === h.email}
-                  className="text-xs text-red-600 shrink-0 disabled:opacity-50"
-                >
-                  {rimozione === h.email ? '...' : 'Rimuovi'}
-                </button>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-1">
-              {h.piano ? h.piano[0].toUpperCase() + h.piano.slice(1) : 'nessun piano'}
-              {' · '}
-              {h.registrato_il ? 'registrato' : 'in attesa di registrazione'}
-            </p>
-            {h.note && <p className="text-xs text-gray-500 mt-1">{h.note}</p>}
+        {link && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3.5 flex flex-col gap-2">
+            <p className="text-xs font-medium text-green-800">Link di invito — mandalo al cliente</p>
+            <input readOnly value={link} className="w-full border border-green-200 rounded-lg px-2.5 py-1.5 text-xs bg-white" />
+            <Pulsante variante="secondario" onClick={copia} className="border-green-300 text-green-700 hover:bg-green-100">
+              {copiato ? 'Copiato ✓' : 'Copia link'}
+            </Pulsante>
           </div>
-        ))}
+        )}
+      </Sezione>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Host autorizzati ({lista.length})</p>
+        {caricamento && <p className="text-sm text-slate-500">Caricamento...</p>}
+        {erroreLista && <p className="text-sm text-slate-500">{erroreLista}</p>}
+        <div className="flex flex-col gap-2">
+          {lista.map((h) => (
+            <div key={h.email} className="bg-white border border-slate-200 shadow-sm rounded-xl p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm text-slate-900 break-all">{h.email}</p>
+                  {h.nome_riferimento && <p className="text-xs text-slate-500">{h.nome_riferimento}</p>}
+                </div>
+                {h.email.toLowerCase() !== ADMIN_EMAIL && (
+                  <button
+                    onClick={() => rimuovi(h.email)}
+                    disabled={rimozione === h.email}
+                    className="text-xs text-red-600 shrink-0 disabled:opacity-50"
+                  >
+                    {rimozione === h.email ? '...' : 'Rimuovi'}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                {h.piano ? h.piano[0].toUpperCase() + h.piano.slice(1) : 'nessun piano'}
+                {' · '}
+                {h.registrato_il ? 'registrato' : 'in attesa di registrazione'}
+              </p>
+              {h.note && <p className="text-xs text-slate-500 mt-1">{h.note}</p>}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </PaginaAdmin>
   )
 }

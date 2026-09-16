@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { ridimensionaImmagine } from '../immagine'
 import { ordinaPerDistanza } from '../distanza'
 import type { ContestoHost } from './RichiedeLogin'
 import { Search } from 'lucide-react'
+import { PaginaAdmin, Campo, classeCampo, Pulsante, Esito } from './ui'
 
 // INTERRUTTORE: deve restare uguale a RICERCHE_ATTIVE in api/scout.js.
 // false = pulsante nascosto e ricerche bloccate.
@@ -59,26 +60,33 @@ type PropostaRow = {
 function CampiLuogo({ bozza, setBozza }: { bozza: Bozza; setBozza: (b: Bozza) => void }) {
   return (
     <>
-      <label className="text-xs text-gray-500">Nome</label>
-      <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.nome} onChange={(e) => setBozza({ ...bozza, nome: e.target.value })} />
-      <label className="text-xs text-gray-500">Descrizione</label>
-      <textarea className="border rounded-lg px-3 py-2 text-sm" rows={3} value={bozza.descrizione} onChange={(e) => setBozza({ ...bozza, descrizione: e.target.value })} />
-      <label className="text-xs text-gray-500">Distanza</label>
-      <input className="border rounded-lg px-3 py-2 text-sm" placeholder="es. 🚶 5 min a piedi" value={bozza.distanza} onChange={(e) => setBozza({ ...bozza, distanza: e.target.value })} />
+      <Campo etichetta="Nome">
+        <input className={classeCampo} value={bozza.nome} onChange={(e) => setBozza({ ...bozza, nome: e.target.value })} />
+      </Campo>
+      <Campo etichetta="Descrizione">
+        <textarea className={classeCampo} rows={3} value={bozza.descrizione} onChange={(e) => setBozza({ ...bozza, descrizione: e.target.value })} />
+      </Campo>
+      <Campo etichetta="Distanza">
+        <input className={classeCampo} placeholder="es. 🚶 5 min a piedi" value={bozza.distanza} onChange={(e) => setBozza({ ...bozza, distanza: e.target.value })} />
+      </Campo>
       <div className="flex gap-2">
         <div className="flex-1">
-          <label className="text-xs text-gray-500">Fascia di prezzo</label>
-          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="es. 15-25 €" value={bozza.prezzo} onChange={(e) => setBozza({ ...bozza, prezzo: e.target.value })} />
+          <Campo etichetta="Fascia di prezzo">
+            <input className={classeCampo} placeholder="es. 15-25 €" value={bozza.prezzo} onChange={(e) => setBozza({ ...bozza, prezzo: e.target.value })} />
+          </Campo>
         </div>
-        <div className="w-24">
-          <label className="text-xs text-gray-500">Voto Google</label>
-          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="4,5" value={bozza.voto} onChange={(e) => setBozza({ ...bozza, voto: e.target.value })} />
+        <div className="w-28">
+          <Campo etichetta="Voto Google">
+            <input className={classeCampo} placeholder="4,5" value={bozza.voto} onChange={(e) => setBozza({ ...bozza, voto: e.target.value })} />
+          </Campo>
         </div>
       </div>
-      <label className="text-xs text-gray-500">Link Google Maps</label>
-      <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.maps} onChange={(e) => setBozza({ ...bozza, maps: e.target.value })} />
-      <label className="text-xs text-gray-500">Telefono</label>
-      <input className="border rounded-lg px-3 py-2 text-sm" value={bozza.telefono} onChange={(e) => setBozza({ ...bozza, telefono: e.target.value })} />
+      <Campo etichetta="Link Google Maps">
+        <input className={classeCampo} value={bozza.maps} onChange={(e) => setBozza({ ...bozza, maps: e.target.value })} />
+      </Campo>
+      <Campo etichetta="Telefono">
+        <input className={classeCampo} value={bozza.telefono} onChange={(e) => setBozza({ ...bozza, telefono: e.target.value })} />
+      </Campo>
     </>
   )
 }
@@ -312,55 +320,52 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   }
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-      <h1 className="text-xl font-bold mt-2 mb-4">Gestisci {etichetta}</h1>
-
+    <PaginaAdmin titolo={`Gestisci ${etichetta}`}>
       {RICERCHE_ATTIVE ? (
-        <>
-          <label className="text-xs text-gray-500">Raggio di ricerca</label>
-          <select
-            className="w-full border rounded-lg px-3 py-2 text-sm mb-2 bg-white"
-            value={raggio}
-            onChange={(e) => setRaggio(Number(e.target.value))}
-          >
-            {RAGGI.map((r) => (
-              <option key={r.km} value={r.km}>{r.etichetta}</option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-2">
+          <Campo etichetta="Raggio di ricerca">
+            <select className={classeCampo} value={raggio} onChange={(e) => setRaggio(Number(e.target.value))}>
+              {RAGGI.map((r) => (
+                <option key={r.km} value={r.km}>{r.etichetta}</option>
+              ))}
+            </select>
+          </Campo>
           <button
             onClick={cercaNuovi}
             disabled={cercando || !strutturaId}
-            className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2 text-sm mb-4 disabled:opacity-50"
+            className="w-full rounded-xl py-2.5 text-sm font-semibold transition bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {cercando ? 'Gennarino sta cercando online...' : <><Search className="w-4 h-4" /> Cerca nuovi luoghi</>}
           </button>
-          {esitoScout && <p className="text-sm text-gray-600 -mt-2 mb-4">{esitoScout}</p>}
-        </>
+          {esitoScout && <p className="text-sm text-slate-500 text-center">{esitoScout}</p>}
+        </div>
       ) : (
-        <p className="text-sm text-gray-400 mb-4">La ricerca automatica di nuovi luoghi è disattivata per ora.</p>
+        <p className="text-sm text-slate-400">La ricerca automatica di nuovi luoghi è disattivata per ora.</p>
       )}
 
       {proposte.length > 0 && (
-        <div className="mb-6">
-          <p className="text-xs font-medium text-gray-400 mb-2">PROPOSTE DA APPROVARE ({proposte.length})</p>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Proposte da approvare ({proposte.length})</p>
           <div className="flex flex-col gap-2">
             {proposte.map((p) => (
-              <div key={p.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-                <p className="font-medium text-sm">{p.nome}</p>
+              <div key={p.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+                <p className="font-medium text-sm text-slate-900">{p.nome}</p>
                 {(p.distanza || p.prezzo || p.voto) && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-slate-500">
                     {[p.distanza, p.prezzo, p.voto && `★ ${p.voto}`].filter(Boolean).join('  ·  ')}
                   </p>
                 )}
-                <p className="text-xs mt-1">{p.descrizione}</p>
-                <div className="flex gap-2 mt-2">
-                  <button onClick={() => accetta(p)} className="flex-1 bg-green-600 text-white rounded-lg py-1.5 text-xs">
+                <p className="text-xs text-slate-600 mt-1">{p.descrizione}</p>
+                <div className="flex gap-2 mt-2.5">
+                  <button
+                    onClick={() => accetta(p)}
+                    className="w-full rounded-xl py-2.5 text-sm font-semibold transition bg-green-600 text-white hover:bg-green-700"
+                  >
                     ✓ Accetta
                   </button>
-                  <button onClick={() => rifiuta(p.id)} className="flex-1 border rounded-lg py-1.5 text-xs">
+                  <Pulsante variante="secondario" onClick={() => rifiuta(p.id)}>
                     ✕ Rifiuta
-                  </button>
+                  </Pulsante>
                 </div>
               </div>
             ))}
@@ -368,112 +373,107 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
         </div>
       )}
 
-      {caricamento && <p>Caricamento...</p>}
+      {caricamento && <p className="text-sm text-slate-500">Caricamento...</p>}
 
       {nuovo ? (
-        <div className="bg-white shadow rounded-xl p-3 mb-4 flex flex-col gap-2">
-          <p className="text-xs font-medium text-gray-400">NUOVO LUOGO</p>
+        <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-4 flex flex-col gap-3">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Nuovo luogo</p>
           <CampiLuogo bozza={bozza} setBozza={setBozza} />
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={aggiungiLuogo}
-              disabled={salvataggio || !bozza.nome.trim()}
-              className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50"
-            >
+          <div className="flex gap-2">
+            <Pulsante onClick={aggiungiLuogo} disabled={salvataggio || !bozza.nome.trim()}>
               {salvataggio ? 'Aggiungo...' : 'Aggiungi'}
-            </button>
-            <button onClick={() => setNuovo(false)} className="flex-1 border rounded-lg py-2 text-sm">
+            </Pulsante>
+            <Pulsante variante="secondario" onClick={() => setNuovo(false)}>
               Annulla
-            </button>
+            </Pulsante>
           </div>
         </div>
       ) : (
-        <button
-          onClick={apriNuovo}
-          disabled={!strutturaId}
-          className="w-full border border-blue-600 text-blue-600 rounded-lg py-2 text-sm mb-4 disabled:opacity-50"
-        >
+        <Pulsante variante="secondario" onClick={apriNuovo} disabled={!strutturaId}>
           + Aggiungi un luogo a mano
-        </button>
+        </Pulsante>
       )}
 
-      <p className="text-xs font-medium text-gray-400 mb-2">GIÀ PRESENTI</p>
       <div className="flex flex-col gap-2">
-        {luoghi.map((l) => (
-          <div key={l.id} className="bg-white shadow rounded-xl p-3">
-            {modificaId === l.id ? (
-              <div className="flex flex-col gap-2">
-                <label className="text-xs text-gray-500">Foto del luogo</label>
-                {l.foto_url && (
-                  <img src={l.foto_url} alt="" className="w-full h-28 object-cover rounded-lg border" />
-                )}
-                <div className="flex gap-2">
-                  <label
-                    className={`flex-1 text-center border rounded-lg py-2 text-sm cursor-pointer ${
-                      caricamentoFotoId === l.id ? 'opacity-50' : 'border-blue-600 text-blue-600'
-                    }`}
-                  >
-                    {caricamentoFotoId === l.id ? 'Carico...' : l.foto_url ? 'Cambia foto' : 'Carica foto'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={caricamentoFotoId === l.id}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0]
-                        e.target.value = ''
-                        if (f) caricaFotoLuogo(l, f)
-                      }}
-                    />
-                  </label>
-                  {l.foto_url && (
-                    <button type="button" onClick={() => rimuoviFotoLuogo(l)} className="border rounded-lg px-3 text-sm text-red-600">
-                      Rimuovi
-                    </button>
-                  )}
-                </div>
-                {fotoEsito && (
-                  fotoEsito === 'ok'
-                    ? <p className="text-green-600 text-xs">Foto aggiornata ✓</p>
-                    : <p className="text-red-600 text-xs">{fotoEsito}</p>
-                )}
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Già presenti</p>
+        <div className="flex flex-col gap-2">
+          {luoghi.map((l) => (
+            <div key={l.id} className="bg-white border border-slate-200 shadow-sm rounded-xl p-3.5">
+              {modificaId === l.id ? (
+                <div className="flex flex-col gap-3">
+                  <Campo etichetta="Foto del luogo">
+                    {l.foto_url && (
+                      <img src={l.foto_url} alt="" className="w-full h-28 object-cover rounded-xl border border-slate-200" />
+                    )}
+                    <div className="flex gap-2">
+                      <label
+                        className={`flex-1 text-center rounded-xl py-2.5 text-sm font-semibold cursor-pointer transition ${
+                          caricamentoFotoId === l.id ? 'opacity-50 border border-slate-300 text-slate-400' : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {caricamentoFotoId === l.id ? 'Carico...' : l.foto_url ? 'Cambia foto' : 'Carica foto'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={caricamentoFotoId === l.id}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0]
+                            e.target.value = ''
+                            if (f) caricaFotoLuogo(l, f)
+                          }}
+                        />
+                      </label>
+                      {l.foto_url && (
+                        <button
+                          type="button"
+                          onClick={() => rimuoviFotoLuogo(l)}
+                          className="px-4 rounded-xl text-sm font-semibold transition border border-red-200 text-red-600 hover:bg-red-50"
+                        >
+                          Rimuovi
+                        </button>
+                      )}
+                    </div>
+                    {fotoEsito && <Esito ok={fotoEsito === 'ok'}>{fotoEsito === 'ok' ? 'Foto aggiornata ✓' : fotoEsito}</Esito>}
+                  </Campo>
 
-                <CampiLuogo bozza={bozza} setBozza={setBozza} />
-                <div className="flex gap-2 mt-2">
-                  <button onClick={() => salva(l.id)} disabled={salvataggio} className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50">
-                    {salvataggio ? 'Salvo...' : 'Salva'}
-                  </button>
-                  <button onClick={() => setModificaId(null)} className="flex-1 border rounded-lg py-2 text-sm">
-                    Annulla
-                  </button>
+                  <CampiLuogo bozza={bozza} setBozza={setBozza} />
+                  <div className="flex gap-2">
+                    <Pulsante onClick={() => salva(l.id)} disabled={salvataggio}>
+                      {salvataggio ? 'Salvo...' : 'Salva'}
+                    </Pulsante>
+                    <Pulsante variante="secondario" onClick={() => setModificaId(null)}>
+                      Annulla
+                    </Pulsante>
+                  </div>
+                  <Pulsante variante="pericolo" onClick={() => elimina(l)} disabled={salvataggio} className="self-start">
+                    Elimina questo luogo
+                  </Pulsante>
                 </div>
-                <button onClick={() => elimina(l)} disabled={salvataggio} className="text-xs text-red-600 mt-2 self-start disabled:opacity-50">
-                  Elimina questo luogo
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-3">
-                {l.foto_url && (
-                  <img src={l.foto_url} alt="" className="w-12 h-12 object-cover rounded-lg shrink-0" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm">{l.nome}</p>
-                  {(l.distanza || l.prezzo || l.voto) && (
-                    <p className="text-xs text-gray-400">
-                      {[l.distanza, l.prezzo, l.voto && `★ ${l.voto}`].filter(Boolean).join('  ·  ')}
-                    </p>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  {l.foto_url && (
+                    <img src={l.foto_url} alt="" className="w-12 h-12 object-cover rounded-lg shrink-0" />
                   )}
-                  <p className="text-xs text-gray-500 line-clamp-1">{l.descrizione}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm text-slate-900">{l.nome}</p>
+                    {(l.distanza || l.prezzo || l.voto) && (
+                      <p className="text-xs text-slate-400">
+                        {[l.distanza, l.prezzo, l.voto && `★ ${l.voto}`].filter(Boolean).join('  ·  ')}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-500 line-clamp-1">{l.descrizione}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button onClick={() => apriModifica(l)} className="text-xs font-medium text-slate-500 hover:text-slate-800">Modifica</button>
+                    <input type="checkbox" checked={l.attivo} onChange={(e) => toggle(l.id, e.target.checked)} className="w-5 h-5 accent-slate-900" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <button onClick={() => apriModifica(l)} className="text-xs text-blue-600">Modifica</button>
-                  <input type="checkbox" checked={l.attivo} onChange={(e) => toggle(l.id, e.target.checked)} className="w-5 h-5 accent-blue-600" />
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </PaginaAdmin>
   )
 }

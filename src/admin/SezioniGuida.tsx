@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { SEZIONI } from '../sezioni'
 import type { Sezione } from '../sezioni'
 import { useSezioni } from '../useSezioni'
 import type { ContestoHost } from './RichiedeLogin'
 import { Icona } from '../Icona'
+import { PaginaAdmin, Pulsante, Esito } from './ui'
 
 const GRUPPI: { titolo: string; tipo: Sezione['tipo'] }[] = [
   { titolo: 'ELENCHI', tipo: 'elenco' },
@@ -80,44 +81,39 @@ export default function SezioniGuida() {
 
   if (!struttura) {
     return (
-      <div className="max-w-sm mx-auto p-6">
-        <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-        <p className="mt-4 text-sm">Non hai ancora una struttura.</p>
-      </div>
+      <PaginaAdmin titolo="Sezioni della guida">
+        <p className="text-sm text-slate-500">Non hai ancora una struttura.</p>
+      </PaginaAdmin>
     )
   }
 
-  if (caricamento) return <p className="p-6 text-center">Caricamento...</p>
+  if (caricamento) return <p className="p-6 text-center text-sm text-slate-500">Caricamento...</p>
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-      <h1 className="text-xl font-bold mt-2 mb-1">Sezioni della guida</h1>
-      <p className="text-sm text-gray-500 mb-4">
-        Scegli quali sezioni compaiono nella guida degli ospiti. Quelle spente restano gestibili
-        dal pannello, ma l'ospite non le vede.
-      </p>
-
+    <PaginaAdmin
+      titolo="Sezioni della guida"
+      sottotitolo="Scegli quali sezioni compaiono nella guida degli ospiti. Quelle spente restano gestibili dal pannello, ma l'ospite non le vede."
+    >
       {GRUPPI.map((g) => {
         const items = sezioniDisponibili.filter((s) => s.tipo === g.tipo)
         if (items.length === 0) return null
         return (
-          <div key={g.tipo} className="mb-5">
-            <p className="text-xs font-medium text-gray-400 mb-2">{g.titolo}</p>
+          <div key={g.tipo} className="flex flex-col gap-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{g.titolo}</p>
             <div className="flex flex-col gap-2">
               {items.map((s) => (
-                <label key={s.chiave} className="bg-white shadow rounded-xl p-3 flex items-start justify-between gap-3 cursor-pointer">
+                <label key={s.chiave} className="bg-white border border-slate-200 shadow-sm rounded-xl p-3.5 flex items-start justify-between gap-3 cursor-pointer">
                   <span className="min-w-0">
-                    <span className="text-sm font-medium inline-flex items-center gap-1.5">
-                      <Icona nome={s.icona} className="w-4 h-4 shrink-0 text-gray-500" /> {s.etichetta}
+                    <span className="text-sm font-medium text-slate-900 inline-flex items-center gap-1.5">
+                      <Icona nome={s.icona} className="w-4 h-4 shrink-0 text-slate-500" /> {s.etichetta}
                     </span>
-                    {s.descrizione && <span className="block text-xs text-gray-500 mt-0.5">{s.descrizione}</span>}
+                    {s.descrizione && <span className="block text-xs text-slate-500 mt-0.5">{s.descrizione}</span>}
                   </span>
                   <input
                     type="checkbox"
                     checked={attive.has(s.chiave)}
                     onChange={() => toggle(s.chiave)}
-                    className="w-5 h-5 accent-blue-600 shrink-0 mt-0.5"
+                    className="w-5 h-5 accent-slate-900 shrink-0 mt-0.5"
                   />
                 </label>
               ))}
@@ -126,15 +122,13 @@ export default function SezioniGuida() {
         )
       })}
 
-      <button
-        onClick={salva}
-        disabled={salvataggio}
-        className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50"
-      >
-        {salvataggio ? 'Salvo...' : 'Salva'}
-      </button>
-      {salvato && <p className="text-sm text-green-600 mt-2 text-center">Salvato ✓</p>}
-      {errore && <p className="text-red-600 text-sm mt-2">{errore}</p>}
-    </div>
+      <div className="flex flex-col gap-2">
+        <Pulsante onClick={salva} disabled={salvataggio}>
+          {salvataggio ? 'Salvo...' : 'Salva'}
+        </Pulsante>
+        {salvato && <Esito ok>Salvato ✓</Esito>}
+        {errore && <Esito ok={false}>{errore}</Esito>}
+      </div>
+    </PaginaAdmin>
   )
 }

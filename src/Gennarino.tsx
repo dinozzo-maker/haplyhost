@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useOutletContext } from 'react-router-dom'
 import type { StrutturaRow } from './Struttura'
 import { conNome, T, useLingua } from './lingua'
 import { conTelefoni, contieneTelefono, reTelefono } from './telefono'
+import GennarinoAvatar from './GennarinoAvatar'
 import { MessageCircle, Phone } from 'lucide-react'
 
 type Messaggio = { role: 'user' | 'assistant'; content: string }
@@ -86,7 +87,7 @@ export default function Gennarino() {
   return (
     <div className="g-chat">
       <div className="g-peek">
-        <span className="p-emo"><MessageCircle /></span>
+        <span className="p-emo"><GennarinoAvatar /></span>
         <div>
           <div className="p-title">Gennarino</div>
           <div className="p-sub">{conNome(T[lingua].gennarinoSottotitolo, struttura.nome)}</div>

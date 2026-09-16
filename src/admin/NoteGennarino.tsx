@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { ContestoHost } from './RichiedeLogin'
+import { PaginaAdmin, Campo, classeCampo, Pulsante, Esito } from './ui'
 
 export default function NoteGennarino() {
   const { struttura } = useOutletContext<ContestoHost>()
@@ -55,51 +56,49 @@ export default function NoteGennarino() {
 
   if (!struttura) {
     return (
-      <div className="max-w-sm mx-auto p-6">
-        <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-        <p className="mt-4 text-sm">Non hai ancora una struttura.</p>
-      </div>
+      <PaginaAdmin titolo="Note per Gennarino">
+        <p className="text-sm text-slate-500">Non hai ancora una struttura.</p>
+      </PaginaAdmin>
     )
   }
 
-  if (caricamento) return <p className="p-6 text-center">Caricamento...</p>
+  if (caricamento) return <p className="p-6 text-center text-sm text-slate-500">Caricamento...</p>
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>
-      <h1 className="text-xl font-bold mt-2 mb-2">Note per Gennarino</h1>
-      <p className="text-sm text-gray-500 mb-2">
-        Scrivi qui tutte le informazioni pratiche sulla casa che non stanno nelle altre pagine.
-        Gennarino le usa per rispondere agli ospiti; nella guida <strong>non si vedono</strong> come
-        sezione.
-      </p>
-      <p className="text-xs text-gray-400 mb-3">
-        Esempi: dove si accendono le luci del giardino, come funziona il condizionatore, dove sono le
-        pastiglie della lavastoviglie, cosa fare se scatta il salvavita, il giorno della
-        differenziata, come si apre il cancello… Una frase per riga, come le diresti a voce.
-      </p>
-
-      <textarea
-        className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-        rows={14}
-        value={note}
-        onChange={(e) => { setNote(e.target.value); setSalvato(false) }}
-        placeholder={
-          'Le luci del giardino si accendono dall\'interruttore dietro la porta della cucina.\n' +
-          'Il termostato del riscaldamento è in corridoio, di solito lasciatelo su 20°.\n' +
-          'La raccolta differenziata passa il martedì mattina presto.'
-        }
-      />
-
-      <button
-        onClick={salva}
-        disabled={salvataggio}
-        className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50"
+    <PaginaAdmin
+      titolo="Note per Gennarino"
+      sottotitolo={
+        <>
+          Scrivi qui tutte le informazioni pratiche sulla casa che non stanno nelle altre pagine.
+          Gennarino le usa per rispondere agli ospiti; nella guida <strong>non si vedono</strong> come
+          sezione.
+        </>
+      }
+    >
+      <Campo
+        etichetta="Note pratiche"
+        aiuto="Esempi: dove si accendono le luci del giardino, come funziona il condizionatore, dove sono le pastiglie della lavastoviglie, cosa fare se scatta il salvavita, il giorno della differenziata, come si apre il cancello… Una frase per riga, come le diresti a voce."
       >
-        {salvataggio ? 'Salvo...' : 'Salva'}
-      </button>
-      {salvato && <p className="text-sm text-green-600 mt-2 text-center">Salvato ✓</p>}
-      {errore && <p className="text-red-600 text-sm mt-2">{errore}</p>}
-    </div>
+        <textarea
+          className={classeCampo}
+          rows={14}
+          value={note}
+          onChange={(e) => { setNote(e.target.value); setSalvato(false) }}
+          placeholder={
+            'Le luci del giardino si accendono dall\'interruttore dietro la porta della cucina.\n' +
+            'Il termostato del riscaldamento è in corridoio, di solito lasciatelo su 20°.\n' +
+            'La raccolta differenziata passa il martedì mattina presto.'
+          }
+        />
+      </Campo>
+
+      <div className="flex flex-col gap-2">
+        <Pulsante onClick={salva} disabled={salvataggio}>
+          {salvataggio ? 'Salvo...' : 'Salva'}
+        </Pulsante>
+        {salvato && <Esito ok>Salvato ✓</Esito>}
+        {errore && <Esito ok={false}>{errore}</Esito>}
+      </div>
+    </PaginaAdmin>
   )
 }

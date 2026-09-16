@@ -9,17 +9,28 @@ import {
   Settings, NotebookPen, MessageCircleQuestion, LayoutGrid, Languages, Eye,
   UserPlus, Puzzle, CircleCheck, Circle, ArrowRight, TriangleAlert,
 } from 'lucide-react'
+import { Campo, classeCampo, Pulsante, Esito } from './ui'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
+
+// Riga di collegamento verso una pagina del pannello — card bianca condivisa da
+// tutte le griglie di scorciatoie sotto (desktop e mobile).
+function Scorciatoia({ to, esterno, children }: { to: string; esterno?: boolean; children: ReactNode }) {
+  const classe = 'flex items-center gap-2.5 bg-white border border-slate-200 shadow-sm rounded-xl p-3 text-sm font-medium text-slate-700 hover:border-slate-300 transition'
+  if (esterno) {
+    return <a href={to} target="_blank" rel="noreferrer" className={classe}>{children}</a>
+  }
+  return <Link to={to} className={classe}>{children}</Link>
+}
 
 // Una riga della checklist "Primi passi". `fatto` indefinito = passo di rifinitura
 // (freccia, nessuna spunta); true/false = passo che sappiamo controllare da soli.
 function Passo({ fatto, to, children }: { fatto?: boolean; to: string; children: ReactNode }) {
   const Segno = fatto === undefined ? ArrowRight : fatto ? CircleCheck : Circle
-  const colore = fatto ? 'text-green-600' : 'text-gray-400'
+  const colore = fatto ? 'text-green-600' : 'text-slate-400'
   return (
     <li>
-      <Link to={to} className="flex items-center gap-2 text-blue-800 hover:underline">
+      <Link to={to} className="flex items-center gap-2 text-slate-700 hover:text-slate-900 hover:underline">
         <Segno className={`w-4 h-4 shrink-0 ${colore}`} />
         <span>{children}</span>
       </Link>
@@ -96,195 +107,195 @@ export default function Admin() {
   }
 
   return (
-    <div className="max-w-sm mx-auto p-6 lg:max-w-xl lg:mx-0 lg:p-10">
+    <div className="max-w-sm mx-auto px-5 py-6 lg:max-w-xl lg:mx-0 lg:px-0 lg:py-10">
       {/* Su schermi larghi la barra laterale (AdminShell) mostra già email e struttura selezionata */}
       <div className="lg:hidden">
-        <h1 className="text-xl font-bold mb-2">Sei dentro, {session.user.email}</h1>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight text-balance">Sei dentro, {session.user.email}</h1>
 
         {strutture.length > 1 ? (
-          <div className="mb-6">
-            <label className="text-xs text-gray-500">Struttura</label>
-            <select
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-              value={struttura.id}
-              onChange={(e) => selezionaStruttura(e.target.value)}
-            >
-              {strutture.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nome}{s.attivo ? '' : ' (bozza)'}
-                </option>
-              ))}
-            </select>
+          <div className="mt-5 mb-1">
+            <Campo etichetta="Struttura">
+              <select
+                className={classeCampo}
+                value={struttura.id}
+                onChange={(e) => selezionaStruttura(e.target.value)}
+              >
+                {strutture.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}{s.attivo ? '' : ' (bozza)'}
+                  </option>
+                ))}
+              </select>
+            </Campo>
           </div>
         ) : (
-          <p className="text-sm text-gray-500 mb-6">Pannello host — {struttura.nome}</p>
+          <p className="text-sm text-slate-500 mt-1.5 mb-1">Pannello host — {struttura.nome}</p>
         )}
       </div>
-      <h2 className="hidden lg:block text-2xl font-bold mb-6">{struttura.nome}</h2>
+      <h2 className="hidden lg:block text-2xl font-bold text-slate-900 tracking-tight mb-7">{struttura.nome}</h2>
 
-      {attivo ? (
-        <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl p-3 text-sm mb-4">
-          <span className="text-green-800 inline-flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-            La guida è online —{' '}
-            <a href={`/${struttura.slug}`} target="_blank" rel="noreferrer" className="underline">
-              aprila
-            </a>
-          </span>
-          <button
-            onClick={() => cambiaPubblicazione(false)}
-            disabled={cambioStato}
-            className="text-xs text-gray-500 underline shrink-0 disabled:opacity-50"
+      <div className="flex flex-col gap-4 mt-6 lg:mt-0">
+        {attivo ? (
+          <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-2xl p-3.5 text-sm">
+            <span className="text-green-800 inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+              La guida è online —{' '}
+              <a href={`/${struttura.slug}`} target="_blank" rel="noreferrer" className="underline">
+                aprila
+              </a>
+            </span>
+            <button
+              onClick={() => cambiaPubblicazione(false)}
+              disabled={cambioStato}
+              className="text-xs text-slate-500 underline shrink-0 disabled:opacity-50"
+            >
+              Metti offline
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 flex flex-col gap-4">
+            <div>
+              <p className="font-bold text-sm text-slate-900 mb-1">La tua guida non è ancora online</p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Preparala con calma. Gli ospiti la vedranno solo dopo che premi "Pubblica".
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Il minimo per partire</p>
+              <ul className="flex flex-col gap-1.5 text-sm">
+                <Passo fatto={(nPagine ?? 0) > 0} to="/admin/casa">
+                  Scrivi le pagine di testo (Wi-Fi, regole, emergenze…)
+                </Passo>
+                <Passo fatto={(nLuoghi ?? 0) > 0} to="/admin/mangiare">
+                  Aggiungi qualche luogo (ristoranti, spiagge…)
+                </Passo>
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Poi rifinisci</p>
+              <ul className="flex flex-col gap-1.5 text-sm">
+                <Passo to="/admin/modifica-casa">Dati e descrizione della casa</Passo>
+                <Passo to="/admin/modifica-casa">Colore e foto di copertina</Passo>
+                <Passo to="/admin/sezioni-guida">Scegli quali sezioni mostrare</Passo>
+                <Passo to="/admin/traduzioni">Traduci la guida</Passo>
+              </ul>
+            </div>
+
+            <Pulsante onClick={() => cambiaPubblicazione(true)} disabled={cambioStato}>
+              {cambioStato ? 'Attendere…' : 'Pubblica la guida'}
+            </Pulsante>
+          </div>
+        )}
+        {erroreStato && <Esito ok={false}>{erroreStato}</Esito>}
+
+        {daTradurre > 0 && (
+          <Link
+            to="/admin/traduzioni"
+            className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3.5 text-sm"
           >
-            Metti offline
-          </button>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 mb-4">
-          <p className="font-bold text-sm text-blue-900 mb-1">La tua guida non è ancora online</p>
-          <p className="text-xs text-blue-800 mb-3">
-            Preparala con calma. Gli ospiti la vedranno solo dopo che premi "Pubblica".
-          </p>
+            <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              Hai modificato {daTradurre} test{daTradurre === 1 ? 'o' : 'i'} dopo l'ultima traduzione.
+              Rilancia "Traduzioni della guida".
+            </span>
+          </Link>
+        )}
 
-          <p className="text-xs font-medium text-blue-900 mb-1">Il minimo per partire</p>
-          <ul className="flex flex-col gap-1.5 mb-3 text-sm">
-            <Passo fatto={(nPagine ?? 0) > 0} to="/admin/casa">
-              Scrivi le pagine di testo (Wi-Fi, regole, emergenze…)
-            </Passo>
-            <Passo fatto={(nLuoghi ?? 0) > 0} to="/admin/mangiare">
-              Aggiungi qualche luogo (ristoranti, spiagge…)
-            </Passo>
-          </ul>
-
-          <p className="text-xs font-medium text-blue-900 mb-1">Poi rifinisci</p>
-          <ul className="flex flex-col gap-1.5 mb-4 text-sm">
-            <Passo to="/admin/modifica-casa">Dati e descrizione della casa</Passo>
-            <Passo to="/admin/modifica-casa">Colore e foto di copertina</Passo>
-            <Passo to="/admin/sezioni-guida">Scegli quali sezioni mostrare</Passo>
-            <Passo to="/admin/traduzioni">Traduci la guida</Passo>
-          </ul>
-
-          <button
-            onClick={() => cambiaPubblicazione(true)}
-            disabled={cambioStato}
-            className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-          >
-            {cambioStato ? 'Attendere…' : 'Pubblica la guida'}
-          </button>
-        </div>
-      )}
-      {erroreStato && <p className="text-red-600 text-xs mb-4">{erroreStato}</p>}
-
-      {daTradurre > 0 && (
-        <Link
-          to="/admin/traduzioni"
-          className="flex items-start gap-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-3 text-sm mb-4"
-        >
-          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>
-            Hai modificato {daTradurre} test{daTradurre === 1 ? 'o' : 'i'} dopo l'ultima traduzione.
-            Rilancia "Traduzioni della guida".
-          </span>
-        </Link>
-      )}
-
-      {/* Solo desktop: la barra laterale copre già la navigazione, qui un colpo d'occhio
-          sui numeri veri della struttura (niente statistiche finte) + le azioni più comuni. */}
-      <div className="hidden lg:grid lg:grid-cols-3 lg:gap-3 lg:mb-3">
-        <div className="bg-white shadow rounded-xl p-4">
-          <p className="text-2xl font-bold tabular-nums">{nLuoghi ?? '—'}</p>
-          <p className="text-xs text-gray-500 mt-0.5">luoghi in guida</p>
-        </div>
-        <div className="bg-white shadow rounded-xl p-4">
-          <p className="text-2xl font-bold tabular-nums">{nPagine ?? '—'}</p>
-          <p className="text-xs text-gray-500 mt-0.5">pagine di testo</p>
-        </div>
-        <div className="bg-white shadow rounded-xl p-4">
-          <p className={`text-2xl font-bold tabular-nums ${daTradurre > 0 ? 'text-amber-600' : ''}`}>{daTradurre}</p>
-          <p className="text-xs text-gray-500 mt-0.5">test{daTradurre === 1 ? 'o' : 'i'} da tradurre</p>
-        </div>
-      </div>
-
-      <div className="hidden lg:grid lg:grid-cols-2 lg:gap-3 lg:mb-6">
-        <a href={`/${struttura.slug}`} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <Eye className="w-4 h-4 text-gray-400 shrink-0" /> Vedi la guida
-        </a>
-        <Link to="/admin/modifica-casa" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <Settings className="w-4 h-4 text-gray-400 shrink-0" /> Dati della casa
-        </Link>
-        <Link to="/admin/sezioni-guida" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <LayoutGrid className="w-4 h-4 text-gray-400 shrink-0" /> Sezioni della guida
-        </Link>
-        <Link to="/admin/traduzioni" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <Languages className="w-4 h-4 text-gray-400 shrink-0" /> Traduzioni della guida
-        </Link>
-      </div>
-
-      <div className="flex flex-col gap-2 mb-6 lg:hidden">
-        <Link to="/admin/modifica-casa" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <Settings className="w-4 h-4 text-gray-400 shrink-0" /> Modifica dati della casa
-        </Link>
-        <Link to="/admin/note" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <NotebookPen className="w-4 h-4 text-gray-400 shrink-0" /> Note per Gennarino
-        </Link>
-        <Link to="/admin/domande" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <MessageCircleQuestion className="w-4 h-4 text-gray-400 shrink-0" /> Domande degli ospiti
-        </Link>
-        <Link to="/admin/sezioni-guida" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <LayoutGrid className="w-4 h-4 text-gray-400 shrink-0" /> Sezioni della guida
-        </Link>
-        <Link to="/admin/traduzioni" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-          <Languages className="w-4 h-4 text-gray-400 shrink-0" /> Traduzioni della guida
-        </Link>
-        <a
-          href={`/${struttura.slug}`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium"
-        >
-          <Eye className="w-4 h-4 text-gray-400 shrink-0" /> Vedi la guida degli ospiti
-        </a>
-        <Link to="/admin/nuova-struttura" className="block text-sm text-blue-600 px-3 pt-1">
-          + Aggiungi un'altra struttura
-        </Link>
-      </div>
-
-      {isSuperadmin && (
-        <div className="lg:hidden">
-          <p className="text-xs font-medium text-gray-400 mb-2">PIATTAFORMA</p>
-          <div className="flex flex-col gap-2 mb-6">
-            <Link to="/admin/invita-host" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-              <UserPlus className="w-4 h-4 text-gray-400 shrink-0" /> Invita un nuovo host
-            </Link>
-            <Link to="/admin/sezioni-extra" className="flex items-center gap-2.5 bg-white shadow rounded-xl p-3 text-sm font-medium">
-              <Puzzle className="w-4 h-4 text-gray-400 shrink-0" /> Sezioni della piattaforma
-            </Link>
+        {/* Solo desktop: la barra laterale copre già la navigazione, qui un colpo d'occhio
+            sui numeri veri della struttura (niente statistiche finte) + le azioni più comuni. */}
+        <div className="hidden lg:grid lg:grid-cols-3 lg:gap-3">
+          <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-4">
+            <p className="text-2xl font-bold text-slate-900 tabular-nums">{nLuoghi ?? '—'}</p>
+            <p className="text-xs text-slate-500 mt-0.5">luoghi in guida</p>
+          </div>
+          <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-4">
+            <p className="text-2xl font-bold text-slate-900 tabular-nums">{nPagine ?? '—'}</p>
+            <p className="text-xs text-slate-500 mt-0.5">pagine di testo</p>
+          </div>
+          <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-4">
+            <p className={`text-2xl font-bold tabular-nums ${daTradurre > 0 ? 'text-amber-600' : 'text-slate-900'}`}>{daTradurre}</p>
+            <p className="text-xs text-slate-500 mt-0.5">test{daTradurre === 1 ? 'o' : 'i'} da tradurre</p>
           </div>
         </div>
-      )}
 
-      <div className="lg:hidden">
-        <p className="text-xs font-medium text-gray-400 mb-2">ELENCHI</p>
-        <div className="flex flex-col gap-2 mb-6">
-          {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
-            <Link key={s.chiave} to={`/admin/${s.chiave}`} className="bg-white shadow rounded-xl p-3 text-sm font-medium">
-              Gestisci {s.etichetta}
-            </Link>
-          ))}
+        <div className="hidden lg:grid lg:grid-cols-2 lg:gap-3">
+          <Scorciatoia to={`/${struttura.slug}`} esterno>
+            <Eye className="w-4 h-4 text-slate-400 shrink-0" /> Vedi la guida
+          </Scorciatoia>
+          <Scorciatoia to="/admin/modifica-casa">
+            <Settings className="w-4 h-4 text-slate-400 shrink-0" /> Dati della casa
+          </Scorciatoia>
+          <Scorciatoia to="/admin/sezioni-guida">
+            <LayoutGrid className="w-4 h-4 text-slate-400 shrink-0" /> Sezioni della guida
+          </Scorciatoia>
+          <Scorciatoia to="/admin/traduzioni">
+            <Languages className="w-4 h-4 text-slate-400 shrink-0" /> Traduzioni della guida
+          </Scorciatoia>
         </div>
 
-        <p className="text-xs font-medium text-gray-400 mb-2">PAGINE DI TESTO</p>
-        <div className="flex flex-col gap-2 mb-6">
-          {SEZIONI.filter((s) => s.tipo === 'testo').map((s) => (
-            <Link key={s.chiave} to={`/admin/${s.chiave}`} className="bg-white shadow rounded-xl p-3 text-sm font-medium">
-              Modifica {s.etichetta}
-            </Link>
-          ))}
+        <div className="flex flex-col gap-2 lg:hidden">
+          <Scorciatoia to="/admin/modifica-casa">
+            <Settings className="w-4 h-4 text-slate-400 shrink-0" /> Modifica dati della casa
+          </Scorciatoia>
+          <Scorciatoia to="/admin/note">
+            <NotebookPen className="w-4 h-4 text-slate-400 shrink-0" /> Note per Gennarino
+          </Scorciatoia>
+          <Scorciatoia to="/admin/domande">
+            <MessageCircleQuestion className="w-4 h-4 text-slate-400 shrink-0" /> Domande degli ospiti
+          </Scorciatoia>
+          <Scorciatoia to="/admin/sezioni-guida">
+            <LayoutGrid className="w-4 h-4 text-slate-400 shrink-0" /> Sezioni della guida
+          </Scorciatoia>
+          <Scorciatoia to="/admin/traduzioni">
+            <Languages className="w-4 h-4 text-slate-400 shrink-0" /> Traduzioni della guida
+          </Scorciatoia>
+          <Scorciatoia to={`/${struttura.slug}`} esterno>
+            <Eye className="w-4 h-4 text-slate-400 shrink-0" /> Vedi la guida degli ospiti
+          </Scorciatoia>
+          <Link to="/admin/nuova-struttura" className="block text-sm font-medium text-slate-600 hover:text-slate-900 px-3 pt-1">
+            + Aggiungi un'altra struttura
+          </Link>
         </div>
 
-        <button onClick={() => supabase.auth.signOut()} className="text-sm text-red-600">
-          Esci
-        </button>
+        {isSuperadmin && (
+          <div className="lg:hidden">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Piattaforma</p>
+            <div className="flex flex-col gap-2">
+              <Scorciatoia to="/admin/invita-host">
+                <UserPlus className="w-4 h-4 text-slate-400 shrink-0" /> Invita un nuovo host
+              </Scorciatoia>
+              <Scorciatoia to="/admin/sezioni-extra">
+                <Puzzle className="w-4 h-4 text-slate-400 shrink-0" /> Sezioni della piattaforma
+              </Scorciatoia>
+            </div>
+          </div>
+        )}
+
+        <div className="lg:hidden">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Elenchi</p>
+          <div className="flex flex-col gap-2 mb-2">
+            {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
+              <Scorciatoia key={s.chiave} to={`/admin/${s.chiave}`}>
+                Gestisci {s.etichetta}
+              </Scorciatoia>
+            ))}
+          </div>
+
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 mt-4">Pagine di testo</p>
+          <div className="flex flex-col gap-2 mb-2">
+            {SEZIONI.filter((s) => s.tipo === 'testo').map((s) => (
+              <Scorciatoia key={s.chiave} to={`/admin/${s.chiave}`}>
+                Modifica {s.etichetta}
+              </Scorciatoia>
+            ))}
+          </div>
+
+          <Pulsante variante="pericolo" onClick={() => supabase.auth.signOut()} className="mt-2">
+            Esci
+          </Pulsante>
+        </div>
       </div>
     </div>
   )

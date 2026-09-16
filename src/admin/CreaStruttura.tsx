@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { CHIAVE_STRUTTURA_SELEZIONATA } from './RichiedeLogin'
+import { PaginaAdmin, Campo, classeCampo, Pulsante, Esito } from './ui'
 
 // `aggiuntiva`: usato sia per la primissima struttura di un host (Admin.tsx la mostra
 // quando non ne ha ancora nessuna) sia per aggiungerne un'altra (rotta /admin/nuova-struttura,
@@ -51,29 +51,29 @@ export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boo
   }
 
   return (
-    <div className="max-w-sm mx-auto p-6">
-      {aggiuntiva && <Link to="/admin" className="text-sm text-blue-600">&larr; Torna al pannello</Link>}
-      <h1 className={`text-xl font-bold mb-1 ${aggiuntiva ? 'mt-2' : ''}`}>
-        {aggiuntiva ? 'Aggiungi un\'altra struttura' : 'Crea la tua struttura'}
-      </h1>
-      <p className="text-sm text-gray-500 mb-4">
-        Proveremo a scrivere da soli la descrizione della casa leggendo il link. Funziona meglio con siti semplici; con Airbnb o Booking potrebbe non riuscire a leggere tutto — potrai comunque correggere il testo dopo, dal pannello.
-      </p>
+    <PaginaAdmin
+      titolo={aggiuntiva ? 'Aggiungi un\'altra struttura' : 'Crea la tua struttura'}
+      indietro={aggiuntiva}
+      sottotitolo="Proveremo a scrivere da soli la descrizione della casa leggendo il link. Funziona meglio con siti semplici; con Airbnb o Booking potrebbe non riuscire a leggere tutto — potrai comunque correggere il testo dopo, dal pannello."
+    >
+      <Campo etichetta="Nome della struttura">
+        <input className={classeCampo} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Villa Virginia" />
+      </Campo>
 
-      <label className="text-xs text-gray-500">Nome della struttura</label>
-      <input className="w-full border rounded-lg px-3 py-2 text-sm mb-3" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Villa Virginia" />
+      <Campo etichetta="Indirizzo">
+        <input className={classeCampo} value={indirizzo} onChange={(e) => setIndirizzo(e.target.value)} placeholder="Via, città, provincia" />
+      </Campo>
 
-      <label className="text-xs text-gray-500">Indirizzo</label>
-      <input className="w-full border rounded-lg px-3 py-2 text-sm mb-3" value={indirizzo} onChange={(e) => setIndirizzo(e.target.value)} placeholder="Via, città, provincia" />
+      <Campo etichetta="Link (annuncio, sito — facoltativo)">
+        <input className={classeCampo} value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." />
+      </Campo>
 
-      <label className="text-xs text-gray-500">Link (annuncio, sito — facoltativo)</label>
-      <input className="w-full border rounded-lg px-3 py-2 text-sm mb-4" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." />
-
-      <button onClick={crea} disabled={caricamento} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm disabled:opacity-50">
-        {caricamento ? 'Sto leggendo e scrivendo la descrizione...' : 'Crea struttura'}
-      </button>
-
-      {errore && <p className="text-red-600 text-sm mt-3">{errore}</p>}
-    </div>
+      <div className="flex flex-col gap-2">
+        <Pulsante onClick={crea} disabled={caricamento}>
+          {caricamento ? 'Sto leggendo e scrivendo la descrizione...' : 'Crea struttura'}
+        </Pulsante>
+        {errore && <Esito ok={false}>{errore}</Esito>}
+      </div>
+    </PaginaAdmin>
   )
 }

@@ -26,15 +26,27 @@ export default function Struttura() {
   // sbagliato (data = null in entrambi i casi): per distinguerle si chiede a un
   // endpoint minimo (api/verifica-slug) se lo slug esiste, senza rivelarne i dati.
   const [nonPubblica, setNonPubblica] = useState(false)
+  const [errore, setErrore] = useState(false)
   const [caricamento, setCaricamento] = useState(true)
 
   useEffect(() => {
     async function carica() {
-      const { data } = await supabase
+      setCaricamento(true)
+      setNonPubblica(false)
+      setErrore(false)
+      const { data, error } = await supabase
         .from('strutture')
         .select('id, nome, citta, sezioni_attive, accento, copertina_url, host_telefono, lat, lng')
         .eq('slug', slug)
-        .single()
+        .maybeSingle()
+
+      if (error) {
+        console.error('struttura:', error)
+        setErrore(true)
+        setStruttura(null)
+        setCaricamento(false)
+        return
+      }
 
       if (!data && slug) {
         try {
@@ -54,7 +66,7 @@ export default function Struttura() {
 
   return (
     <LinguaProvider>
-      <Guscio slug={slug ?? ''} struttura={struttura} nonPubblica={nonPubblica} caricamento={caricamento} />
+      <Guscio slug={slug ?? ''} struttura={struttura} nonPubblica={nonPubblica} errore={errore} caricamento={caricamento} />
     </LinguaProvider>
   )
 }
@@ -63,16 +75,19 @@ function Guscio({
   slug,
   struttura,
   nonPubblica,
+  errore,
   caricamento,
 }: {
   slug: string
   struttura: StrutturaRow | null
   nonPubblica: boolean
+  errore: boolean
   caricamento: boolean
 }) {
   const { lingua } = useLingua()
 
   if (caricamento) return <p className="g-stato">{T[lingua].caricamento}</p>
+  if (errore) return <p className="g-stato">{T[lingua].erroreCaricamento}</p>
   if (!struttura) {
     return <p className="g-stato">{nonPubblica ? T[lingua].guidaInAllestimento : T[lingua].strutturaNonTrovata}</p>
   }

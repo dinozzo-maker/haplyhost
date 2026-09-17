@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { ridimensionaImmagine } from '../immagine'
@@ -44,6 +44,12 @@ type Bozza = {
 }
 
 const BOZZA_VUOTA: Bozza = { nome: '', descrizione: '', distanza: '', prezzo: '', voto: '', maps: '', telefono: '' }
+
+// Fuori dal componente: il nome nasce quando l'host carica la foto, non durante
+// il rendering di React. Evita anche l'avviso del controllo qualità.
+function percorsoFotoLuogo(strutturaId: string, luogoId: string, ext: string) {
+  return `luoghi/${strutturaId}/${luogoId}-${Date.now()}.${ext}`
+}
 
 type PropostaRow = {
   id: string
@@ -108,7 +114,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const [caricamentoFotoId, setCaricamentoFotoId] = useState<string | null>(null)
   const [fotoEsito, setFotoEsito] = useState('') // '' | 'ok' | messaggio d'errore
 
-  async function caricaTutto(id: string) {
+  const caricaTutto = useCallback(async (id: string) => {
     const { data: dl } = await supabase
       .from('luoghi')
       .select('id, nome, descrizione, distanza, prezzo, voto, maps, telefono, attivo, foto_url')
@@ -126,7 +132,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       .eq('sezione', sezione)
       .order('creato_il')
     setProposte(dp ?? [])
-  }
+  }, [sezione])
 
   useEffect(() => {
     async function carica() {
@@ -135,7 +141,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       setCaricamento(false)
     }
     carica()
-  }, [sezione, strutturaId])
+  }, [caricaTutto, strutturaId])
 
   async function toggle(id: string, nuovoValore: boolean) {
     setLuoghi(luoghi.map(l => l.id === id ? { ...l, attivo: nuovoValore } : l))
@@ -224,7 +230,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     }
 
     const ext = (daCaricare.name.match(/\.([a-z0-9]+)$/i)?.[1] || 'jpg').toLowerCase()
-    const percorso = `luoghi/${strutturaId}/${l.id}-${Date.now()}.${ext}`
+    const percorso = percorsoFotoLuogo(strutturaId, l.id, ext)
 
     const caricamento = await supabase.storage
       .from('copertine')

@@ -23,10 +23,17 @@ export default function RichiedeLogin() {
   const [selezionataId, setSelezionataId] = useState<string | null>(null)
   const [caricamento, setCaricamento] = useState(true)
   const [senzaSessione, setSenzaSessione] = useState(false)
+  const [errore, setErrore] = useState('')
 
   useEffect(() => {
     async function carica() {
-      const { data } = await supabase.auth.getSession()
+      setErrore('')
+      const { data, error: erroreSessione } = await supabase.auth.getSession()
+      if (erroreSessione) {
+        setErrore('Non riesco a verificare l’accesso. Controlla la connessione e riprova.')
+        setCaricamento(false)
+        return
+      }
       const s = data.session
 
       if (!s) {
@@ -36,11 +43,16 @@ export default function RichiedeLogin() {
       }
       setSession(s)
 
-      const { data: righe } = await supabase
+      const { data: righe, error: erroreStrutture } = await supabase
         .from('strutture')
         .select('id, nome, slug, attivo')
         .eq('owner_user_id', s.user.id)
         .order('creato_il')
+      if (erroreStrutture) {
+        setErrore('Non riesco a caricare le tue strutture. Riprova tra poco.')
+        setCaricamento(false)
+        return
+      }
       const lista = righe ?? []
       setStrutture(lista)
 
@@ -75,6 +87,9 @@ export default function RichiedeLogin() {
 
   if (caricamento) return <p className="p-8 text-center">Caricamento...</p>
   if (senzaSessione || !session) return <Navigate to="/login" replace />
+  if (errore) {
+    return <div className="max-w-sm mx-auto p-6 text-center text-sm text-slate-600">{errore}</div>
+  }
 
   const struttura = strutture.find((s) => s.id === selezionataId) ?? null
   const contesto: ContestoHost = { session, struttura, strutture, selezionaStruttura }

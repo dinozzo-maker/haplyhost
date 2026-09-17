@@ -1,0 +1,25 @@
+name: Controlli qualita'
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  controlla:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scarica il progetto
+        uses: actions/checkout@v4
+      - name: Prepara Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Installa le dipendenze esatte
+        run: npm ci
+      - name: Controlla il codice
+        run: npm run lint
+      - name: Compila l'app
+        run: npm run build

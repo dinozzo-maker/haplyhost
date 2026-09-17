@@ -161,6 +161,23 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Dati mancanti' })
   }
 
+  // Endpoint pubblico: con service role potremmo leggere anche una struttura in
+  // bozza. La guida e Gennarino devono esistere per gli ospiti solo dopo la
+  // pubblicazione esplicita dell'host.
+  const { data: struttura, error: erroreStruttura } = await supabase
+    .from('strutture')
+    .select('nome, indirizzo, citta, checkin, checkout, host_nome, host_telefono, max_ospiti, descrizione_casa, note_gennarino')
+    .eq('id', struttura_id)
+    .eq('attivo', true)
+    .maybeSingle()
+  if (erroreStruttura) {
+    console.error('gennarino struttura:', erroreStruttura)
+    return res.status(500).json({ error: 'Errore nel leggere la guida' })
+  }
+  if (!struttura) {
+    return res.status(404).json({ error: 'Questa guida non è disponibile.' })
+  }
+
   const { count: recenti } = await supabase
     .from('domande')
     .select('id', { count: 'exact', head: true })
@@ -172,12 +189,7 @@ export default async function handler(req, res) {
 
   const linguaGuida = NOMI_LINGUA[lang] ? lang : 'it'
 
-  const [{ data: struttura }, { data: luoghi }, { data: pagine }, linguaRisposta] = await Promise.all([
-    supabase
-      .from('strutture')
-      .select('nome, indirizzo, citta, checkin, checkout, host_nome, host_telefono, max_ospiti, descrizione_casa, note_gennarino')
-      .eq('id', struttura_id)
-      .single(),
+  const [{ data: luoghi }, { data: pagine }, linguaRisposta] = await Promise.all([
     supabase
       .from('luoghi')
       .select('sezione, nome, categoria, descrizione, distanza, maps, telefono')

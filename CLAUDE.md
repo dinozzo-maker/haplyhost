@@ -49,6 +49,8 @@ haplyhost/
 │   │                          minuto (dosso, non muro — una raffica simultanea passa). Per-IP vero: ancora da fare (store esterno).
 │   │                          Prima di salvare oscura email, telefoni, URL e codici di prenotazione; aggiorna le statistiche
 │   │                          aggregate giornaliere. Il testo viene eliminato automaticamente dopo 90 giorni.
+│   │                          Prima di qualunque risposta controlla `strutture.attivo=true`: una guida in bozza non può essere
+│   │                          interrogata dall'endpoint pubblico (17/09/2026).
 │   ├── pulisci-domande.js   ← chiamata ogni notte da Vercel Cron: elimina da `domande` solo il testo oltre 90 giorni.
 │   │                          Non è pubblica: accetta solo `Authorization: Bearer CRON_SECRET`.
 │   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku (max_tokens 16k, 1 retry sul JSON storto) pagine + luoghi con
@@ -71,8 +73,8 @@ haplyhost/
 │   │                          (via lib/), imposta attivo=FALSE (l'host pubblica dal pannello), segna host_autorizzati.registrato_il.
 │   ├── aggiorna-casa.js     ← rigenera descrizione_casa + citta da un nuovo link per una struttura esistente (verifica owner tramite access_token)
 │   ├── host-autorizzati.js  ← SOLO superadmin (email === VITE_ADMIN_EMAIL): GET elenco, POST autorizza un'email + genera link
-│   │                          di invito (supabase.auth.admin.generateLink), DELETE rimuove dall'elenco e prova a eliminare
-│   │                          l'account Auth (fallisce di proposito se l'host ha già una struttura). Service role, tabella `host_autorizzati`.
+│   │                          di invito (supabase.auth.admin.generateLink), DELETE trasferisce prima tutte le strutture al
+│   │                          superadmin e poi rimuove account Auth + autorizzazione: nessuna struttura resta senza proprietario.
 │   ├── sezioni-extra.js     ← SOLO superadmin: POST crea una sezione custom (genera slug da etichetta, rifiuta collisioni con
 │   │                          le 14 di sistema / rotte riservate), DELETE la elimina. Tabella `sezioni_extra`, service role.
 │   └── verifica-slug.js     ← pubblico, volutamente minimo: GET ?slug=... → { esiste: bool }, nient'altro. Usato da Struttura.tsx
@@ -471,7 +473,7 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 
 **Gate registrazione host + invito superadmin (pubblicato, testato in prod 31/08/2026):**
 - `Login.tsx` con `shouldCreateUser: false` — si accede solo con email già in Supabase Auth. Email sconosciuta → messaggio, non il link.
-- **Invito host**: tabella `host_autorizzati` + `api/host-autorizzati.js` (GET/POST/DELETE) + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link "PIATTAFORMA" nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email, genera il link di invito, e può rimuovere un host dall'elenco (il "Rimuovi" prova anche a eliminare l'account Auth, salta se ha già una struttura).
+- **Invito host**: tabella `host_autorizzati` + `api/host-autorizzati.js` (GET/POST/DELETE) + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link "PIATTAFORMA" nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email, genera il link di invito e può rimuovere un host: prima le sue strutture passano al superadmin, poi l'account Auth viene eliminato. Questo evita strutture senza proprietario (17/09/2026).
 - Serve `VITE_ADMIN_EMAIL` su Vercel + `.env.local` = email del superadmin (oggi `bernardinocalifano@gmail.com`, che possiede Villa Virginia).
 - **Incremento B — fatto (09-10/09/2026)**: `importa-casa.js` popola `registrato_il` E verifica `host_autorizzati` (403 se l'email non è in elenco; carve-out per il superadmin `VITE_ADMIN_EMAIL`). Ora il flusso è chiuso su due livelli: login (`shouldCreateUser: false`) + questo check. Un account Auth creato a mano, saltando "Invita host", non riesce più a creare la struttura.
 - **Guida in bozza + pubblicazione (09/09/2026)**: nuove strutture nascono `attivo=false`. `Admin.tsx` mostra la card "Primi passi" (checklist: pagine di testo ○/✓, luoghi ○/✓; + link a dati casa, colore/foto, sezioni, traduzioni) e il pulsante "Pubblica la guida" (→ `attivo=true`). Quando è online: "🟢 La guida è online" + "Metti offline" (con conferma). L'host vede/apre la propria guida anche da spenta (migration 0010). **Aggiornato (13/09/2026)**: un ospite anonimo che apre lo slug di una guida non pubblica ora vede "Questa guida non è ancora pubblica" invece di "Struttura non trovata" — `api/verifica-slug.js` (endpoint pubblico, ritorna solo `{esiste}`) fa la distinzione senza esporre i dati della struttura.

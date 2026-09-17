@@ -101,34 +101,53 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Non puoi rimuovere il superadmin' })
     }
 
-    const { error: erroreDelete } = await supabase
-      .from('host_autorizzati')
-      .delete()
-      .eq('email', emailPulita)
-
-    if (erroreDelete) {
-      console.error(erroreDelete)
-      return res.status(500).json({ error: "Errore nel rimuovere l'host" })
-    }
-
-    // Prova a eliminare anche l'account Supabase. Fallisce se l'host ha già creato
-    // una struttura (FK): in quel caso resta l'account, ma non è più autorizzato.
-    let nota = ''
+    // Prima della cancellazione trasferiamo ogni struttura al superadmin. La FK
+    // usa ON DELETE SET NULL: senza questo passaggio la struttura resterebbe
+    // senza proprietario e nessuno potrebbe più gestirla.
     try {
-      const { data: lista } = await supabase.auth.admin.listUsers({ page: 1, perPage: 200 })
+      const { data: lista } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
       const utente = lista?.users?.find((u) => u.email?.toLowerCase() === emailPulita)
       if (utente) {
-        const { error } = await supabase.auth.admin.deleteUser(utente.id)
-        if (error) {
-          nota = "Rimosso dall'elenco autorizzati. L'account Supabase esiste ancora (ha già una struttura): eliminalo a mano se serve."
+        const { data: strutture, error: erroreStrutture } = await supabase
+          .from('strutture')
+          .select('id')
+          .eq('owner_user_id', utente.id)
+        if (erroreStrutture) throw erroreStrutture
+
+        const ids = (strutture || []).map((s) => s.id)
+        if (ids.length) {
+          const { error } = await supabase
+            .from('strutture')
+            .update({ owner_user_id: admin.id })
+            .in('id', ids)
+          if (error) throw error
+        }
+
+        const { error: erroreAccount } = await supabase.auth.admin.deleteUser(utente.id)
+        if (erroreAccount) {
+          // Se Auth non permette la cancellazione, restituiamo le strutture
+          // all'host: l'operazione resta coerente e non perde proprietà.
+          if (ids.length) {
+            await supabase.from('strutture').update({ owner_user_id: utente.id }).in('id', ids)
+          }
+          return res.status(500).json({ error: "Non sono riuscito a rimuovere l'account dell'host. Non è stata fatta nessuna modifica." })
         }
       }
     } catch (err) {
       console.error(err)
-      nota = "Rimosso dall'elenco autorizzati, ma non ho potuto controllare l'account Supabase."
+      return res.status(500).json({ error: "Non sono riuscito a trasferire le strutture dell'host. Non è stata fatta nessuna modifica." })
     }
 
-    return res.status(200).json({ ok: true, nota })
+    const { error: erroreDelete } = await supabase
+      .from('host_autorizzati')
+      .delete()
+      .eq('email', emailPulita)
+    if (erroreDelete) {
+      console.error(erroreDelete)
+      return res.status(500).json({ error: "Account rimosso, ma non sono riuscito ad aggiornare l'elenco host." })
+    }
+
+    return res.status(200).json({ ok: true, nota: 'Host rimosso. Le eventuali strutture sono ora sotto il superadmin.' })
   }
 
   return res.status(405).json({ error: 'Metodo non permesso' })

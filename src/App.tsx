@@ -1,31 +1,37 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Struttura from './Struttura'
 import Home from './Home'
-import SezionePage from './SezionePage'
-import PaginaStatica from './PaginaStatica'
-import Gennarino from './Gennarino'
-import Login from './admin/Login'
-import RichiedeLogin from './admin/RichiedeLogin'
-import AdminShell from './admin/AdminShell'
-import Admin from './admin/Admin'
-import CreaStruttura from './admin/CreaStruttura'
-import ModificaCasa from './admin/ModificaCasa'
-import NoteGennarino from './admin/NoteGennarino'
-import DomandeOspiti from './admin/DomandeOspiti'
-import StatisticheDomande from './admin/StatisticheDomande'
-import TraduciGuida from './admin/TraduciGuida'
-import SezioniGuida from './admin/SezioniGuida'
-import SezioniExtra from './admin/SezioniExtra'
-import InvitaHost from './admin/InvitaHost'
-import GestisciSezione from './admin/GestisciSezione'
-import GestisciPagina from './admin/GestisciPagina'
 import { useSezioni } from './useSezioni'
+
+// Le schermate che non servono alla prima apertura della guida vengono caricate
+// solo quando l'utente ci entra: la Home ospiti non deve portarsi dietro tutto
+// il pannello host e la chat AI.
+const SezionePage = lazy(() => import('./SezionePage'))
+const PaginaStatica = lazy(() => import('./PaginaStatica'))
+const Gennarino = lazy(() => import('./Gennarino'))
+const Login = lazy(() => import('./admin/Login'))
+const RichiedeLogin = lazy(() => import('./admin/RichiedeLogin'))
+const AdminShell = lazy(() => import('./admin/AdminShell'))
+const Admin = lazy(() => import('./admin/Admin'))
+const CreaStruttura = lazy(() => import('./admin/CreaStruttura'))
+const ModificaCasa = lazy(() => import('./admin/ModificaCasa'))
+const NoteGennarino = lazy(() => import('./admin/NoteGennarino'))
+const DomandeOspiti = lazy(() => import('./admin/DomandeOspiti'))
+const StatisticheDomande = lazy(() => import('./admin/StatisticheDomande'))
+const TraduciGuida = lazy(() => import('./admin/TraduciGuida'))
+const SezioniGuida = lazy(() => import('./admin/SezioniGuida'))
+const SezioniExtra = lazy(() => import('./admin/SezioniExtra'))
+const InvitaHost = lazy(() => import('./admin/InvitaHost'))
+const GestisciSezione = lazy(() => import('./admin/GestisciSezione'))
+const GestisciPagina = lazy(() => import('./admin/GestisciPagina'))
 
 function App() {
   const { tutte: SEZIONI, caricamento } = useSezioni()
 
   return (
-    <Routes>
+    <Suspense fallback={<p className="p-8 text-center text-sm text-slate-500">Caricamento...</p>}>
+      <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/admin" element={<RichiedeLogin />}>
         <Route element={<AdminShell />}>
@@ -63,7 +69,8 @@ function App() {
         ))}
         <Route path=":sezione" element={<SezionePage />} />
       </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   )
 }
 

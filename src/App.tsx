@@ -12,6 +12,7 @@ import CreaStruttura from './admin/CreaStruttura'
 import ModificaCasa from './admin/ModificaCasa'
 import NoteGennarino from './admin/NoteGennarino'
 import DomandeOspiti from './admin/DomandeOspiti'
+import StatisticheDomande from './admin/StatisticheDomande'
 import TraduciGuida from './admin/TraduciGuida'
 import SezioniGuida from './admin/SezioniGuida'
 import SezioniExtra from './admin/SezioniExtra'
@@ -33,6 +34,7 @@ function App() {
           <Route path="modifica-casa" element={<ModificaCasa />} />
           <Route path="note" element={<NoteGennarino />} />
           <Route path="domande" element={<DomandeOspiti />} />
+          <Route path="statistiche" element={<StatisticheDomande />} />
           <Route path="traduzioni" element={<TraduciGuida />} />
           <Route path="sezioni-guida" element={<SezioniGuida />} />
           <Route path="sezioni-extra" element={<SezioniExtra />} />

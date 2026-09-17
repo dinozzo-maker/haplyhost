@@ -121,6 +121,7 @@ export default function Gennarino() {
       })}
       {caricamento && <p className="g-hint">{T[lingua].gennarinoScrivendo}</p>}
 
+      <p className="text-[11px] leading-relaxed text-slate-400 px-1 mt-auto">{T[lingua].gennarinoPrivacy}</p>
       <div className="g-composer">
         <input
           value={testo}

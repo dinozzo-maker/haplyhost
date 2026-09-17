@@ -47,6 +47,10 @@ haplyhost/
 │   │                          Endpoint PUBBLICO: `domanda` capata a 1500 char, `storico` alle ultime 12 righe (2000 char l'una)
 │   │                          — `pulisciStorico()`. Rate limit grezzo per struttura: 429 se >15 righe in `domande` nell'ultimo
 │   │                          minuto (dosso, non muro — una raffica simultanea passa). Per-IP vero: ancora da fare (store esterno).
+│   │                          Prima di salvare oscura email, telefoni, URL e codici di prenotazione; aggiorna le statistiche
+│   │                          aggregate giornaliere. Il testo viene eliminato automaticamente dopo 90 giorni.
+│   ├── pulisci-domande.js   ← chiamata ogni notte da Vercel Cron: elimina da `domande` solo il testo oltre 90 giorni.
+│   │                          Non è pubblica: accetta solo `Authorization: Bearer CRON_SECRET`.
 │   ├── traduci-guida.js     ← SOLO owner: traduce con Haiku (max_tokens 16k, 1 retry sul JSON storto) pagine + luoghi con
 │   │                          `da_tradurre=true` O (con testo) senza `traduzioni` (en/fr/de/es) → `*.traduzioni`, e azzera `da_tradurre`.
 │   │                          Una riga col flag ma senza testo da tradurre (es. luogo con solo il nome) → flag tolto lo stesso
@@ -227,8 +231,9 @@ haplyhost/
 │       │                          o link incollato (in `<details>`, staged). Riquadro "Rigenera la descrizione" → POST /api/aggiorna-casa
 │       ├── NoteGennarino.tsx     ← rotta /admin/note (link nel pannello): textarea `strutture.note_gennarino` → UPDATE diretto.
 │       │                          Info pratiche libere per Gennarino, NON una sezione della guida
-│       ├── DomandeOspiti.tsx     ← rotta /admin/domande (link nel pannello): elenco `domande` della struttura (cosa hanno chiesto
-│       │                          gli ospiti a Gennarino), tap per vedere la risposta. Sola lettura (migration 0008)
+│       ├── DomandeOspiti.tsx     ← rotta /admin/domande: elenco anonimizzato `domande`, tap per risposta; elimina una riga o
+│       │                          tutto lo storico (migration 0014). Il testo dura al massimo 90 giorni.
+│       ├── StatisticheDomande.tsx ← rotta /admin/statistiche: conteggi aggregati senza testo (totale, ultimi 30 giorni, lingue).
 │       ├── TraduciGuida.tsx      ← rotta /admin/traduzioni (link nel pannello): pulsante "Traduci la guida" → POST /api/traduci-guida
 │       ├── SezioniGuida.tsx     ← rotta /admin/sezioni-guida: spunte "mostra nella guida" (sistema + custom) → UPDATE `strutture.sezioni_attive`.
 │       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
@@ -306,7 +311,8 @@ luoghi (
 annunci (struttura_id, testo, attivo, creato_il)     -- non ancora usata dal frontend V2
 eventi  (struttura_id, data, titolo, descrizione, attivo)  -- non ancora usata dal frontend V2
 soggiorni (struttura_id, nome, checkin, checkout, con_bambini)  -- non ancora usata; serve per il Wi-Fi legato al soggiorno (feature pendente)
-domande (id uuid pk, struttura_id, domanda, risposta, lang default 'it', creato_il)  -- log Gennarino, scritto da api/gennarino.js con service role (lang = lingua rilevata). RLS: SELECT per l'host della struttura (migration 0008)
+domande (id uuid pk, struttura_id, domanda, risposta, lang default 'it', creato_il)  -- log Gennarino, scritto da api/gennarino.js con service role (lang = lingua rilevata). Prima del salvataggio oscura contatti/link/codici; testo max 90 giorni. RLS: SELECT+DELETE per host (0008+0014)
+statistiche_domande_giornaliere (struttura_id, giorno, lingua, numero)  -- soli conteggi anonimi; restano oltre i 90 giorni. SELECT solo host (0015)
 
 pagine (
   id uuid pk, struttura_id uuid references strutture(id) on delete cascade,
@@ -349,7 +355,8 @@ sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di
 - `luoghi`: SELECT pubblico dove `attivo=true` **+** una policy `for all` per `authenticated` scoped a `struttura_id in (select id from strutture where owner_user_id = auth.uid())`
 - `pagine`: SELECT pubblico senza restrizioni **+** policy `for all` per `authenticated` scoped come sopra
 - `proposte`: solo la policy scoped per `authenticated` come sopra, nessun accesso pubblico
-- `domande`: RLS on; SELECT per `authenticated` scoped a `struttura_id in (select id from strutture where owner_user_id = auth.uid())` (migration 0008). Scrittura solo service role (api/gennarino.js). Nessun accesso anon.
+- `domande`: RLS on; SELECT e DELETE per `authenticated` scoped a `struttura_id in (select id from strutture where owner_user_id = auth.uid())` (migration 0008 + 0014). Scrittura solo service role. Nessun accesso anon.
+- `statistiche_domande_giornaliere`: RLS on; SELECT solo host proprietario. Contiene giorno, lingua e conteggio, mai testo. `registra_statistica_domanda()` è eseguibile solo da service role (0015).
 - `soggiorni`: SELECT pubblico solo per la riga dove `current_date` è tra `checkin` e `checkout` (privacy: non si vedono soggiorni passati/futuri)
 - `sezioni_extra`: SELECT pubblico senza restrizioni; nessuna policy di scrittura (solo service role via API)
 - **Storage** `storage.objects` (migration 0006): bucket `copertine` (public), INSERT/UPDATE/DELETE per `authenticated` dove `bucket_id='copertine'` (non scoped per host: un host solo oggi), SELECT pubblico. Le foto di copertina delle guide.
@@ -365,7 +372,12 @@ letta da `api/gennarino.js` — SQL prima del push), `0008_domande_lettura_host.
 policy SELECT per l'host, per la pagina `/admin/domande`), `0009_pagine_da_tradurre.sql` (colonna
 `pagine.da_tradurre` + azzera i flag vestigiali di `luoghi.da_tradurre`), `0010_strutture_select_owner.sql`
 (policy SELECT `strutture` per l'owner), `0011_luoghi_foto.sql` (colonna `luoghi.foto_url`, 13/09/2026 —
-lanciata dall'utente su Supabase su mia richiesta, prima del push del codice che la legge). Lo schema sopra resta la fonte di verità scritta;
+lanciata dall'utente su Supabase su mia richiesta, prima del push del codice che la legge),
+`0012_storage_copertine_per_host.sql` (upload Storage delimitato al proprietario),
+`0013_rls_contenuti_solo_guide_pubblicate.sql` (contenuti pubblici solo di guide attive),
+`0014_domande_eliminazione_host.sql` (DELETE dello storico solo al rispettivo host) e
+`0015_statistiche_domande_anonime.sql` (conteggi giornalieri anonimi + funzione server-side; eseguite il 17/09/2026).
+Lo schema sopra resta la fonte di verità scritta;
 restano NON tracciati la colonna `link_riferimento` e la policy RLS `strutture` per owner. Da qui in
 avanti ogni `ALTER TABLE` / `CREATE POLICY` va in un file numerato lì dentro. ⚠️ Quando una migration
 aggiunge una colonna che il codice nuovo **legge in una `select`** (es. 0003), lanciare l'SQL

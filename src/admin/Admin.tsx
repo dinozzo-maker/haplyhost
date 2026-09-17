@@ -6,7 +6,7 @@ import { useSezioni } from '../useSezioni'
 import type { ContestoHost } from './RichiedeLogin'
 import CreaStruttura from './CreaStruttura'
 import {
-  Settings, NotebookPen, MessageCircleQuestion, LayoutGrid, Languages, Eye,
+  Settings, NotebookPen, MessageCircleQuestion, BarChart3, LayoutGrid, Languages, Eye,
   UserPlus, Puzzle, CircleCheck, Circle, ArrowRight, TriangleAlert,
 } from 'lucide-react'
 import { Campo, classeCampo, Pulsante, Esito } from './ui'
@@ -244,6 +244,9 @@ export default function Admin() {
           </Scorciatoia>
           <Scorciatoia to="/admin/domande">
             <MessageCircleQuestion className="w-4 h-4 text-slate-400 shrink-0" /> Domande degli ospiti
+          </Scorciatoia>
+          <Scorciatoia to="/admin/statistiche">
+            <BarChart3 className="w-4 h-4 text-slate-400 shrink-0" /> Statistiche Gennarino
           </Scorciatoia>
           <Scorciatoia to="/admin/sezioni-guida">
             <LayoutGrid className="w-4 h-4 text-slate-400 shrink-0" /> Sezioni della guida

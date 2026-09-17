@@ -107,6 +107,35 @@ const MAX_CONTENUTO_MSG = 2000 // per singolo messaggio dello storico
 // Per una difesa vera serve un rate limit per IP (store esterno, es. Upstash).
 const MAX_AL_MINUTO = 15
 
+// Nel registro destinato all'host non serve sapere CHI ha scritto. Prima di
+// conservarlo togliamo i dati che permettono di ricontattare o riconoscere una
+// persona. La domanda originale resta solo nella richiesta in corso, necessaria
+// a Gennarino per rispondere; nel DB finisce questa versione ripulita.
+function anonimizzaTesto(testo) {
+  return String(testo || '')
+    // email e indirizzi web (un link può contenere un profilo o un codice personale)
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email rimosso]')
+    .replace(/https?:\/\/[^\s]+/gi, '[link rimosso]')
+    // numeri di telefono: almeno 7 cifre, anche con spazi, punti o trattini.
+    // I codici brevi (112 ecc.) non vengono toccati perché non identificano un ospite.
+    .replace(/(?<!\w)(?:\+?\d[\d .()-]{5,}\d)(?!\w)/g, (valore) => {
+      const cifre = valore.replace(/\D/g, '')
+      return cifre.length >= 7 ? '[telefono rimosso]' : valore
+    })
+    // Codici comunicati dall'ospite insieme alla prenotazione.
+    .replace(/\b(codice|prenotazione|booking|reservation|confirmation)\s*[:#-]?\s*[A-Z0-9-]{5,}\b/gi, '$1 [codice rimosso]')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function giornoInItalia() {
+  const parti = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const valore = (tipo) => parti.find((p) => p.type === tipo)?.value || ''
+  return `${valore('year')}-${valore('month')}-${valore('day')}`
+}
+
 function pulisciStorico(grezzo) {
   return (Array.isArray(grezzo) ? grezzo : [])
     .slice(-MAX_MESSAGGI)
@@ -236,7 +265,23 @@ ${struttura?.note_gennarino || 'Nessuna nota pratica aggiuntiva.'}`
       .replace(/\*+/g, '')
       .replace(/^\s{0,3}#{1,6}\s+/gm, '')
 
-    supabase.from('domande').insert({ struttura_id, domanda, risposta: testo, lang: linguaRisposta }).then(() => {})
+    const domandaAnonima = anonimizzaTesto(domanda) || '[domanda senza testo]'
+    const rispostaAnonima = anonimizzaTesto(testo)
+    // La risposta all'ospite non aspetta il registro o le statistiche: se la
+    // raccolta dati ha un problema, Gennarino continua comunque a funzionare.
+    Promise.all([
+      supabase.from('domande').insert({
+        struttura_id,
+        domanda: domandaAnonima,
+        risposta: rispostaAnonima,
+        lang: linguaRisposta,
+      }),
+      supabase.rpc('registra_statistica_domanda', {
+        p_struttura_id: struttura_id,
+        p_lingua: linguaRisposta,
+        p_giorno: giornoInItalia(),
+      }),
+    ]).catch(() => {})
 
     return res.status(200).json({ risposta: testo })
   } catch (err) {

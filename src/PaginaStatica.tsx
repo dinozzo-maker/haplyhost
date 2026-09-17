@@ -22,18 +22,26 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
   const { lingua } = useLingua()
   const [pagina, setPagina] = useState<PaginaRow | null>(null)
   const [caricamento, setCaricamento] = useState(true)
+  const [errore, setErrore] = useState(false)
 
   const info = tutte.find((s) => s.chiave === chiave)
 
   useEffect(() => {
     async function carica() {
-      const { data } = await supabase
+      setCaricamento(true)
+      setErrore(false)
+      const { data, error } = await supabase
         .from('pagine')
         .select('titolo, contenuto, traduzioni')
         .eq('struttura_id', struttura.id)
         .eq('chiave', chiave)
         .maybeSingle()
 
+      if (error) {
+        setErrore(true)
+        setCaricamento(false)
+        return
+      }
       setPagina(data)
       setCaricamento(false)
     }
@@ -70,12 +78,13 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
       </div>
 
       {caricamento && <p className="g-hint">{T[lingua].caricamento}</p>}
-      {!caricamento && !pagina && <p className="g-hint">{T[lingua].paginaVuota}</p>}
-      {!caricamento && pagina && (
+      {!caricamento && errore && <p className="g-hint">{T[lingua].erroreCaricamento}</p>}
+      {!caricamento && !errore && !pagina && <p className="g-hint">{T[lingua].paginaVuota}</p>}
+      {!caricamento && !errore && pagina && (
         <div className="g-prose">{conTelefoni(contenuto, reTelefono(chiave === 'emergenze'))}</div>
       )}
 
-      {mostraTasti && (
+      {!errore && mostraTasti && (
         <div className="g-contatti">
           {waNumero && (
             <a className="g-btn-wa" href={`https://wa.me/${waNumero}`} target="_blank" rel="noreferrer">

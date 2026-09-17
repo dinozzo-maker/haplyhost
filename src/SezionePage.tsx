@@ -31,6 +31,7 @@ export default function SezionePage() {
   const { lingua } = useLingua()
   const [luoghi, setLuoghi] = useState<LuogoRow[]>([])
   const [caricamento, setCaricamento] = useState(true)
+  const [errore, setErrore] = useState(false)
 
   const info = tutte.find((s) => s.chiave === sezione)
   // Arrivando da "Oggi ti consiglio" (Home.tsx) il link porta a #luogo-<id>: una volta
@@ -39,7 +40,9 @@ export default function SezionePage() {
 
   useEffect(() => {
     async function carica() {
-      const { data } = await supabase
+      setCaricamento(true)
+      setErrore(false)
+      const { data, error } = await supabase
         .from('luoghi')
         .select('id, nome, descrizione, distanza, maps, telefono, prezzo, voto, categoria, foto_url, traduzioni')
         .eq('struttura_id', struttura.id)
@@ -47,6 +50,11 @@ export default function SezionePage() {
         .eq('attivo', true)
         .order('ordine')
 
+      if (error) {
+        setErrore(true)
+        setCaricamento(false)
+        return
+      }
       // Dal più vicino al più lontano, non nell'ordine di inserimento.
       setLuoghi(ordinaPerDistanza(data ?? [], (l) => l.distanza))
       setCaricamento(false)
@@ -74,9 +82,10 @@ export default function SezionePage() {
       </div>
 
       {caricamento && <p className="g-hint">{T[lingua].caricamento}</p>}
-      {!caricamento && luoghi.length === 0 && <p className="g-hint">{T[lingua].sezioneVuota}</p>}
+      {!caricamento && errore && <p className="g-hint">{T[lingua].erroreCaricamento}</p>}
+      {!caricamento && !errore && luoghi.length === 0 && <p className="g-hint">{T[lingua].sezioneVuota}</p>}
 
-      {luoghi.map((l) => {
+      {!errore && luoghi.map((l) => {
         const descrizione = campoTradotto(l.descrizione, l.traduzioni, 'descrizione', lingua)
         const categoria = campoTradotto(l.categoria, l.traduzioni, 'categoria', lingua)
         const distanza = campoTradotto(l.distanza, l.traduzioni, 'distanza', lingua)

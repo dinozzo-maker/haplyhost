@@ -64,6 +64,20 @@ export default function Struttura() {
     carica()
   }, [slug])
 
+  // Il manifest nasce per questa guida specifica: l'ospite che la installa
+  // ritrova la stessa struttura quando apre l'icona dalla schermata Home.
+  useEffect(() => {
+    if (!slug) return
+    const id = 'haply-manifest'
+    document.getElementById(id)?.remove()
+    const manifest = document.createElement('link')
+    manifest.id = id
+    manifest.rel = 'manifest'
+    manifest.href = `/api/manifest?slug=${encodeURIComponent(slug)}`
+    document.head.appendChild(manifest)
+    return () => manifest.remove()
+  }, [slug])
+
   return (
     <LinguaProvider>
       <Guscio slug={slug ?? ''} struttura={struttura} nonPubblica={nonPubblica} errore={errore} caricamento={caricamento} />

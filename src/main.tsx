@@ -11,3 +11,11 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+// La PWA è attiva solo nella build pubblicata: in sviluppo non deve lasciare
+// cache che renderebbero confusi i test locali.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}

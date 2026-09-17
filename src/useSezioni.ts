@@ -42,6 +42,7 @@ async function caricaCustom(): Promise<Sezione[]> {
       const { data, error } = await supabase
         .from('sezioni_extra')
         .select('chiave, icona, etichetta, descrizione, tipo, ordine')
+        .eq('archiviata', false)
         .order('ordine')
       // Se la tabella non esiste ancora (migration 0004 non lanciata) o errore → degrada
       // alle sole sezioni di sistema.

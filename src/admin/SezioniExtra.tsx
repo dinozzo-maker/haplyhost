@@ -20,6 +20,7 @@ type SezioneExtra = {
   descrizione: string | null
   tipo: string
   categoria: string | null
+  archiviata: boolean
 }
 
 export default function SezioniExtra() {
@@ -39,6 +40,7 @@ export default function SezioniExtra() {
   const [invio, setInvio] = useState(false)
   const [errore, setErrore] = useState('')
   const [rimozione, setRimozione] = useState('')
+  const [modifica, setModifica] = useState<SezioneExtra | null>(null)
 
   async function token() {
     const { data } = await supabase.auth.getSession()
@@ -48,7 +50,7 @@ export default function SezioniExtra() {
   async function caricaLista() {
     const { data } = await supabase
       .from('sezioni_extra')
-      .select('chiave, icona, etichetta, descrizione, tipo, categoria')
+      .select('chiave, icona, etichetta, descrizione, tipo, categoria, archiviata')
       .order('ordine')
     setLista(data ?? [])
     setCaricamento(false)
@@ -101,8 +103,65 @@ export default function SezioniExtra() {
     }
   }
 
+  function apriModifica(s: SezioneExtra) {
+    setErrore('')
+    setModifica(s)
+    setEtichetta(s.etichetta)
+    setIcona(s.icona)
+    setDescrizione(s.descrizione ?? '')
+    setTipo(s.tipo === 'elenco' ? 'elenco' : 'testo')
+    setCategoria(s.categoria ?? '')
+    setPickerAperto(false)
+  }
+
+  function annullaModifica() {
+    setModifica(null)
+    setEtichetta('')
+    setIcona('')
+    setDescrizione('')
+    setCategoria('')
+    setTipo('testo')
+    setPickerAperto(false)
+    setErrore('')
+  }
+
+  async function salvaModifica() {
+    if (!modifica || !etichetta.trim()) {
+      setErrore('Serve almeno un nome.')
+      return
+    }
+    setErrore('')
+    setInvio(true)
+    try {
+      const res = await fetch('/api/sezioni-extra', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          access_token: await token(),
+          chiave: modifica.chiave,
+          etichetta: etichetta.trim(),
+          icona: icona.trim(),
+          descrizione: descrizione.trim(),
+          categoria: modifica.tipo === 'elenco' ? categoria.trim() : '',
+        }),
+      })
+      const dati = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setErrore(dati.error || 'Errore nel salvataggio.')
+        return
+      }
+      annullaModifica()
+      invalidaCacheSezioni()
+      await caricaLista()
+    } catch {
+      setErrore('Errore di connessione, riprova.')
+    } finally {
+      setInvio(false)
+    }
+  }
+
   async function elimina(s: SezioneExtra) {
-    if (!window.confirm(`Eliminare la sezione "${s.etichetta}"? Sparirà da tutte le guide. Il contenuto già scritto dagli host resta salvato ma nascosto.`)) return
+    if (!window.confirm(`Archiviare la sezione "${s.etichetta}"? Sparirà da tutte le guide, ma i contenuti degli host resteranno conservati e potrai ripristinarla in futuro.`)) return
     setRimozione(s.chiave)
     try {
       const res = await fetch('/api/sezioni-extra', {
@@ -115,12 +174,39 @@ export default function SezioniExtra() {
       })
       const dati = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setErrore(dati.error || 'Non riesco a eliminare la sezione.')
+        setErrore(dati.error || 'Non riesco ad archiviare la sezione.')
+        return
       }
       invalidaCacheSezioni()
       await caricaLista()
     } catch {
       setErrore('Errore di connessione durante l\'eliminazione.')
+    } finally {
+      setRimozione('')
+    }
+  }
+
+  async function ripristina(s: SezioneExtra) {
+    setRimozione(s.chiave)
+    setErrore('')
+    try {
+      const res = await fetch('/api/sezioni-extra', {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${await token()}`,
+        },
+        body: JSON.stringify({ chiave: s.chiave }),
+      })
+      const dati = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setErrore(dati.error || 'Non riesco a ripristinare la sezione.')
+        return
+      }
+      invalidaCacheSezioni()
+      await caricaLista()
+    } catch {
+      setErrore('Errore di connessione durante il ripristino.')
     } finally {
       setRimozione('')
     }
@@ -140,6 +226,12 @@ export default function SezioniExtra() {
       sottotitolo="Sezioni extra che si aggiungono a quelle di serie. Ogni host le trova in “Sezioni della guida” e decide se attivarle: nascono spente per tutti."
     >
       <Sezione>
+        {modifica && (
+          <p className="text-sm font-semibold text-slate-900">
+            Modifica “{modifica.etichetta}”
+            <span className="block text-xs font-normal text-slate-500 mt-1">Il tipo resta {modifica.tipo === 'elenco' ? 'lista di luoghi' : 'pagina di testo'} per non rendere invisibili i contenuti esistenti.</span>
+          </p>
+        )}
         <Campo etichetta="Nome della sezione">
           <input
             className={classeCampo}
@@ -187,7 +279,7 @@ export default function SezioniExtra() {
         </Campo>
 
         <Campo etichetta="Tipo">
-          <select className={classeCampo} value={tipo} onChange={(e) => setTipo(e.target.value as 'testo' | 'elenco')}>
+          <select className={classeCampo} value={tipo} disabled={!!modifica} onChange={(e) => setTipo(e.target.value as 'testo' | 'elenco')}>
             <option value="testo">Pagina di testo (l'host scrive un testo)</option>
             <option value="elenco">Lista di luoghi (con ricerca online)</option>
           </select>
@@ -204,17 +296,18 @@ export default function SezioniExtra() {
           </Campo>
         )}
 
-        <Pulsante onClick={crea} disabled={invio || !etichetta.trim()}>
-          {invio ? 'Creo...' : 'Crea sezione'}
+        <Pulsante onClick={modifica ? salvaModifica : crea} disabled={invio || !etichetta.trim()}>
+          {invio ? 'Salvo...' : modifica ? 'Salva modifiche' : 'Crea sezione'}
         </Pulsante>
+        {modifica && <Pulsante variante="secondario" onClick={annullaModifica} disabled={invio}>Annulla</Pulsante>}
         {errore && <Esito ok={false}>{errore}</Esito>}
       </Sezione>
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Sezioni extra ({lista.length})</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Sezioni attive ({lista.filter((s) => !s.archiviata).length})</p>
         {caricamento && <p className="text-sm text-slate-500">Caricamento...</p>}
         <div className="flex flex-col gap-2">
-          {lista.map((s) => (
+          {lista.filter((s) => !s.archiviata).map((s) => (
             <div key={s.chiave} className="bg-white border border-slate-200 shadow-sm rounded-xl p-3.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -227,18 +320,35 @@ export default function SezioniExtra() {
                   </p>
                   {s.descrizione && <p className="text-xs text-slate-500 mt-1">{s.descrizione}</p>}
                 </div>
-                <button
-                  onClick={() => elimina(s)}
-                  disabled={rimozione === s.chiave}
-                  className="text-xs text-red-600 shrink-0 disabled:opacity-50"
-                >
-                  {rimozione === s.chiave ? '...' : 'Elimina'}
-                </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button onClick={() => apriModifica(s)} className="text-xs font-medium text-slate-600 hover:text-slate-900">Modifica</button>
+                  <button
+                    onClick={() => elimina(s)}
+                    disabled={rimozione === s.chiave}
+                    className="text-xs text-red-600 disabled:opacity-50"
+                  >
+                    {rimozione === s.chiave ? '...' : 'Archivia'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {lista.some((s) => s.archiviata) && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Archiviate ({lista.filter((s) => s.archiviata).length})</p>
+          {lista.filter((s) => s.archiviata).map((s) => (
+            <div key={s.chiave} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex items-center justify-between gap-3">
+              <p className="text-sm text-slate-600 inline-flex items-center gap-1.5 min-w-0"><Icona nome={s.icona} className="w-4 h-4 shrink-0" /> {s.etichetta}</p>
+              <button onClick={() => ripristina(s)} disabled={rimozione === s.chiave} className="text-xs font-medium text-slate-700 shrink-0 disabled:opacity-50">
+                {rimozione === s.chiave ? '...' : 'Ripristina'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </PaginaAdmin>
   )
 }

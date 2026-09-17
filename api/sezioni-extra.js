@@ -90,13 +90,73 @@ export default async function handler(req, res) {
     if (!chiave) {
       return res.status(400).json({ error: 'Chiave mancante' })
     }
-    const { error } = await supabase.from('sezioni_extra').delete().eq('chiave', chiave)
+    // La richiesta puo' archiviare solo una sezione extra esistente: senza
+    // questo controllo un superadmin potrebbe per errore passare una chiave di
+    // sistema.
+    const { data: esistente, error: erroreLettura } = await supabase
+      .from('sezioni_extra')
+      .select('chiave')
+      .eq('chiave', chiave)
+      .maybeSingle()
+    if (erroreLettura || !esistente) {
+      return res.status(404).json({ error: 'Sezione non trovata' })
+    }
+
+    const { error } = await supabase
+      .from('sezioni_extra')
+      .update({ archiviata: true })
+      .eq('chiave', chiave)
     if (error) {
       console.error(error)
-      return res.status(500).json({ error: 'Errore nell\'eliminare la sezione' })
+      return res.status(500).json({ error: 'Errore nell\'archiviare la sezione' })
     }
-    // Le righe pagine/luoghi con questa chiave restano orfane (innocue): se la sezione
-    // viene ricreata con la stessa chiave, i contenuti riappaiono.
+    return res.status(200).json({ ok: true })
+  }
+
+  if (req.method === 'PUT') {
+    const chiave = (req.body?.chiave || '').trim()
+    if (!chiave) return res.status(400).json({ error: 'Chiave mancante' })
+    const { error } = await supabase
+      .from('sezioni_extra')
+      .update({ archiviata: false })
+      .eq('chiave', chiave)
+    if (error) {
+      console.error(error)
+      return res.status(500).json({ error: 'Errore nel ripristinare la sezione' })
+    }
+    return res.status(200).json({ ok: true })
+  }
+
+  if (req.method === 'PATCH') {
+    const { chiave, etichetta, icona, descrizione, categoria } = req.body || {}
+    const chiavePulita = (chiave || '').trim()
+    const etichettaPulita = (etichetta || '').trim()
+    if (!chiavePulita || !etichettaPulita) {
+      return res.status(400).json({ error: 'Nome della sezione mancante' })
+    }
+
+    const { data: esistente, error: erroreLettura } = await supabase
+      .from('sezioni_extra')
+      .select('tipo')
+      .eq('chiave', chiavePulita)
+      .maybeSingle()
+    if (erroreLettura || !esistente) {
+      return res.status(404).json({ error: 'Sezione non trovata' })
+    }
+
+    const { error } = await supabase
+      .from('sezioni_extra')
+      .update({
+        etichetta: etichettaPulita,
+        icona: (icona || '').trim() || 'sparkles',
+        descrizione: (descrizione || '').trim() || null,
+        categoria: esistente.tipo === 'elenco' ? ((categoria || '').trim() || null) : null,
+      })
+      .eq('chiave', chiavePulita)
+    if (error) {
+      console.error(error)
+      return res.status(500).json({ error: 'Errore nel salvare la sezione' })
+    }
     return res.status(200).json({ ok: true })
   }
 

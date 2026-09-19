@@ -338,6 +338,17 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     } finally { setSalvataggio(false) }
   }
 
+  const pulsanteSalvaScelte = (
+    <button
+      type="button"
+      onClick={salvaScelte}
+      disabled={salvataggio || cercando}
+      className="w-full rounded-xl py-3 text-sm font-semibold transition bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
+    >
+      {salvataggio ? 'Salvo…' : `Salva le scelte (${scelte.length} selezionati)`}
+    </button>
+  )
+
   return (
     <PaginaAdmin titolo={`Gestisci ${etichetta}`}>
       {RICERCHE_ATTIVE ? (
@@ -366,9 +377,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       {proposte.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Proposte da approvare ({proposte.length})</p>
-          <Pulsante onClick={salvaScelte} disabled={salvataggio || cercando}>
-            {salvataggio ? 'Salvo…' : `Salva le scelte (${scelte.length} selezionati)`}
-          </Pulsante>
+          {pulsanteSalvaScelte}
           <p className="text-xs text-slate-500">Al salvataggio saranno aggiunti {scelte.length} luoghi e rimosse {proposte.length - scelte.length} proposte non selezionate.</p>
           <div className="flex flex-col gap-2">
             {proposte.map((p) => (
@@ -413,6 +422,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
               </div>
             ))}
           </div>
+          {pulsanteSalvaScelte}
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import IndirizzoAutomatico from './IndirizzoAutomatico'
 import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { ridimensionaImmagine } from '../immagine'
@@ -266,14 +267,9 @@ export default function ModificaCasa() {
           <input className={classeCampo} value={dati.nome} onChange={(e) => aggiorna('nome', e.target.value)} />
         </Campo>
 
-        <Campo etichetta="Indirizzo">
-          <input
-            className={classeCampo}
-            value={dati.indirizzo}
-            onChange={(e) => aggiorna('indirizzo', e.target.value)}
-            placeholder="Via, numero civico, provincia"
-          />
-        </Campo>
+        <IndirizzoAutomatico key={struttura.id} valore={dati.indirizzo}
+          onChange={(valore) => aggiorna('indirizzo', valore)}
+          onSeleziona={(citta) => aggiorna('citta', citta)} />
 
         <Campo etichetta="Città">
           <input

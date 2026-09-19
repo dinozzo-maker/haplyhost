@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import IndirizzoAutomatico from './IndirizzoAutomatico'
 import { supabase } from '../supabaseClient'
 import { CHIAVE_STRUTTURA_SELEZIONATA } from './RichiedeLogin'
 import { PaginaAdmin, Campo, classeCampo, Pulsante, Esito } from './ui'
@@ -9,6 +10,7 @@ import { PaginaAdmin, Campo, classeCampo, Pulsante, Esito } from './ui'
 export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boolean }) {
   const [nome, setNome] = useState('')
   const [indirizzo, setIndirizzo] = useState('')
+  const [citta, setCitta] = useState('')
   const [link, setLink] = useState('')
   const [caricamento, setCaricamento] = useState(false)
   const [errore, setErrore] = useState('')
@@ -28,7 +30,7 @@ export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boo
       const res = await fetch('/api/importa-casa', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ nome, indirizzo, link, access_token }),
+        body: JSON.stringify({ nome, indirizzo, citta, link, access_token }),
       })
       const dati = await res.json()
       if (!res.ok) {
@@ -60,9 +62,9 @@ export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boo
         <input className={classeCampo} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Villa Virginia" />
       </Campo>
 
-      <Campo etichetta="Indirizzo">
-        <input className={classeCampo} value={indirizzo} onChange={(e) => setIndirizzo(e.target.value)} placeholder="Via, città, provincia" />
-      </Campo>
+      <IndirizzoAutomatico valore={indirizzo}
+        onChange={(valore) => { setIndirizzo(valore); setCitta('') }}
+        onSeleziona={setCitta} />
 
       <Campo etichetta="Link (annuncio, sito — facoltativo)">
         <input className={classeCampo} value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." />

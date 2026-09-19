@@ -30,7 +30,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Metodo non permesso' })
   }
 
-  const { nome, indirizzo, link, access_token } = req.body
+  const { nome, indirizzo, citta: cittaSelezionata, link, access_token } = req.body
   if (!nome || !indirizzo || !access_token) {
     return res.status(400).json({ error: 'Dati mancanti' })
   }
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
       slug,
       nome,
       indirizzo,
-      citta: citta || null,
+      citta: (typeof cittaSelezionata === 'string' ? cittaSelezionata.trim().slice(0, 200) : '') || citta || null,
       owner_user_id: userId,
       descrizione_casa: descrizione,
       // Nasce NON pubblica: l'host la prepara e poi la pubblica dal pannello

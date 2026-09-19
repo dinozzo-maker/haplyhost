@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude } from '../lib/proposte-scout.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -46,17 +47,11 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
     ? { type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }
     : { type: 'google_maps' }
 
-  const prompt = `Trova fino a 5 ${categoria} reali ed esistenti entro circa ${raggioKm} km da questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}.
-Il raggio di ${raggioKm} km è quello VERO da usare: non fermarti alle immediate vicinanze se ci sono mete più interessanti più lontane ma comunque dentro quel raggio.
-Se la categoria lo consente, includi anche mete raggiungibili solo in traghetto o nave (es. isole): non scartarle solo perché non ci si arriva in auto.
-Devono esistere davvero, non inventare nulla.
-${daEscludere.length ? `NON includere questi, già presenti nell'elenco: ${daEscludere.join(', ')}.` : ''}
-Per ciascun posto: nome esatto, una descrizione IN ITALIANO (massimo 200 caratteri, tono caldo per un ospite di casa vacanze), la distanza approssimativa da quell'indirizzo (in auto, a piedi, oppure "auto + traghetto" con tempo totale se è un'isola), la fascia di prezzo a persona SEMPRE in euro (es. "15-25 €"), la valutazione media Google (es. "4,5"), un link a Google Maps, un numero di telefono.
-Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
-[{"nome":"","descrizione":"","distanza":"","prezzo":"","voto":"","maps":"","telefono":""}]`
+  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm })
 
   const risposta = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
+    signal: AbortSignal.timeout(45000),
     headers: {
       'content-type': 'application/json',
       'x-goog-api-key': process.env.GEMINI_API_KEY,
@@ -64,7 +59,7 @@ Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
     body: JSON.stringify({
       model: 'gemini-3.1-flash-lite',
       input: prompt,
-      tools: [tool],
+      tools: [tool, { type: 'google_search' }],
     }),
   })
 
@@ -77,7 +72,7 @@ Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
   }
 
   const testo = dati.output_text
-    || dati.steps?.find(s => s.type === 'model_output')?.content?.[0]?.text
+    || dati.steps?.filter(s => s.type === 'model_output').flatMap(s => s.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n')
     || ''
 
   const candidati = estraiArrayJson(testo)
@@ -86,28 +81,12 @@ Rispondi SOLO con un array JSON valido, niente testo prima o dopo:
     throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
   }
 
-  return candidati.filter(c => c && c.nome).map(c => ({
-    nome: c.nome,
-    descrizione: c.descrizione || '',
-    distanza: c.distanza || '',
-    prezzo: c.prezzo || '',
-    voto: c.voto || '',
-    maps: c.maps || '',
-    telefono: c.telefono || '',
-  }))
+  return normalizzaProposte(candidati, citazioniGemini(dati), daEscludere, raggioKm)
 }
 
 // ---- MOTORE CLAUDE: ricerca web (fallback, oggi non selezionato) ----
 async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
-  const prompt = `Cerca online fino a 5 ${categoria} reali ed esistenti entro circa ${raggioKm} km da questo indirizzo: ${struttura?.indirizzo}, ${struttura?.citta}.
-Il raggio di ${raggioKm} km è quello VERO da usare: non fermarti alle immediate vicinanze se ci sono mete più interessanti più lontane ma comunque dentro quel raggio. Se la categoria lo consente, includi anche mete raggiungibili solo in traghetto o nave (es. isole).
-
-Non includere questi, già presenti nell'elenco: ${daEscludere.join(', ') || 'nessuno'}.
-
-Per ciascun posto scrivi: nome, una breve descrizione in italiano (massimo 200 caratteri, tono amichevole), la distanza approssimativa dall'indirizzo indicato (es. "10 min in auto", "5 min a piedi", o "auto + traghetto, circa 1h30" se è un'isola), un link a Google Maps se lo trovi, un numero di telefono se lo trovi.
-
-Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato esatto:
-[{"nome": "...", "descrizione": "...", "distanza": "...", "maps": "...", "telefono": "..."}]`
+  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm })
 
   const messages = [{ role: 'user', content: prompt }]
 
@@ -121,7 +100,7 @@ Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato es
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 3000,
+        max_tokens: 6000,
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
         messages: msgs,
       }),
@@ -134,10 +113,12 @@ Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato es
   }
 
   let dati = await chiamaClaude(messages)
+  const citazioni = [...citazioniClaude(dati)]
   let continua = 0
   while (dati.stop_reason === 'pause_turn' && continua < 3) {
     messages.push({ role: 'assistant', content: dati.content })
     dati = await chiamaClaude(messages)
+    citazioni.push(...citazioniClaude(dati))
     continua += 1
   }
 
@@ -153,15 +134,7 @@ Rispondi SOLO con un JSON valido, senza testo prima o dopo, in questo formato es
     throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
   }
 
-  return candidati.filter(c => c && c.nome).map(c => ({
-    nome: c.nome,
-    descrizione: c.descrizione || '',
-    distanza: c.distanza || '',
-    prezzo: '',
-    voto: '',
-    maps: c.maps || '',
-    telefono: c.telefono || '',
-  }))
+  return normalizzaProposte(candidati, citazioni, daEscludere, raggioKm)
 }
 
 export default async function handler(req, res) {
@@ -231,6 +204,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Verifica lo schema prima di consumare crediti di ricerca.
+    const { error: erroreSchema } = await supabase.from('proposte').select('verifica').limit(0)
+    if (erroreSchema) return res.status(503).json({ error: 'Ricerca con fonti non ancora disponibile. Contatta l’amministratore per completare l’aggiornamento.' })
     const cerca = MOTORE_SCOUT === 'claude' ? cercaConClaude : cercaConGemini
     const trovate = await cerca({ struttura, categoria, daEscludere, raggioKm })
 
@@ -244,13 +220,15 @@ export default async function handler(req, res) {
       voto: c.voto || null,
       maps: c.maps,
       telefono: c.telefono,
+      verifica: c.verifica,
     }))
 
     if (righe.length > 0) {
-      await supabase.from('proposte').insert(righe)
+      const { error } = await supabase.from('proposte').insert(righe)
+      if (error) throw new Error('Non è stato possibile salvare le proposte. Riprova.')
     }
 
-    return res.status(200).json({ trovati: righe.length })
+    return res.status(200).json({ trovati: righe.length, avviso: righe.length ? '' : 'Nessuna nuova proposta con identità, descrizione e fonti sufficienti. Prova un’altra categoria o un raggio diverso.' })
   } catch (err) {
     console.error('Scout error:', err)
     return res.status(500).json({ error: err.message || 'Errore nella ricerca' })

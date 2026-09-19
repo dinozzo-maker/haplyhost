@@ -13,11 +13,11 @@ const RICERCHE_ATTIVE = true
 
 // Opzioni raggio di ricerca — i valori (km) devono restare uguali a RAGGI_KM in api/scout.js.
 const RAGGI = [
-  { km: 1, etichetta: 'A piedi (circa 1 km)' },
-  { km: 5, etichetta: 'In zona, in auto (circa 5 km)' },
-  { km: 15, etichetta: 'Più lontano, in auto (circa 15 km)' },
-  { km: 30, etichetta: 'Gita di giornata (circa 30 km)' },
-  { km: 150, etichetta: 'Escursione lontana' },
+  { km: 1, etichetta: 'Entro 1 km' },
+  { km: 5, etichetta: 'Da oltre 1 a 5 km' },
+  { km: 15, etichetta: 'Da oltre 5 a 15 km' },
+  { km: 30, etichetta: 'Da oltre 15 a 30 km' },
+  { km: 150, etichetta: 'Da oltre 30 a 150 km' },
 ]
 
 type LuogoRow = {
@@ -60,6 +60,25 @@ type PropostaRow = {
   voto: string | null
   maps: string
   telefono: string
+  verifica: {
+    indirizzo: string
+    distanza_km?: number | null
+    fascia_min_km?: number
+    fascia_max_km?: number | null
+    fonti: { url: string; titolo: string; conferma: string }[]
+    non_verificato: string[]
+    contraddizioni: string[]
+    domanda_host: string
+    confronto: string
+    ricercato_il: string
+  } | null
+}
+
+function linkFonte(url: string) {
+  try {
+    const indirizzo = new URL(url)
+    return ['http:', 'https:'].includes(indirizzo.protocol) ? indirizzo.href : undefined
+  } catch { return undefined }
 }
 
 // Campi condivisi dal form di modifica e da quello di aggiunta manuale.
@@ -102,6 +121,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const strutturaId = struttura?.id ?? null
 
   const [luoghi, setLuoghi] = useState<LuogoRow[]>([])
+  const [scelte, setScelte] = useState<string[]>([])
   const [proposte, setProposte] = useState<PropostaRow[]>([])
   const [caricamento, setCaricamento] = useState(true)
   const [modificaId, setModificaId] = useState<string | null>(null)
@@ -127,11 +147,12 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
     const { data: dp } = await supabase
       .from('proposte')
-      .select('id, nome, descrizione, distanza, prezzo, voto, maps, telefono')
+      .select('id, nome, descrizione, distanza, prezzo, voto, maps, telefono, verifica')
       .eq('struttura_id', id)
       .eq('sezione', sezione)
       .order('creato_il')
     setProposte(dp ?? [])
+    setScelte([])
   }, [sezione])
 
   useEffect(() => {
@@ -290,7 +311,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       if (!res.ok) {
         setEsitoScout(dati.error || 'La ricerca non è riuscita, riprova.')
       } else if (dati.trovati === 0) {
-        setEsitoScout('Nessun nuovo luogo trovato questa volta.')
+        setEsitoScout(dati.avviso || 'Nessun nuovo luogo con fonti sufficienti trovato questa volta.')
       }
       await caricaTutto(strutturaId)
     } catch {
@@ -300,36 +321,28 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     }
   }
 
-  async function accetta(p: PropostaRow) {
-    if (!strutturaId) return
-    await supabase.from('luoghi').insert({
-      struttura_id: strutturaId,
-      sezione,
-      nome: p.nome,
-      descrizione: p.descrizione,
-      distanza: p.distanza,
-      prezzo: p.prezzo,
-      voto: p.voto,
-      maps: p.maps,
-      telefono: p.telefono,
-      attivo: true,
-      ordine: 999,
-      da_tradurre: true,
-    })
-    await supabase.from('proposte').delete().eq('id', p.id)
-    await caricaTutto(strutturaId)
-  }
-
-  async function rifiuta(id: string) {
-    await supabase.from('proposte').delete().eq('id', id)
-    setProposte(proposte.filter(p => p.id !== id))
+  async function salvaScelte() {
+    if (!strutturaId || salvataggio) return
+    setSalvataggio(true)
+    setEsitoScout('')
+    try {
+      const { error } = await supabase.rpc('salva_scelte_proposte', {
+        p_struttura_id: strutturaId, p_sezione: sezione,
+        p_proposte: proposte.map(p => p.id), p_scelte: scelte,
+      })
+      if (error) throw error
+      await caricaTutto(strutturaId)
+      setEsitoScout('Scelte salvate. Le proposte non selezionate sono state rimosse.')
+    } catch {
+      setEsitoScout('Salvataggio non riuscito: le proposte sono conservate. Riprova.')
+    } finally { setSalvataggio(false) }
   }
 
   return (
     <PaginaAdmin titolo={`Gestisci ${etichetta}`}>
       {RICERCHE_ATTIVE ? (
         <div className="flex flex-col gap-2">
-          <Campo etichetta="Raggio di ricerca">
+          <Campo etichetta="Fascia di distanza">
             <select className={classeCampo} value={raggio} onChange={(e) => setRaggio(Number(e.target.value))}>
               {RAGGI.map((r) => (
                 <option key={r.km} value={r.km}>{r.etichetta}</option>
@@ -338,11 +351,12 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
           </Campo>
           <button
             onClick={cercaNuovi}
-            disabled={cercando || !strutturaId}
+            disabled={cercando || salvataggio || proposte.length > 0 || !strutturaId}
             className="w-full rounded-xl py-2.5 text-sm font-semibold transition bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {cercando ? 'Gennarino sta cercando online...' : <><Search className="w-4 h-4" /> Cerca nuovi luoghi</>}
           </button>
+          <p className="text-xs text-slate-500">Scegli una fascia senza sovrapposizioni con le altre. Seleziona i luoghi con Accetta, poi premi Salva le scelte: le proposte non selezionate verranno rimosse. Salva prima di avviare una nuova ricerca.</p>
           {esitoScout && <p className="text-sm text-slate-500 text-center">{esitoScout}</p>}
         </div>
       ) : (
@@ -352,6 +366,10 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       {proposte.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Proposte da approvare ({proposte.length})</p>
+          <Pulsante onClick={salvaScelte} disabled={salvataggio || cercando}>
+            {salvataggio ? 'Salvo…' : `Salva le scelte (${scelte.length} selezionati)`}
+          </Pulsante>
+          <p className="text-xs text-slate-500">Al salvataggio saranno aggiunti {scelte.length} luoghi e rimosse {proposte.length - scelte.length} proposte non selezionate.</p>
           <div className="flex flex-col gap-2">
             {proposte.map((p) => (
               <div key={p.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
@@ -362,16 +380,35 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
                   </p>
                 )}
                 <p className="text-xs text-slate-600 mt-1">{p.descrizione}</p>
+                {p.verifica ? (
+                  <details className="mt-3 text-xs text-slate-700">
+                    <summary className="cursor-pointer font-semibold">Fonti e dettagli da verificare</summary>
+                    <p className="mt-2">Indirizzo identificato: {p.verifica.indirizzo}</p>
+                    {p.verifica.distanza_km != null && <p className="mt-1">Distanza geografica riportata dalla ricerca: {p.verifica.distanza_km} km. Fascia: {p.verifica.fascia_min_km}–{p.verifica.fascia_max_km} km.</p>}
+                    <p className="mt-1 text-slate-500">Ricerca del {new Date(p.verifica.ricercato_il).toLocaleDateString('it-IT')}. Controlla le fonti prima di accettare.</p>
+                    <ul className="mt-2 space-y-2">
+                      {p.verifica.fonti.map((fonte, indice) => (
+                        <li key={indice}>
+                          <a href={linkFonte(fonte.url)} target="_blank" rel="noopener noreferrer" className="font-medium underline">{fonte.titolo}</a>
+                          <p>{fonte.conferma}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    {p.verifica.non_verificato.length > 0 && <p className="mt-2"><strong>Non verificato:</strong> {p.verifica.non_verificato.join(' · ')}</p>}
+                    {p.verifica.contraddizioni.length > 0 && <p className="mt-2 text-amber-800"><strong>Fonti discordanti:</strong> {p.verifica.contraddizioni.join(' · ')}</p>}
+                    {p.verifica.domanda_host && <p className="mt-2"><strong>Da chiarire con te:</strong> {p.verifica.domanda_host} Puoi lasciare la proposta non selezionata e aggiungere il luogo a mano con i dati corretti.</p>}
+                    <p className="mt-2 text-slate-500">{p.verifica.confronto}</p>
+                  </details>
+                ) : <p className="mt-2 text-xs text-amber-800">Proposta precedente al controllo delle fonti. Verifica i dettagli prima di accettarla.</p>}
                 <div className="flex gap-2 mt-2.5">
                   <button
-                    onClick={() => accetta(p)}
+                    onClick={() => setScelte(attuali => attuali.includes(p.id) ? attuali.filter(id => id !== p.id) : [...attuali, p.id])}
+                    aria-pressed={scelte.includes(p.id)}
+                    disabled={salvataggio}
                     className="w-full rounded-xl py-2.5 text-sm font-semibold transition bg-green-600 text-white hover:bg-green-700"
                   >
-                    ✓ Accetta
+                    {scelte.includes(p.id) ? '✓ Selezionato — annulla scelta' : 'Accetta'}
                   </button>
-                  <Pulsante variante="secondario" onClick={() => rifiuta(p.id)}>
-                    ✕ Rifiuta
-                  </Pulsante>
                 </div>
               </div>
             ))}

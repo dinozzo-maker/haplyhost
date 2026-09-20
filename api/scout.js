@@ -111,7 +111,7 @@ const CATEGORIE = {
 // essenziali e riportano solo categoria e posizione presenti nella scheda.
 const CATEGORIE_GEOAPIFY = {
   spiagge: 'beach',
-  mangiare: 'catering.restaurant,catering.fast_food,catering.cafe,catering.bar,catering.pub',
+  mangiare: 'catering.restaurant,catering.fast_food.pizza',
   vicinanze: 'commercial.supermarket,commercial.convenience,healthcare.pharmacy',
   visitare: 'tourism.attraction,tourism.sights,heritage,entertainment.museum',
   divertimento: 'entertainment,activity.sport_club,sport,leisure',
@@ -361,53 +361,6 @@ async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm 
   return normalizzaConDistanze(candidati, citazioniOpenRouter(dati), struttura, daEscludere, raggioKm)
 }
 
-const schemaPropostaExa = {
-  type: 'object', additionalProperties: false, required: ['proposte'],
-  properties: { proposte: { type: 'array', maxItems: 5, items: {
-    type: 'object', additionalProperties: false,
-    required: ['nome', 'indirizzo', 'descrizione', 'fonti'],
-    properties: {
-      nome: { type: 'string' }, indirizzo: { type: 'string' }, descrizione: { type: 'string' },
-      prezzo: { type: 'string' },
-      voto: { type: 'string' }, maps: { type: 'string' }, telefono: { type: 'string' },
-      fonti: { type: 'array', items: { type: 'object', additionalProperties: false,
-        required: ['url', 'titolo', 'conferma', 'campi'], properties: {
-          url: { type: 'string' }, titolo: { type: 'string' }, conferma: { type: 'string' },
-          campi: { type: 'array', items: { type: 'string' } },
-        } } },
-      non_verificato: { type: 'array', items: { type: 'string' } },
-      contraddizioni: { type: 'array', items: { type: 'string' } }, domanda_host: { type: 'string' },
-    },
-  } } },
-}
-
-async function cercaConExa({ struttura, categoria, daEscludere, raggioKm }) {
-  const iniziata = Date.now()
-  const risposta = await fetch('https://api.exa.ai/answer', {
-    method: 'POST', signal: AbortSignal.timeout(15000),
-    headers: { 'content-type': 'application/json', 'x-api-key': process.env.EXA_API_KEY },
-    body: JSON.stringify({
-      query: promptScout({ struttura, categoria, daEscludere, raggioKm }) + '\nInserisci il risultato nel campo proposte.',
-      model: 'exa', stream: false, text: false, userLocation: 'IT', outputSchema: schemaPropostaExa,
-      systemPrompt: 'Usa fonti recenti e verificabili. Preferisci siti ufficiali. Non inventare dati o URL.',
-    }),
-  })
-  const dati = await risposta.json().catch(() => null)
-  if (!risposta.ok || dati?.error) throw erroreFornitore('Exa', risposta, dati || {})
-  let rispostaStrutturata = dati?.answer
-  if (typeof rispostaStrutturata === 'string') {
-    try { rispostaStrutturata = JSON.parse(rispostaStrutturata) } catch { rispostaStrutturata = null }
-  }
-  const candidati = rispostaStrutturata?.proposte?.map((candidato) => ({
-    distanza_km: null, distanza: '', prezzo: '', voto: '', maps: '', telefono: '',
-    non_verificato: [], contraddizioni: [], domanda_host: '', ...candidato,
-  }))
-  if (!Array.isArray(candidati)) throw new Error('Exa: la ricerca non ha prodotto risultati leggibili')
-  await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
-    fornitore: 'exa', modello: 'exa-answer', durata_ms: Date.now() - iniziata })
-  return normalizzaConDistanze(candidati, (dati.citations || []).map((c) => c.url), struttura, daEscludere, raggioKm)
-}
-
 function tipoLuogoGeoapify(categorie, sezione) {
   const ha = (testo) => categorie.some((categoria) => categoria.includes(testo))
   if (sezione === 'mangiare') {
@@ -438,6 +391,29 @@ function tipoLuogoGeoapify(categorie, sezione) {
   return 'Luogo d’interesse'
 }
 
+const SPECIALITA_GEOAPIFY = [
+  ['pizza', 'pizza'], ['seafood', 'cucina di pesce'], ['regional', 'cucina regionale'],
+  ['mediterranean', 'cucina mediterranea'], ['italian', 'cucina italiana'], ['barbecue', 'specialità alla griglia'],
+  ['sushi', 'sushi'], ['japanese', 'cucina giapponese'], ['chinese', 'cucina cinese'],
+  ['vegetarian', 'proposte vegetariane'], ['ice_cream', 'gelati'],
+]
+
+function descrizioneGeoapify(proprieta, sezione) {
+  const categorie = Array.isArray(proprieta?.categories) ? proprieta.categories.map(String) : []
+  const tipo = tipoLuogoGeoapify(categorie, sezione)
+  const localita = String(proprieta?.city || proprieta?.town || proprieta?.village || proprieta?.suburb || proprieta?.county || '').trim()
+  const strada = [proprieta?.street, proprieta?.housenumber].filter(Boolean).join(' ').trim()
+  const specialita = sezione === 'mangiare'
+    ? SPECIALITA_GEOAPIFY.find(([chiave]) => categorie.some((categoria) => categoria.includes(chiave)))?.[1]
+    : ''
+  const parti = [`${tipo}${localita ? ` a ${localita}` : ''}`]
+  if (specialita && !(tipo === 'Pizzeria' && specialita === 'pizza')
+    && !tipo.toLocaleLowerCase('it').includes(specialita)) parti[0] += ` con ${specialita}`
+  if (strada) parti.push(`Si trova in ${strada}`)
+  const descrizione = parti.join('. ') + '.'
+  return [...descrizione].slice(0, 200).join('')
+}
+
 function urlOpenStreetMap(proprieta, lat, lng) {
   const grezzo = proprieta?.datasource?.raw || {}
   const tipi = { n: 'node', node: 'node', w: 'way', way: 'way', r: 'relation', relation: 'relation' }
@@ -446,6 +422,65 @@ function urlOpenStreetMap(proprieta, lat, lng) {
   return tipo && id
     ? `https://www.openstreetmap.org/${tipo}/${id}`
     : `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`
+}
+
+async function dettagliGeoapify(placeId, proprietaBase) {
+  if (!placeId) return proprietaBase
+  try {
+    const query = new URLSearchParams({ id: placeId, features: 'details', lang: 'it', apiKey: process.env.VITE_GEOAPIFY_API_KEY })
+    const risposta = await fetch(`https://api.geoapify.com/v2/place-details?${query}`, {
+      signal: AbortSignal.timeout(5000), headers: HEADER_GEOAPIFY,
+    })
+    const dati = await risposta.json().catch(() => null)
+    if (!risposta.ok) return proprietaBase
+    const dettagli = dati?.features?.find((feature) => feature?.properties?.feature_type === 'details')?.properties
+      || dati?.features?.[0]?.properties
+    return dettagli ? { ...proprietaBase, ...dettagli } : proprietaBase
+  } catch {
+    return proprietaBase
+  }
+}
+
+async function descrizioneConExa(candidato, strutturaId) {
+  if (!process.env.EXA_API_KEY) return null
+  const iniziata = Date.now()
+  try {
+    const risposta = await fetch('https://api.exa.ai/answer', {
+      method: 'POST', signal: AbortSignal.timeout(12000),
+      headers: { 'content-type': 'application/json', 'x-api-key': process.env.EXA_API_KEY },
+      body: JSON.stringify({
+        query: `Verifica questa attività esatta: "${candidato.nome}", ${candidato.indirizzo}. Scrivi in italiano una descrizione accogliente e utile, massimo 200 caratteri. Includi solo caratteristiche confermate dalle fonti. Non inserire orari, prezzi, distanze, giudizi, parcheggio, accessibilità o servizi non verificati.`,
+        model: 'exa', stream: false, text: false, userLocation: 'IT',
+        outputSchema: {
+          type: 'object', additionalProperties: false, required: ['descrizione'],
+          properties: { descrizione: { type: 'string', maxLength: 200 } },
+        },
+        systemPrompt: 'Identifica la sede tramite nome e indirizzo. Preferisci sito e profili ufficiali. Non inventare dettagli.',
+      }),
+    })
+    const dati = await risposta.json().catch(() => null)
+    if (!risposta.ok || dati?.error) return null
+    let contenuto = dati?.answer
+    if (typeof contenuto === 'string') {
+      try { contenuto = JSON.parse(contenuto) } catch { contenuto = { descrizione: contenuto } }
+    }
+    const descrizione = String(contenuto?.descrizione || '').replace(/[*#]/g, '').trim()
+    const fonti = (Array.isArray(dati?.citations) ? dati.citations : []).flatMap((fonte) => {
+      const url = String(fonte?.url || '').trim()
+      if (!url || !/^https?:\/\//i.test(url)) return []
+      return [{
+        url, titolo: String(fonte?.title || 'Fonte web').slice(0, 200),
+        conferma: 'Fonte usata per verificare le caratteristiche riportate nella descrizione.',
+        campi: ['nome', 'descrizione'],
+      }]
+    }).slice(0, 3)
+    if (!descrizione || [...descrizione].length > 200 || fonti.length === 0) return null
+    await registraConsumoAI({ struttura_id: strutturaId, servizio: 'scout', operazione: 'descrizione luogo',
+      fornitore: 'exa', modello: 'exa-answer', durata_ms: Date.now() - iniziata })
+    return { descrizione, fonti }
+  } catch {
+    return null
+  }
 }
 
 async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
@@ -475,7 +510,7 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
   const minimo = ({ 1: 0, 5: 1, 15: 5, 30: 15, 150: 30 })[raggioKm] ?? 0
   const esclusi = new Set(daEscludere.map((nome) => String(nome || '').trim().toLocaleLowerCase('it')))
   const visti = new Set()
-  const candidati = risposte.flat().flatMap((feature) => {
+  const candidatiBase = risposte.flat().flatMap((feature) => {
     const p = feature?.properties || {}
     const nome = String(p.name || '').trim()
     const lat = Number(p.lat ?? feature?.geometry?.coordinates?.[1])
@@ -487,14 +522,10 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
     const km = Math.round(distanzaGeograficaKm(latStruttura, lngStruttura, lat, lng) * 10) / 10
     if (km <= minimo || km > raggioKm) return []
     visti.add(chiaveLuogo)
-    const categorie = Array.isArray(p.categories) ? p.categories.map(String) : []
-    const tipo = tipoLuogoGeoapify(categorie, sezione)
-    const localita = String(p.city || p.town || p.village || p.suburb || p.county || '').trim()
-    const zona = localita ? ` a ${localita}` : ''
     const url = urlOpenStreetMap(p, lat, lng)
     const distanza = `Circa ${String(km).replace('.', ',')} km`
     return [{
-      nome, indirizzo, descrizione: `${tipo}${zona}, con posizione verificata sulla mappa.`,
+      nome, indirizzo, descrizione: descrizioneGeoapify(p, sezione),
       distanza_km: km, distanza, prezzo: '', voto: '', maps: url, telefono: '',
       fonti: [{
         url, titolo: 'OpenStreetMap tramite Geoapify',
@@ -502,13 +533,29 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
         campi: ['nome', 'descrizione', 'distanza_km', 'distanza', 'maps'],
       }],
       non_verificato: ['Specialità, servizi, prezzi, voto e telefono non verificati.'],
-      contraddizioni: [], domanda_host: '',
+      contraddizioni: [], domanda_host: '', _placeId: String(p.place_id || ''), _proprieta: p,
     }]
   }).sort((a, b) => a.distanza_km - b.distanza_km).slice(0, 5)
 
+  const candidati = await Promise.all(candidatiBase.map(async (candidato) => {
+    const [proprieta, descrizioneWeb] = await Promise.all([
+      dettagliGeoapify(candidato._placeId, candidato._proprieta),
+      descrizioneConExa(candidato, struttura.id),
+    ])
+    const descrizioneBase = descrizioneGeoapify(proprieta, sezione)
+    return {
+      ...candidato,
+      descrizione: descrizioneWeb?.descrizione || descrizioneBase,
+      fonti: descrizioneWeb?.fonti?.length
+        ? [...candidato.fonti.map((fonte) => ({ ...fonte, campi: fonte.campi.filter((campo) => campo !== 'descrizione') })), ...descrizioneWeb.fonti]
+        : candidato.fonti,
+    }
+  }))
+
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'geoapify', modello: 'places-v2', durata_ms: Date.now() - iniziata })
-  return normalizzaProposte(candidati, candidati.map((c) => c.maps), daEscludere, raggioKm)
+  const citazioni = candidati.flatMap((c) => [c.maps, ...c.fonti.map((fonte) => fonte.url)])
+  return normalizzaProposte(candidati, citazioni, daEscludere, raggioKm)
 }
 
 async function cercaConFallback(parametri) {
@@ -516,7 +563,6 @@ async function cercaConFallback(parametri) {
     { disponibile: process.env.GEMINI_API_KEY, fornitore: 'google', modello: MODELLO_GEMINI, cerca: cercaConGemini },
     { disponibile: process.env.ANTHROPIC_API_KEY, fornitore: 'anthropic', modello: MODELLO_ANTHROPIC, cerca: cercaConClaude },
     { disponibile: process.env.OPENROUTER_API_KEY, fornitore: 'openrouter', modello: MODELLO_OPENROUTER, cerca: cercaConOpenRouter },
-    { disponibile: process.env.EXA_API_KEY, fornitore: 'exa', modello: 'exa-answer', cerca: cercaConExa },
     { disponibile: process.env.VITE_GEOAPIFY_API_KEY && CATEGORIE_GEOAPIFY[parametri.sezione], fornitore: 'geoapify', modello: 'places-v2', cerca: cercaConGeoapify },
   ].filter((m) => m.disponibile)
   if (!motori.length) throw new Error('Nessun fornitore AI configurato')

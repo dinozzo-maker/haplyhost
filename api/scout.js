@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm, chiaveUrl } from '../lib/proposte-scout.js'
+import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm, chiaveUrl, verificaNomiProposte, nomePresenteNellaFonte } from '../lib/proposte-scout.js'
 import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions, usoOpenAICompatibile } from '../lib/consumi-ai.js'
 
 const supabase = createClient(
@@ -177,7 +177,11 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'google', modello: MODELLO_GEMINI, durata_ms: Date.now() - iniziata,
     utilizzo: usoGeminiInteractions(dati) })
-  return normalizzaConDistanze(aggiungiFontiMaps(candidati, dati), citazioniGemini(dati), struttura, daEscludere, raggioKm)
+  const fontiNomi = annotazioniGemini(dati).map(fonte => ({
+    url: fonte.url, nome: fonte.name, titolo: fonte.title,
+  }))
+  const verificati = verificaNomiProposte(aggiungiFontiMaps(candidati, dati), fontiNomi)
+  return normalizzaConDistanze(verificati, citazioniGemini(dati), struttura, daEscludere, raggioKm)
 }
 
 function annotazioniGemini(dati) {
@@ -297,11 +301,15 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
 
   let dati = await chiamaClaude(messages)
   const citazioni = [...citazioniClaude(dati)]
+  const estraiFontiNomi = risposta => (risposta.content || []).filter(b => b.type === 'text')
+    .flatMap(b => b.citations || []).map(fonte => ({ url: fonte.url, titolo: fonte.title, testo: fonte.cited_text }))
+  const fontiNomi = estraiFontiNomi(dati)
   let continua = 0
   while (dati.stop_reason === 'pause_turn' && continua < 1) {
     messages.push({ role: 'assistant', content: dati.content })
     dati = await chiamaClaude(messages)
     citazioni.push(...citazioniClaude(dati))
+    fontiNomi.push(...estraiFontiNomi(dati))
     continua += 1
   }
 
@@ -317,7 +325,7 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
     throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
   }
 
-  return normalizzaConDistanze(candidati, citazioni, struttura, daEscludere, raggioKm)
+  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioni, struttura, daEscludere, raggioKm)
 }
 
 function citazioniOpenRouter(dati) {
@@ -357,7 +365,11 @@ async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm 
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'openrouter', modello: MODELLO_OPENROUTER, durata_ms: Date.now() - iniziata,
     utilizzo: usoOpenAICompatibile(dati) })
-  return normalizzaConDistanze(candidati, citazioniOpenRouter(dati), struttura, daEscludere, raggioKm)
+  const fontiNomi = (dati?.choices?.[0]?.message?.annotations || []).map(annotazione => {
+    const fonte = annotazione.url_citation || annotazione
+    return { url: fonte.url, titolo: fonte.title, testo: fonte.content }
+  })
+  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioniOpenRouter(dati), struttura, daEscludere, raggioKm)
 }
 
 function tipoLuogoGeoapify(categorie, sezione) {
@@ -447,11 +459,6 @@ async function dettagliGeoapify(placeId, proprietaBase) {
   }
 }
 
-function nomeNormalizzato(valore) {
-  return String(valore || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase('it').replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
 async function descrizioniConExa(candidati, strutturaId, sezione) {
   if (!process.env.EXA_API_KEY || candidati.length === 0) return new Map()
   const iniziata = Date.now()
@@ -496,13 +503,10 @@ async function descrizioniConExa(candidati, strutturaId, sezione) {
       if (!candidato || [...descrizione].length < 80 || [...descrizione].length > 200) continue
       let fonti = (Array.isArray(elemento?.fonti) ? elemento.fonti : [])
         .map((url) => citazioniPerUrl.get(chiaveUrl(url))).filter(Boolean)
-      if (fonti.length === 0) {
-        const nome = nomeNormalizzato(candidato.nome)
-        fonti = citazioni.filter((fonte) => {
-          const documento = nomeNormalizzato(`${fonte.titolo} ${fonte.testo}`)
-          return nome && documento && (documento.includes(nome) || nome.includes(documento))
-        })
-      }
+      // Una citazione di un altro locale non basta a verificare questa scheda.
+      // Nessun confronto approssimativo: Vaillum e Vatillum sono nomi diversi.
+      fonti = (fonti.length ? fonti : citazioni)
+        .filter(fonte => nomePresenteNellaFonte(candidato.nome, fonte))
       if (fonti.length === 0) continue
       risultati.set(indice, {
         descrizione,

@@ -103,7 +103,36 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'google', modello: MODELLO_GEMINI, durata_ms: Date.now() - iniziata,
     utilizzo: usoGeminiInteractions(dati) })
-  return normalizzaConDistanze(candidati, citazioniGemini(dati), struttura, daEscludere, raggioKm)
+  return normalizzaConDistanze(aggiungiFontiMaps(candidati, dati), citazioniGemini(dati), struttura, daEscludere, raggioKm)
+}
+
+function annotazioniGemini(dati) {
+  return (dati.steps || []).filter((s) => s.type === 'model_output')
+    .flatMap((s) => s.content || []).flatMap((c) => c.annotations || [])
+}
+
+function aggiungiFontiMaps(candidati, dati) {
+  const normalizzaNome = (valore) => String(valore || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('it').replace(/[^a-z0-9]+/g, ' ').trim()
+  const luoghi = annotazioniGemini(dati).filter((a) => a.type === 'place_citation' && a.url && a.name)
+  return (Array.isArray(candidati) ? candidati : []).map((candidato) => {
+    const nome = normalizzaNome(candidato?.nome)
+    const fonte = luoghi.find((luogo) => {
+      const nomeFonte = normalizzaNome(luogo.name)
+      return nome && nomeFonte && (nome.includes(nomeFonte) || nomeFonte.includes(nome))
+    })
+    if (!fonte) return candidato
+    return {
+      ...candidato,
+      maps: candidato.maps || fonte.url,
+      fonti: [...(Array.isArray(candidato.fonti) ? candidato.fonti : []), {
+        url: fonte.url,
+        titolo: fonte.name,
+        conferma: 'Google Maps identifica questa attività e attribuisce a questo luogo le informazioni usate nella proposta.',
+        campi: ['nome', 'descrizione', 'maps'],
+      }],
+    }
+  })
 }
 
 async function normalizzaConDistanze(candidati, citazioni, struttura, daEscludere, raggioKm) {

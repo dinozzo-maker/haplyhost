@@ -23,7 +23,7 @@ export function PaginaAdmin({
   children: ReactNode
 }) {
   return (
-    <div className="max-w-sm mx-auto px-5 py-6 lg:max-w-xl lg:mx-0 lg:px-0 lg:py-10">
+    <div className="max-w-sm mx-auto px-5 py-6 lg:max-w-3xl lg:px-8 lg:py-10">
       {indietro && (
         <Link
           to="/admin"

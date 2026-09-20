@@ -137,7 +137,7 @@ export default function AdminShell() {
         </div>
       </aside>
 
-      <div className="lg:flex-1 lg:overflow-y-auto">
+      <div className="min-w-0 lg:flex-1 lg:overflow-y-auto lg:px-6">
         <Outlet context={ctx} />
       </div>
     </div>

@@ -7,7 +7,7 @@ import { Icona } from '../Icona'
 import type { ContestoHost } from './RichiedeLogin'
 import {
   Home, Settings, NotebookPen, MessageCircleQuestion, BarChart3, LayoutGrid, Languages, Eye,
-  UserPlus, Puzzle, LogOut,
+  UserPlus, Puzzle, Gauge, LogOut,
 } from 'lucide-react'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
@@ -122,6 +122,7 @@ export default function AdminShell() {
               <EtichettaGruppo>Piattaforma</EtichettaGruppo>
               <VoceNav to="/admin/invita-host"><UserPlus className="w-4 h-4 shrink-0" />Invita un nuovo host</VoceNav>
               <VoceNav to="/admin/sezioni-extra"><Puzzle className="w-4 h-4 shrink-0" />Sezioni della piattaforma</VoceNav>
+              <VoceNav to="/admin/consumi-ai"><Gauge className="w-4 h-4 shrink-0" />Consumi AI</VoceNav>
             </div>
           )}
         </nav>

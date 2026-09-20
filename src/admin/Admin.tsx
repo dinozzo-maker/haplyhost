@@ -7,7 +7,7 @@ import type { ContestoHost } from './RichiedeLogin'
 import CreaStruttura from './CreaStruttura'
 import {
   Settings, NotebookPen, MessageCircleQuestion, BarChart3, LayoutGrid, Languages, Eye,
-  UserPlus, Puzzle, CircleCheck, Circle, ArrowRight, TriangleAlert,
+  UserPlus, Puzzle, Gauge, CircleCheck, Circle, ArrowRight, TriangleAlert,
 } from 'lucide-react'
 import { Campo, classeCampo, Pulsante, Esito } from './ui'
 
@@ -271,6 +271,9 @@ export default function Admin() {
               </Scorciatoia>
               <Scorciatoia to="/admin/sezioni-extra">
                 <Puzzle className="w-4 h-4 text-slate-400 shrink-0" /> Sezioni della piattaforma
+              </Scorciatoia>
+              <Scorciatoia to="/admin/consumi-ai">
+                <Gauge className="w-4 h-4 text-slate-400 shrink-0" /> Consumi AI
               </Scorciatoia>
             </div>
           </div>

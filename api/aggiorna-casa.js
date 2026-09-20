@@ -38,6 +38,7 @@ export default async function handler(req, res) {
     nome: struttura.nome,
     indirizzo: struttura.indirizzo,
     link,
+    struttura_id,
   })
 
   if (!descrizione) {

@@ -23,6 +23,7 @@ const TraduciGuida = lazy(() => import('./admin/TraduciGuida'))
 const SezioniGuida = lazy(() => import('./admin/SezioniGuida'))
 const SezioniExtra = lazy(() => import('./admin/SezioniExtra'))
 const InvitaHost = lazy(() => import('./admin/InvitaHost'))
+const ConsumiAI = lazy(() => import('./admin/ConsumiAI'))
 const GestisciSezione = lazy(() => import('./admin/GestisciSezione'))
 const GestisciPagina = lazy(() => import('./admin/GestisciPagina'))
 
@@ -45,6 +46,7 @@ function App() {
           <Route path="sezioni-guida" element={<SezioniGuida />} />
           <Route path="sezioni-extra" element={<SezioniExtra />} />
           <Route path="invita-host" element={<InvitaHost />} />
+          <Route path="consumi-ai" element={<ConsumiAI />} />
           {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
             <Route key={s.chiave} path={s.chiave} element={<GestisciSezione sezione={s.chiave} etichetta={s.etichetta} />} />
           ))}

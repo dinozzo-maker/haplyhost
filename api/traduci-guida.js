@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { registraConsumoAI, tipoErroreAI, usoAnthropic } from '../lib/consumi-ai.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -9,7 +10,7 @@ const supabase = createClient(
 // `campi` = { chiave: testo, ... }. Ritorna { en:{...}, fr:{...}, de:{...}, es:{...} } o null
 // se non c'è niente da tradurre. Lancia un errore se la chiamata fallisce, se la
 // risposta è troncata, o se il JSON non è valido.
-async function traduciUnaVolta(campi, contesto) {
+async function traduciUnaVolta(campi, contesto, struttura_id) {
   const chiavi = Object.keys(campi).filter((k) => campi[k])
   if (!chiavi.length) return null
 
@@ -26,6 +27,9 @@ ${JSON.stringify(campi, null, 2)}
 Rispondi SOLO con un JSON valido, senza testo prima o dopo, con esattamente queste 4 chiavi di lingua e, dentro ognuna, le stesse chiavi dei campi qui sopra:
 {"en": {${chiavi.map((k) => `"${k}": "..."`).join(', ')}}, "fr": {...}, "de": {...}, "es": {...}}`
 
+  const iniziata = Date.now()
+  let dati
+  try {
   const risposta = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -42,7 +46,7 @@ Rispondi SOLO con un JSON valido, senza testo prima o dopo, con esattamente ques
     }),
   })
 
-  const dati = await risposta.json()
+  dati = await risposta.json()
   if (!risposta.ok || dati?.type === 'error') {
     throw new Error('Anthropic: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
   }
@@ -59,20 +63,30 @@ Rispondi SOLO con un JSON valido, senza testo prima o dopo, con esattamente ques
     .trim()
 
   try {
-    return JSON.parse(testo)
+    const risultato = JSON.parse(testo)
+    await registraConsumoAI({ struttura_id, servizio: 'traduzioni', operazione: contesto,
+      fornitore: 'anthropic', modello: 'claude-haiku-4-5-20251001', durata_ms: Date.now() - iniziata,
+      utilizzo: usoAnthropic(dati) })
+    return risultato
   } catch {
     throw new Error('json-non-valido: ' + testo.slice(0, 160))
+  }
+  } catch (errore) {
+    await registraConsumoAI({ struttura_id, servizio: 'traduzioni', operazione: contesto,
+      fornitore: 'anthropic', modello: 'claude-haiku-4-5-20251001', esito: 'errore',
+      errore_tipo: tipoErroreAI(errore), durata_ms: Date.now() - iniziata, utilizzo: usoAnthropic(dati) })
+    throw errore
   }
 }
 
 // Un secondo tentativo se il primo restituisce un JSON storto (capita di rado con Haiku).
-async function traduci(campi, contesto) {
+async function traduci(campi, contesto, struttura_id) {
   try {
-    return await traduciUnaVolta(campi, contesto)
+    return await traduciUnaVolta(campi, contesto, struttura_id)
   } catch (e) {
     if (!String(e.message).startsWith('json-non-valido')) throw e
     console.warn('traduci-guida: JSON storto, riprovo una volta')
-    return await traduciUnaVolta(campi, contesto)
+    return await traduciUnaVolta(campi, contesto, struttura_id)
   }
 }
 
@@ -145,7 +159,7 @@ export default async function handler(req, res) {
         return
       }
       try {
-        const trad = await traduci(campi, 'una pagina informativa della guida per gli ospiti di una casa vacanze')
+        const trad = await traduci(campi, 'pagina guida', struttura_id)
         if (trad) {
           await supabase.from('pagine').update({ traduzioni: trad, da_tradurre: false }).eq('id', p.id)
           nPagine += 1
@@ -180,7 +194,7 @@ export default async function handler(req, res) {
         return
       }
       try {
-        const trad = await traduci(campi, 'una scheda di un luogo consigliato agli ospiti')
+        const trad = await traduci(campi, 'scheda luogo', struttura_id)
         if (trad) {
           await supabase.from('luoghi').update({ traduzioni: trad, da_tradurre: false }).eq('id', l.id)
           nLuoghi += 1

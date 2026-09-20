@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude } from '../lib/proposte-scout.js'
+import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions } from '../lib/consumi-ai.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -58,6 +59,7 @@ function estraiArrayJson(testo) {
 
 // ---- MOTORE GEMINI: Google Maps grounding (Interactions API) ----
 async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
+  const iniziata = Date.now()
   const haCoord = struttura?.lat != null && struttura?.lng != null
   const tool = haCoord
     ? { type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }
@@ -97,6 +99,9 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
     throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
   }
 
+  await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
+    fornitore: 'google', modello: 'gemini-3.1-flash-lite', durata_ms: Date.now() - iniziata,
+    utilizzo: usoGeminiInteractions(dati) })
   return normalizzaProposte(candidati, citazioniGemini(dati), daEscludere, raggioKm)
 }
 
@@ -107,6 +112,7 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
   const messages = [{ role: 'user', content: prompt }]
 
   async function chiamaClaude(msgs) {
+    const iniziata = Date.now()
     const risposta = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -125,6 +131,9 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
     if (!risposta.ok || dati?.type === 'error') {
       throw new Error('Anthropic: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
     }
+    await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
+      fornitore: 'anthropic', modello: 'claude-haiku-4-5-20251001', durata_ms: Date.now() - iniziata,
+      utilizzo: usoAnthropic(dati) })
     return dati
   }
 
@@ -247,6 +256,10 @@ export default async function handler(req, res) {
     return res.status(200).json({ trovati: righe.length, avviso: righe.length ? '' : 'Nessuna nuova proposta con identità, descrizione e fonti sufficienti. Prova un’altra categoria o un raggio diverso.' })
   } catch (err) {
     console.error('Scout error:', err)
+    await registraConsumoAI({ struttura_id, servizio: 'scout', operazione: 'ricerca luoghi',
+      fornitore: MOTORE_SCOUT === 'claude' ? 'anthropic' : 'google',
+      modello: MOTORE_SCOUT === 'claude' ? 'claude-haiku-4-5-20251001' : 'gemini-3.1-flash-lite',
+      esito: 'errore', errore_tipo: tipoErroreAI(err) })
     const pubblico = errorePubblicoScout(err)
     return res.status(pubblico.stato).json({ error: pubblico.messaggio })
   }

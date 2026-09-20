@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiGenerateContent } from '../lib/consumi-ai.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -12,54 +13,60 @@ const MOTORE_GENNARINO = 'gemini'
 const MODELLO_GEMINI = 'gemini-3.1-flash-lite'
 
 // Helper con firma uniforme { system, messages[{role:'user'|'assistant', content}], max_tokens, temperature }.
-async function chiamaGemini({ system, messages, max_tokens, temperature = 0.7 }) {
-  const contents = messages.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: String(m.content) }],
-  }))
-  const risposta = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODELLO_GEMINI}:generateContent`,
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        // Chiave dedicata a Gennarino; ripiego su quella condivisa (Scout) se non impostata.
-        'x-goog-api-key': process.env.GEMINI_API_KEY_GENNARINO || process.env.GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents,
-        generationConfig: { maxOutputTokens: max_tokens, temperature },
-      }),
-    }
-  )
-  const grezzo = await risposta.json().catch(() => null)
-  // L'API Gemini restituisce gli errori dentro un array: [{"error":{...}}].
-  const dati = Array.isArray(grezzo) ? (grezzo[0] || {}) : (grezzo || {})
-  if (!risposta.ok || dati.error) {
-    throw new Error('Gemini: ' + (dati.error?.message || `HTTP ${risposta.status}`))
+async function chiamaGemini({ system, messages, max_tokens, temperature = 0.7, struttura_id, operazione }) {
+  const iniziata = Date.now()
+  let dati
+  try {
+    const contents = messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: String(m.content) }],
+    }))
+    const risposta = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODELLO_GEMINI}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': process.env.GEMINI_API_KEY_GENNARINO || process.env.GEMINI_API_KEY,
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] }, contents,
+          generationConfig: { maxOutputTokens: max_tokens, temperature },
+        }),
+      }
+    )
+    const grezzo = await risposta.json().catch(() => null)
+    dati = Array.isArray(grezzo) ? (grezzo[0] || {}) : (grezzo || {})
+    if (!risposta.ok || dati.error) throw new Error('Gemini: ' + (dati.error?.message || `HTTP ${risposta.status}`))
+    await registraConsumoAI({ struttura_id, servizio: 'gennarino', operazione, fornitore: 'google',
+      modello: MODELLO_GEMINI, durata_ms: Date.now() - iniziata, utilizzo: usoGeminiGenerateContent(dati) })
+    return (dati.candidates?.[0]?.content?.parts || []).map(p => p.text).filter(Boolean).join('')
+  } catch (errore) {
+    await registraConsumoAI({ struttura_id, servizio: 'gennarino', operazione, fornitore: 'google',
+      modello: MODELLO_GEMINI, esito: 'errore', errore_tipo: tipoErroreAI(errore),
+      durata_ms: Date.now() - iniziata, utilizzo: usoGeminiGenerateContent(dati) })
+    throw errore
   }
-  return (dati.candidates?.[0]?.content?.parts || []).map(p => p.text).filter(Boolean).join('')
 }
 
-async function chiamaClaude({ system, messages, max_tokens, temperature }) {
-  const risposta = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens,
-      system,
-      messages,
-      ...(temperature != null ? { temperature } : {}),
-    }),
-  })
-  const dati = await risposta.json()
-  return dati?.content?.[0]?.text || ''
+async function chiamaClaude({ system, messages, max_tokens, temperature, struttura_id, operazione }) {
+  const iniziata = Date.now()
+  let dati
+  try {
+    const risposta = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens, system, messages, ...(temperature != null ? { temperature } : {}) }),
+    })
+    dati = await risposta.json()
+    if (!risposta.ok || dati?.type === 'error') throw new Error('Anthropic: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
+    await registraConsumoAI({ struttura_id, servizio: 'gennarino', operazione, fornitore: 'anthropic',
+      modello: 'claude-haiku-4-5-20251001', durata_ms: Date.now() - iniziata, utilizzo: usoAnthropic(dati) })
+    return dati?.content?.[0]?.text || ''
+  } catch (errore) {
+    await registraConsumoAI({ struttura_id, servizio: 'gennarino', operazione, fornitore: 'anthropic',
+      modello: 'claude-haiku-4-5-20251001', esito: 'errore', errore_tipo: tipoErroreAI(errore), durata_ms: Date.now() - iniziata, utilizzo: usoAnthropic(dati) })
+    throw errore
+  }
 }
 
 function chiamaAI(opts) {
@@ -70,7 +77,7 @@ function chiamaAI(opts) {
 // In isolamento (senza il contesto tutto-italiano di Gennarino) il modello la azzecca.
 // Guarda le ultime righe della chat, così anche un "ok" dopo domande in francese
 // resta francese. `fallback` = lingua della guida, per casi davvero ambigui.
-async function rilevaLinguaDomanda(messaggi, fallback) {
+async function rilevaLinguaDomanda(messaggi, fallback, struttura_id) {
   const ultime = messaggi
     .slice(-5)
     .map(m => `${m.role === 'user' ? 'Ospite' : 'Gennarino'}: ${String(m.content).slice(0, 300)}`)
@@ -83,6 +90,8 @@ async function rilevaLinguaDomanda(messaggi, fallback) {
         messages: [{ role: 'user', content: ultime }],
         max_tokens: 20,
         temperature: 0,
+        struttura_id,
+        operazione: 'rilevamento lingua',
       })
     ).toLowerCase()
     const mappa = { italiano: 'it', inglese: 'en', francese: 'fr', tedesco: 'de', spagnolo: 'es' }
@@ -197,7 +206,7 @@ export default async function handler(req, res) {
       .eq('attivo', true)
       .order('ordine'),
     supabase.from('pagine').select('titolo, contenuto').eq('struttura_id', struttura_id),
-    rilevaLinguaDomanda([...storico, { role: 'user', content: domanda }], linguaGuida),
+    rilevaLinguaDomanda([...storico, { role: 'user', content: domanda }], linguaGuida, struttura_id),
   ])
 
   const oggi = new Intl.DateTimeFormat('it-IT', {
@@ -269,6 +278,8 @@ ${struttura?.note_gennarino || 'Nessuna nota pratica aggiuntiva.'}`
       system: systemPrompt,
       messages: [...storico, { role: 'user', content: domanda }],
       max_tokens: 500,
+      struttura_id,
+      operazione: 'risposta ospite',
     })
 
     // Rete di sicurezza: il modello ogni tanto infila **grassetto** o titoli markdown

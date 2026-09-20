@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { ridimensionaImmagine } from '../immagine'
 import { ordinaPerDistanza } from '../distanza'
+import { possibileDuplicato } from '../../lib/identita-luoghi.js'
 import type { ContestoHost } from './RichiedeLogin'
 import { Search } from 'lucide-react'
 import { PaginaAdmin, Campo, classeCampo, Pulsante, Esito } from './ui'
@@ -133,6 +134,16 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const [raggio, setRaggio] = useState(5)
   const [caricamentoFotoId, setCaricamentoFotoId] = useState<string | null>(null)
   const [fotoEsito, setFotoEsito] = useState('') // '' | 'ok' | messaggio d'errore
+
+  // Vale anche per le proposte salvate prima del nuovo controllo lato server.
+  // Una somiglianza segnala un possibile duplicato; non rinomina nessun luogo.
+  const nomiEsistenti = luoghi.map(luogo => luogo.nome)
+  const duplicati = new Map(proposte.flatMap(proposta => {
+    const esistente = possibileDuplicato(proposta.nome, nomiEsistenti)
+    return esistente ? [[proposta.id, esistente] as const] : []
+  }))
+  const proposteValide = proposte.filter(proposta => !duplicati.has(proposta.id))
+  const scelteValide = scelte.filter(id => !duplicati.has(id))
 
   const caricaTutto = useCallback(async (id: string) => {
     const { data: dl } = await supabase
@@ -328,7 +339,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     try {
       const { error } = await supabase.rpc('salva_scelte_proposte', {
         p_struttura_id: strutturaId, p_sezione: sezione,
-        p_proposte: proposte.map(p => p.id), p_scelte: scelte,
+        p_proposte: proposte.map(p => p.id), p_scelte: scelteValide,
       })
       if (error) throw error
       await caricaTutto(strutturaId)
@@ -345,7 +356,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       disabled={salvataggio || cercando}
       className="w-full rounded-xl py-3 text-sm font-semibold transition bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
     >
-      {salvataggio ? 'Salvo…' : `Salva le scelte (${scelte.length} selezionati)`}
+      {salvataggio ? 'Salvo…' : `Salva le scelte (${scelteValide.length} selezionati)`}
     </button>
   )
 
@@ -376,11 +387,20 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
       {proposte.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Proposte da approvare ({proposte.length})</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Proposte da approvare ({proposteValide.length})</p>
           {pulsanteSalvaScelte}
-          <p className="text-xs text-slate-500">Al salvataggio saranno aggiunti {scelte.length} luoghi e rimosse {proposte.length - scelte.length} proposte non selezionate.</p>
+          <p className="text-xs text-slate-500">Al salvataggio saranno aggiunti {scelteValide.length} luoghi e rimosse {proposte.length - scelteValide.length} proposte non selezionate.</p>
+          {duplicati.size > 0 && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-900" role="status">
+              <p className="font-semibold">Possibili duplicati esclusi dalle scelte ({duplicati.size})</p>
+              {proposte.filter(p => duplicati.has(p.id)).map(p => (
+                <p key={p.id} className="mt-1">“{p.nome}” potrebbe essere “{duplicati.get(p.id)}”, già nella guida.</p>
+              ))}
+              <p className="mt-2 text-xs">Salva le scelte per scartare queste proposte. Se si tratta di un’attività diversa, puoi aggiungerla a mano dopo aver verificato nome e indirizzo.</p>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
-            {proposte.map((p) => (
+            {proposteValide.map((p) => (
               <div key={p.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
                 <p className="font-medium text-sm text-slate-900">{p.nome}</p>
                 {(p.distanza || p.prezzo || p.voto) && (

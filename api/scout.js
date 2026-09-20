@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { possibileDuplicato } from '../lib/identita-luoghi.js'
 import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm, chiaveUrl, verificaNomiProposte, nomePresenteNellaFonte } from '../lib/proposte-scout.js'
 import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions, usoOpenAICompatibile } from '../lib/consumi-ai.js'
 
@@ -559,7 +560,7 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
     const lng = Number(p.lon ?? feature?.geometry?.coordinates?.[0])
     const indirizzo = String(p.formatted || [p.street, p.housenumber, p.city, p.postcode].filter(Boolean).join(', ')).trim()
     const chiaveLuogo = String(p.place_id || `${nome}|${lat}|${lng}`)
-    if (!nome || !indirizzo || esclusi.has(nome.toLocaleLowerCase('it')) || visti.has(chiaveLuogo)
+    if (!nome || !indirizzo || possibileDuplicato(nome, [...esclusi]) || visti.has(chiaveLuogo)
       || !Number.isFinite(lat) || !Number.isFinite(lng)) return []
     const km = Math.round(distanzaGeograficaKm(latStruttura, lngStruttura, lat, lng) * 10) / 10
     if (km <= minimo || km > raggioKm) return []
@@ -586,15 +587,16 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
   // Una sola richiesta Exa per l'intero gruppo: evita il limite del piano gratuito
   // causato da cinque richieste simultanee e mantiene coerente lo stile.
   const descrizioniWeb = await descrizioniConExa(candidatiDettagliati, struttura.id, sezione)
-  const candidati = candidatiDettagliati.map((candidato, indice) => {
+  const candidati = candidatiDettagliati.flatMap((candidato, indice) => {
     const descrizioneWeb = descrizioniWeb.get(indice)
-    return {
+    // La sola scheda cartografica può contenere refusi. Senza un riscontro web
+    // sul nome non presentiamo il testo di riserva come proposta verificata.
+    if (!descrizioneWeb?.fonti?.length) return []
+    return [{
       ...candidato,
-      descrizione: descrizioneWeb?.descrizione || candidato.descrizione,
-      fonti: descrizioneWeb?.fonti?.length
-        ? [...candidato.fonti.map((fonte) => ({ ...fonte, campi: fonte.campi.filter((campo) => campo !== 'descrizione') })), ...descrizioneWeb.fonti]
-        : candidato.fonti,
-    }
+      descrizione: descrizioneWeb.descrizione,
+      fonti: [...candidato.fonti.map((fonte) => ({ ...fonte, campi: fonte.campi.filter((campo) => !['nome', 'descrizione'].includes(campo)) })), ...descrizioneWeb.fonti],
+    }]
   })
 
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',

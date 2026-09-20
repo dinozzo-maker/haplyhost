@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm } from '../lib/proposte-scout.js'
+import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm, chiaveUrl } from '../lib/proposte-scout.js'
 import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions, usoOpenAICompatibile } from '../lib/consumi-ai.js'
 
 const supabase = createClient(
@@ -106,9 +106,8 @@ const CATEGORIE = {
   trasporti: 'servizi di trasporto (bus, taxi, noleggio auto/bici)',
 }
 
-// Ultimo livello di ricerca, senza modello generativo: Geoapify restituisce punti
-// d'interesse OpenStreetMap già localizzati. Le descrizioni restano volutamente
-// essenziali e riportano solo categoria e posizione presenti nella scheda.
+// Ultimo livello di ricerca: Geoapify trova punti d'interesse già localizzati;
+// Exa prova poi ad arricchirne le descrizioni con fonti web verificabili.
 const CATEGORIE_GEOAPIFY = {
   spiagge: 'beach',
   mangiare: 'catering.restaurant,catering.fast_food.pizza',
@@ -402,15 +401,22 @@ function descrizioneGeoapify(proprieta, sezione) {
   const categorie = Array.isArray(proprieta?.categories) ? proprieta.categories.map(String) : []
   const tipo = tipoLuogoGeoapify(categorie, sezione)
   const localita = String(proprieta?.city || proprieta?.town || proprieta?.village || proprieta?.suburb || proprieta?.county || '').trim()
-  const strada = [proprieta?.street, proprieta?.housenumber].filter(Boolean).join(' ').trim()
   const specialita = sezione === 'mangiare'
     ? SPECIALITA_GEOAPIFY.find(([chiave]) => categorie.some((categoria) => categoria.includes(chiave)))?.[1]
     : ''
-  const parti = [`${tipo}${localita ? ` a ${localita}` : ''}`]
-  if (specialita && !(tipo === 'Pizzeria' && specialita === 'pizza')
-    && !tipo.toLocaleLowerCase('it').includes(specialita)) parti[0] += ` con ${specialita}`
-  if (strada) parti.push(`Si trova in ${strada}`)
-  const descrizione = parti.join('. ') + '.'
+  const zona = localita ? ` a ${localita}` : ''
+  const caratteristica = specialita && !(tipo === 'Pizzeria' && specialita === 'pizza')
+    && !tipo.toLocaleLowerCase('it').includes(specialita) ? ` con ${specialita}` : ''
+  const descrizioni = {
+    mangiare: `${tipo}${zona}${caratteristica}: una proposta da valutare per organizzare un pranzo o una cena durante il soggiorno.`,
+    spiagge: `${tipo}${zona}, da tenere presente per trascorrere una giornata al mare durante il soggiorno.`,
+    vicinanze: `${tipo}${zona}, un riferimento pratico per le necessità quotidiane durante il soggiorno.`,
+    visitare: `${tipo}${zona}, una possibile tappa da inserire nell’itinerario per conoscere meglio il territorio.`,
+    divertimento: `${tipo}${zona}, una possibilità da considerare per dedicare qualche ora al tempo libero.`,
+    gite: `${tipo}${zona}, una possibile meta per una gita e per scoprire i dintorni durante il soggiorno.`,
+    trasporti: `${tipo}${zona}, utile per valutare gli spostamenti e organizzare gli itinerari durante il soggiorno.`,
+  }
+  const descrizione = descrizioni[sezione] || `${tipo}${zona}, una possibile tappa da valutare durante il soggiorno.`
   return [...descrizione].slice(0, 200).join('')
 }
 
@@ -441,45 +447,77 @@ async function dettagliGeoapify(placeId, proprietaBase) {
   }
 }
 
-async function descrizioneConExa(candidato, strutturaId) {
-  if (!process.env.EXA_API_KEY) return null
+function nomeNormalizzato(valore) {
+  return String(valore || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('it').replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+async function descrizioniConExa(candidati, strutturaId, sezione) {
+  if (!process.env.EXA_API_KEY || candidati.length === 0) return new Map()
   const iniziata = Date.now()
   try {
     const risposta = await fetch('https://api.exa.ai/answer', {
-      method: 'POST', signal: AbortSignal.timeout(12000),
+      method: 'POST', signal: AbortSignal.timeout(18000),
       headers: { 'content-type': 'application/json', 'x-api-key': process.env.EXA_API_KEY },
       body: JSON.stringify({
-        query: `Verifica questa attività esatta: "${candidato.nome}", ${candidato.indirizzo}. Scrivi in italiano una descrizione accogliente e utile, massimo 200 caratteri. Includi solo caratteristiche confermate dalle fonti. Non inserire orari, prezzi, distanze, giudizi, parcheggio, accessibilità o servizi non verificati.`,
+        query: `Verifica esclusivamente queste attività già identificate, senza proporne altre:\n${JSON.stringify(candidati.map((candidato, indice) => ({ indice, nome: candidato.nome, indirizzo: candidato.indirizzo })))}\nPer ognuna scrivi in italiano una descrizione naturale, accogliente e concreta di 130-200 caratteri, nello stile di una guida locale. Apri con ciò che la distingue e aiuta l'ospite a scegliere. Usa soltanto caratteristiche confermate dalle fonti. Se le fonti confermano solo tipo e località, lascia descrizione e fonti vuote. Non citare verifiche, mappe o indirizzi nella descrizione. Non inserire orari, prezzi, distanze, giudizi assoluti, parcheggio, accessibilità o servizi non verificati. Restituisci per ogni descrizione gli URL esatti delle fonti usate. La sezione è ${sezione}.`,
         model: 'exa', stream: false, text: false, userLocation: 'IT',
         outputSchema: {
-          type: 'object', additionalProperties: false, required: ['descrizione'],
-          properties: { descrizione: { type: 'string', maxLength: 200 } },
+          type: 'object', additionalProperties: false, required: ['descrizioni'],
+          properties: { descrizioni: { type: 'array', maxItems: 5, items: {
+            type: 'object', additionalProperties: false, required: ['indice', 'descrizione', 'fonti'],
+            properties: {
+              indice: { type: 'integer' }, descrizione: { type: 'string', maxLength: 200 },
+              fonti: { type: 'array', items: { type: 'string' } },
+            },
+          } } },
         },
-        systemPrompt: 'Identifica la sede tramite nome e indirizzo. Preferisci sito e profili ufficiali. Non inventare dettagli.',
+        systemPrompt: 'Identifica ogni sede tramite nome e indirizzo. Preferisci sito ufficiale, menu ufficiale e profili gestiti dall’attività. Scrivi con tono caldo e informativo, senza formule pubblicitarie e senza inventare dettagli.',
       }),
     })
     const dati = await risposta.json().catch(() => null)
-    if (!risposta.ok || dati?.error) return null
+    if (!risposta.ok || dati?.error) return new Map()
     let contenuto = dati?.answer
     if (typeof contenuto === 'string') {
-      try { contenuto = JSON.parse(contenuto) } catch { contenuto = { descrizione: contenuto } }
+      try { contenuto = JSON.parse(contenuto) } catch { contenuto = null }
     }
-    const descrizione = String(contenuto?.descrizione || '').replace(/[*#]/g, '').trim()
-    const fonti = (Array.isArray(dati?.citations) ? dati.citations : []).flatMap((fonte) => {
+    const citazioni = (Array.isArray(dati?.citations) ? dati.citations : []).flatMap((fonte) => {
       const url = String(fonte?.url || '').trim()
       if (!url || !/^https?:\/\//i.test(url)) return []
-      return [{
-        url, titolo: String(fonte?.title || 'Fonte web').slice(0, 200),
-        conferma: 'Fonte usata per verificare le caratteristiche riportate nella descrizione.',
-        campi: ['nome', 'descrizione'],
-      }]
-    }).slice(0, 3)
-    if (!descrizione || [...descrizione].length > 200 || fonti.length === 0) return null
+      return [{ url, chiave: chiaveUrl(url), titolo: String(fonte?.title || 'Fonte web').slice(0, 200),
+        testo: String(fonte?.text || '') }]
+    })
+    const citazioniPerUrl = new Map(citazioni.map((fonte) => [fonte.chiave, fonte]))
+    const risultati = new Map()
+    for (const elemento of Array.isArray(contenuto?.descrizioni) ? contenuto.descrizioni : []) {
+      const indice = Number(elemento?.indice)
+      const candidato = candidati[indice]
+      const descrizione = String(elemento?.descrizione || '').replace(/[*#]/g, '').trim()
+      if (!candidato || [...descrizione].length < 80 || [...descrizione].length > 200) continue
+      let fonti = (Array.isArray(elemento?.fonti) ? elemento.fonti : [])
+        .map((url) => citazioniPerUrl.get(chiaveUrl(url))).filter(Boolean)
+      if (fonti.length === 0) {
+        const nome = nomeNormalizzato(candidato.nome)
+        fonti = citazioni.filter((fonte) => {
+          const documento = nomeNormalizzato(`${fonte.titolo} ${fonte.testo}`)
+          return nome && documento && (documento.includes(nome) || nome.includes(documento))
+        })
+      }
+      if (fonti.length === 0) continue
+      risultati.set(indice, {
+        descrizione,
+        fonti: fonti.slice(0, 3).map((fonte) => ({
+          url: fonte.url, titolo: fonte.titolo,
+          conferma: 'Fonte usata per verificare le caratteristiche riportate nella descrizione.',
+          campi: ['nome', 'descrizione'],
+        })),
+      })
+    }
     await registraConsumoAI({ struttura_id: strutturaId, servizio: 'scout', operazione: 'descrizione luogo',
       fornitore: 'exa', modello: 'exa-answer', durata_ms: Date.now() - iniziata })
-    return { descrizione, fonti }
+    return risultati
   } catch {
-    return null
+    return new Map()
   }
 }
 
@@ -537,20 +575,23 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
     }]
   }).sort((a, b) => a.distanza_km - b.distanza_km).slice(0, 5)
 
-  const candidati = await Promise.all(candidatiBase.map(async (candidato) => {
-    const [proprieta, descrizioneWeb] = await Promise.all([
-      dettagliGeoapify(candidato._placeId, candidato._proprieta),
-      descrizioneConExa(candidato, struttura.id),
-    ])
-    const descrizioneBase = descrizioneGeoapify(proprieta, sezione)
+  const candidatiDettagliati = await Promise.all(candidatiBase.map(async (candidato) => {
+    const proprieta = await dettagliGeoapify(candidato._placeId, candidato._proprieta)
+    return { ...candidato, descrizione: descrizioneGeoapify(proprieta, sezione), _proprieta: proprieta }
+  }))
+  // Una sola richiesta Exa per l'intero gruppo: evita il limite del piano gratuito
+  // causato da cinque richieste simultanee e mantiene coerente lo stile.
+  const descrizioniWeb = await descrizioniConExa(candidatiDettagliati, struttura.id, sezione)
+  const candidati = candidatiDettagliati.map((candidato, indice) => {
+    const descrizioneWeb = descrizioniWeb.get(indice)
     return {
       ...candidato,
-      descrizione: descrizioneWeb?.descrizione || descrizioneBase,
+      descrizione: descrizioneWeb?.descrizione || candidato.descrizione,
       fonti: descrizioneWeb?.fonti?.length
         ? [...candidato.fonti.map((fonte) => ({ ...fonte, campi: fonte.campi.filter((campo) => campo !== 'descrizione') })), ...descrizioneWeb.fonti]
         : candidato.fonti,
     }
-  }))
+  })
 
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'geoapify', modello: 'places-v2', durata_ms: Date.now() - iniziata })

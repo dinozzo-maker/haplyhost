@@ -24,16 +24,20 @@ const RAGGIO_DEFAULT_KM = 5
 // piano API. Restano nei log Vercel; nel pannello mostriamo solo indicazioni utili.
 function errorePubblicoScout(err) {
   const dettaglio = String(err?.message || '').toLowerCase()
+  const nomi = { google: 'Gemini', anthropic: 'Anthropic', openrouter: 'OpenRouter', exa: 'Exa' }
+  const esiti = Array.isArray(err?.tentativi) && err.tentativi.length
+    ? ' Dettaglio: ' + err.tentativi.map((t) => `${nomi[t.fornitore] || t.fornitore}: ${t.esito}`).join('; ') + '.'
+    : ''
   if (dettaglio.includes('quota') || dettaglio.includes('rate limit') || dettaglio.includes('resource_exhausted')) {
     return {
       stato: 429,
-      messaggio: 'Le ricerche automatiche hanno raggiunto il limite disponibile. Riprova più tardi: i luoghi già presenti non vengono modificati.',
+      messaggio: 'Le ricerche automatiche hanno raggiunto il limite disponibile. Riprova più tardi: i luoghi già presenti non vengono modificati.' + esiti,
     }
   }
   if (dettaglio.includes('timeout') || dettaglio.includes('timed out') || err?.name === 'TimeoutError') {
-    return { stato: 504, messaggio: 'La ricerca sta impiegando troppo tempo. Riprova tra poco.' }
+    return { stato: 504, messaggio: 'La ricerca sta impiegando troppo tempo. Riprova tra poco.' + esiti }
   }
-  return { stato: 500, messaggio: 'La ricerca non è riuscita. Riprova tra poco.' }
+  return { stato: 500, messaggio: 'La ricerca non è riuscita. Riprova tra poco.' + esiti }
 }
 
 const CATEGORIE = {
@@ -327,22 +331,27 @@ async function cercaConFallback(parametri) {
 
   let ultimoErrore = null
   let almenoUnaRicercaValida = false
+  const tentativi = []
   for (const motore of motori) {
     try {
       const proposte = await motore.cerca(parametri)
       if (proposte.length > 0) return proposte
       almenoUnaRicercaValida = true
+      tentativi.push({ fornitore: motore.fornitore, esito: 'nessun risultato verificabile' })
       ultimoErrore = new Error(`${motore.fornitore}: nessuna proposta verificabile`)
       console.info(`Scout/${motore.fornitore}: nessuna proposta verificabile, provo il successivo`)
     } catch (errore) {
       ultimoErrore = errore
+      tentativi.push({ fornitore: motore.fornitore, esito: tipoErroreAI(errore) })
       console.warn(`Scout/${motore.fornitore}: passo al fornitore successivo:`, errore?.message)
       await registraConsumoAI({ struttura_id: parametri.struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
         fornitore: motore.fornitore, modello: motore.modello, esito: 'errore', errore_tipo: tipoErroreAI(errore) })
     }
   }
   if (almenoUnaRicercaValida) return []
-  throw ultimoErrore || new Error('Nessuna proposta verificabile')
+  const erroreFinale = ultimoErrore || new Error('Nessuna proposta verificabile')
+  erroreFinale.tentativi = tentativi
+  throw erroreFinale
 }
 
 export default async function handler(req, res) {

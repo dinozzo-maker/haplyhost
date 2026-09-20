@@ -19,6 +19,7 @@ const MODELLO_OPENROUTER = 'qwen/qwen3.8-27b:free'
 // valore arrivi dal body viene ignorato e si usa il default (5 km).
 const RAGGI_KM = [1, 5, 15, 30, 150]
 const RAGGIO_DEFAULT_KM = 5
+const HEADER_GEOAPIFY = { origin: 'https://haplyhost.vercel.app', referer: 'https://haplyhost.vercel.app/' }
 
 function erroreFornitore(nome, risposta, dati) {
   const erroreDati = dati?.error
@@ -49,7 +50,9 @@ async function assicuraCoordinateStruttura(struttura) {
 
   const indirizzo = [struttura?.indirizzo, struttura?.citta].filter(Boolean).join(', ')
   const query = new URLSearchParams({ text: indirizzo, limit: '1', filter: 'countrycode:it', lang: 'it', apiKey: chiave })
-  const risposta = await fetch(`https://api.geoapify.com/v1/geocode/search?${query}`, { signal: AbortSignal.timeout(5000) })
+  const risposta = await fetch(`https://api.geoapify.com/v1/geocode/search?${query}`, {
+    signal: AbortSignal.timeout(5000), headers: HEADER_GEOAPIFY,
+  })
   const dati = await risposta.json().catch(() => null)
   if (!risposta.ok) throw erroreFornitore('Geoapify', risposta, dati || {})
 
@@ -71,7 +74,7 @@ async function assicuraCoordinateStruttura(struttura) {
 // piano API. Restano nei log Vercel; nel pannello mostriamo solo indicazioni utili.
 function errorePubblicoScout(err) {
   const dettaglio = String(err?.message || '').toLowerCase()
-  const nomi = { google: 'Gemini', anthropic: 'Anthropic', openrouter: 'OpenRouter', exa: 'Exa' }
+  const nomi = { google: 'Gemini', anthropic: 'Anthropic', openrouter: 'OpenRouter', exa: 'Exa', geoapify: 'Geoapify' }
   const esiti = Array.isArray(err?.tentativi) && err.tentativi.length
     ? ' Dettaglio: ' + err.tentativi.map((t) => `${nomi[t.fornitore] || t.fornitore}: ${t.esito}`).join('; ') + '.'
     : ''
@@ -101,6 +104,19 @@ const CATEGORIE = {
   divertimento: 'attività e divertimento (parchi, sport, noleggi)',
   gite: 'gite ed escursioni di mezza giornata o giornata intera',
   trasporti: 'servizi di trasporto (bus, taxi, noleggio auto/bici)',
+}
+
+// Ultimo livello di ricerca, senza modello generativo: Geoapify restituisce punti
+// d'interesse OpenStreetMap già localizzati. Le descrizioni restano volutamente
+// essenziali e riportano solo categoria e posizione presenti nella scheda.
+const CATEGORIE_GEOAPIFY = {
+  spiagge: 'beach',
+  mangiare: 'catering.restaurant,catering.fast_food,catering.cafe,catering.bar,catering.pub',
+  vicinanze: 'commercial.supermarket,commercial.convenience,healthcare.pharmacy',
+  visitare: 'tourism.attraction,tourism.sights,heritage,entertainment.museum',
+  divertimento: 'entertainment,activity.sport_club,sport,leisure',
+  gite: 'tourism.attraction,tourism.sights,leisure.park.nature_reserve',
+  trasporti: 'public_transport,rental,service.taxi',
 }
 
 // Estrae il primo array JSON da un testo, anche se il modello ci mette frasi attorno.
@@ -211,7 +227,9 @@ async function normalizzaConDistanze(candidati, citazioni, struttura, daEscluder
       // (es. "Agropoli, ..., Capaccio") e porta il geocoder sul luogo sbagliato.
       const filtro = `countrycode:it|circle:${lngStruttura},${latStruttura},${Math.ceil(raggioKm * 1000)}`
       const query = new URLSearchParams({ text: indirizzo, limit: '3', filter: filtro, lang: 'it', apiKey: chiave })
-      const risposta = await fetch(`https://api.geoapify.com/v1/geocode/search?${query}`, { signal: AbortSignal.timeout(3500) })
+      const risposta = await fetch(`https://api.geoapify.com/v1/geocode/search?${query}`, {
+        signal: AbortSignal.timeout(3500), headers: HEADER_GEOAPIFY,
+      })
       const dati = await risposta.json().catch(() => null)
       const proprieta = dati?.features?.map((f) => f?.properties).find((p) => {
         const lat = Number(p?.lat)
@@ -390,12 +408,116 @@ async function cercaConExa({ struttura, categoria, daEscludere, raggioKm }) {
   return normalizzaConDistanze(candidati, (dati.citations || []).map((c) => c.url), struttura, daEscludere, raggioKm)
 }
 
+function tipoLuogoGeoapify(categorie, sezione) {
+  const ha = (testo) => categorie.some((categoria) => categoria.includes(testo))
+  if (sezione === 'mangiare') {
+    if (ha('pizza')) return 'Pizzeria'
+    if (ha('cafe')) return 'Bar o caffetteria'
+    if (ha('pub')) return 'Pub'
+    if (ha('fast_food')) return 'Locale di ristorazione veloce'
+    return 'Ristorante'
+  }
+  if (sezione === 'spiagge') return ha('beach_resort') ? 'Stabilimento balneare' : 'Spiaggia'
+  if (sezione === 'vicinanze') {
+    if (ha('pharmacy')) return 'Farmacia'
+    if (ha('supermarket')) return 'Supermercato'
+    return 'Negozio di prossimità'
+  }
+  if (sezione === 'trasporti') {
+    if (ha('train')) return 'Stazione ferroviaria'
+    if (ha('ferry')) return 'Fermata o terminal dei traghetti'
+    if (ha('taxi')) return 'Servizio taxi'
+    if (ha('rental')) return 'Servizio di noleggio'
+    return 'Fermata o servizio di trasporto pubblico'
+  }
+  if (ha('museum')) return 'Museo'
+  if (ha('archaeological')) return 'Sito archeologico'
+  if (ha('nature_reserve')) return 'Area naturale'
+  if (ha('sport')) return 'Struttura sportiva'
+  if (ha('entertainment')) return 'Luogo per il tempo libero'
+  return 'Luogo d’interesse'
+}
+
+function urlOpenStreetMap(proprieta, lat, lng) {
+  const grezzo = proprieta?.datasource?.raw || {}
+  const tipi = { n: 'node', node: 'node', w: 'way', way: 'way', r: 'relation', relation: 'relation' }
+  const tipo = tipi[String(grezzo.osm_type || '').toLowerCase()]
+  const id = String(grezzo.osm_id || '').replace(/\D/g, '')
+  return tipo && id
+    ? `https://www.openstreetmap.org/${tipo}/${id}`
+    : `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`
+}
+
+async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
+  const categorieRichieste = CATEGORIE_GEOAPIFY[sezione]
+  const chiave = process.env.VITE_GEOAPIFY_API_KEY?.trim()
+  if (!categorieRichieste || !chiave) return []
+
+  const iniziata = Date.now()
+  const latStruttura = Number(struttura.lat)
+  const lngStruttura = Number(struttura.lng)
+  const filtro = `circle:${lngStruttura},${latStruttura},${Math.ceil(raggioKm * 1000)}`
+  // Senza bias di prossimità: nelle fasce 15–30 e 30–150 km non vogliamo che
+  // tutte le pagine siano occupate dai luoghi immediatamente vicini.
+  const offsets = raggioKm === 1 ? [0] : [0, 100, 200]
+  const risposte = await Promise.all(offsets.map(async (offset) => {
+    const query = new URLSearchParams({
+      categories: categorieRichieste, filter: filtro, limit: '100', offset: String(offset), lang: 'it', apiKey: chiave,
+    })
+    const risposta = await fetch(`https://api.geoapify.com/v2/places?${query}`, {
+      signal: AbortSignal.timeout(6000), headers: HEADER_GEOAPIFY,
+    })
+    const dati = await risposta.json().catch(() => null)
+    if (!risposta.ok) throw erroreFornitore('Geoapify Places', risposta, dati || {})
+    return Array.isArray(dati?.features) ? dati.features : []
+  }))
+
+  const minimo = ({ 1: 0, 5: 1, 15: 5, 30: 15, 150: 30 })[raggioKm] ?? 0
+  const esclusi = new Set(daEscludere.map((nome) => String(nome || '').trim().toLocaleLowerCase('it')))
+  const visti = new Set()
+  const candidati = risposte.flat().flatMap((feature) => {
+    const p = feature?.properties || {}
+    const nome = String(p.name || '').trim()
+    const lat = Number(p.lat ?? feature?.geometry?.coordinates?.[1])
+    const lng = Number(p.lon ?? feature?.geometry?.coordinates?.[0])
+    const indirizzo = String(p.formatted || [p.street, p.housenumber, p.city, p.postcode].filter(Boolean).join(', ')).trim()
+    const chiaveLuogo = String(p.place_id || `${nome}|${lat}|${lng}`)
+    if (!nome || !indirizzo || esclusi.has(nome.toLocaleLowerCase('it')) || visti.has(chiaveLuogo)
+      || !Number.isFinite(lat) || !Number.isFinite(lng)) return []
+    const km = Math.round(distanzaGeograficaKm(latStruttura, lngStruttura, lat, lng) * 10) / 10
+    if (km <= minimo || km > raggioKm) return []
+    visti.add(chiaveLuogo)
+    const categorie = Array.isArray(p.categories) ? p.categories.map(String) : []
+    const tipo = tipoLuogoGeoapify(categorie, sezione)
+    const localita = String(p.city || p.town || p.village || p.suburb || p.county || '').trim()
+    const zona = localita ? ` a ${localita}` : ''
+    const url = urlOpenStreetMap(p, lat, lng)
+    const distanza = `Circa ${String(km).replace('.', ',')} km`
+    return [{
+      nome, indirizzo, descrizione: `${tipo}${zona}, con posizione verificata sulla mappa.`,
+      distanza_km: km, distanza, prezzo: '', voto: '', maps: url, telefono: '',
+      fonti: [{
+        url, titolo: 'OpenStreetMap tramite Geoapify',
+        conferma: `Conferma nome, categoria, indirizzo e posizione del luogo (${distanza} in linea d’aria dalla struttura).`,
+        campi: ['nome', 'descrizione', 'distanza_km', 'distanza', 'maps'],
+      }],
+      non_verificato: ['Specialità, servizi, prezzi, voto e telefono non verificati.'],
+      contraddizioni: [], domanda_host: '',
+    }]
+  }).sort((a, b) => a.distanza_km - b.distanza_km).slice(0, 5)
+
+  await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
+    fornitore: 'geoapify', modello: 'places-v2', durata_ms: Date.now() - iniziata })
+  return normalizzaProposte(candidati, candidati.map((c) => c.maps), daEscludere, raggioKm)
+}
+
 async function cercaConFallback(parametri) {
   const motori = [
     { disponibile: process.env.GEMINI_API_KEY, fornitore: 'google', modello: MODELLO_GEMINI, cerca: cercaConGemini },
     { disponibile: process.env.ANTHROPIC_API_KEY, fornitore: 'anthropic', modello: MODELLO_ANTHROPIC, cerca: cercaConClaude },
     { disponibile: process.env.OPENROUTER_API_KEY, fornitore: 'openrouter', modello: MODELLO_OPENROUTER, cerca: cercaConOpenRouter },
     { disponibile: process.env.EXA_API_KEY, fornitore: 'exa', modello: 'exa-answer', cerca: cercaConExa },
+    { disponibile: process.env.VITE_GEOAPIFY_API_KEY && CATEGORIE_GEOAPIFY[parametri.sezione], fornitore: 'geoapify', modello: 'places-v2', cerca: cercaConGeoapify },
   ].filter((m) => m.disponibile)
   if (!motori.length) throw new Error('Nessun fornitore AI configurato')
 
@@ -498,7 +620,7 @@ export default async function handler(req, res) {
     // lat/lng. Le ricaviamo una volta dall'indirizzo e le salviamo: così fasce e
     // meteo funzionano anche per quelle righe storiche.
     const strutturaLocalizzata = await assicuraCoordinateStruttura(struttura)
-    const trovate = await cercaConFallback({ struttura: strutturaLocalizzata, categoria, daEscludere, raggioKm })
+    const trovate = await cercaConFallback({ struttura: strutturaLocalizzata, sezione, categoria, daEscludere, raggioKm })
 
     const righe = trovate.map(c => ({
       struttura_id,

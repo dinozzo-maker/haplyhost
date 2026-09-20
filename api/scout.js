@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude } from '../lib/proposte-scout.js'
-import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions } from '../lib/consumi-ai.js'
+import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions, usoOpenAICompatibile } from '../lib/consumi-ai.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -11,8 +11,9 @@ const supabase = createClient(
 // nessuna AI). Deve restare uguale anche in src/admin/GestisciSezione.tsx.
 const RICERCHE_ATTIVE = true
 
-// MOTORE: 'gemini' (Google Maps grounding, in uso) | 'claude' (ricerca web, fallback spento).
-const MOTORE_SCOUT = 'gemini'
+const MODELLO_GEMINI = 'gemini-3.1-flash-lite'
+const MODELLO_ANTHROPIC = 'claude-haiku-4-5-20251001'
+const MODELLO_OPENROUTER = 'qwen/qwen3.8-27b:free'
 
 // Opzioni offerte in src/admin/GestisciSezione.tsx — tenere allineate. Qualsiasi altro
 // valore arrivi dal body viene ignorato e si usa il default (5 km).
@@ -69,13 +70,13 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
 
   const risposta = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(15000),
     headers: {
       'content-type': 'application/json',
       'x-goog-api-key': process.env.GEMINI_API_KEY,
     },
     body: JSON.stringify({
-      model: 'gemini-3.1-flash-lite',
+      model: MODELLO_GEMINI,
       input: prompt,
       tools: [tool, { type: 'google_search' }],
     }),
@@ -100,7 +101,7 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
   }
 
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
-    fornitore: 'google', modello: 'gemini-3.1-flash-lite', durata_ms: Date.now() - iniziata,
+    fornitore: 'google', modello: MODELLO_GEMINI, durata_ms: Date.now() - iniziata,
     utilizzo: usoGeminiInteractions(dati) })
   return normalizzaProposte(candidati, citazioniGemini(dati), daEscludere, raggioKm)
 }
@@ -115,13 +116,14 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
     const iniziata = Date.now()
     const risposta = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal: AbortSignal.timeout(10000),
       headers: {
         'content-type': 'application/json',
         'x-api-key': process.env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: MODELLO_ANTHROPIC,
         max_tokens: 6000,
         tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
         messages: msgs,
@@ -132,7 +134,7 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
       throw new Error('Anthropic: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
     }
     await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
-      fornitore: 'anthropic', modello: 'claude-haiku-4-5-20251001', durata_ms: Date.now() - iniziata,
+      fornitore: 'anthropic', modello: MODELLO_ANTHROPIC, durata_ms: Date.now() - iniziata,
       utilizzo: usoAnthropic(dati) })
     return dati
   }
@@ -140,7 +142,7 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
   let dati = await chiamaClaude(messages)
   const citazioni = [...citazioniClaude(dati)]
   let continua = 0
-  while (dati.stop_reason === 'pause_turn' && continua < 3) {
+  while (dati.stop_reason === 'pause_turn' && continua < 1) {
     messages.push({ role: 'assistant', content: dati.content })
     dati = await chiamaClaude(messages)
     citazioni.push(...citazioniClaude(dati))
@@ -160,6 +162,115 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
   }
 
   return normalizzaProposte(candidati, citazioni, daEscludere, raggioKm)
+}
+
+function citazioniOpenRouter(dati) {
+  const annotazioni = dati?.choices?.[0]?.message?.annotations || []
+  return annotazioni.flatMap((a) => {
+    const url = a?.url || a?.url_citation?.url
+    return url ? [url] : []
+  })
+}
+
+// OpenRouter usa Qwen gratuito per la sintesi e il proprio strumento server-side
+// di ricerca. È un fornitore separato da Gemini e Anthropic.
+async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm }) {
+  const iniziata = Date.now()
+  const risposta = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    signal: AbortSignal.timeout(12000),
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'HTTP-Referer': 'https://haplyhost.vercel.app',
+      'X-Title': 'Haplyhost Scout',
+    },
+    body: JSON.stringify({
+      model: MODELLO_OPENROUTER,
+      messages: [{ role: 'user', content: promptScout({ struttura, categoria, daEscludere, raggioKm }) }],
+      tools: [{ type: 'openrouter:web_search', parameters: { engine: 'exa', mode: 'auto', max_results: 6, max_total_results: 12, max_uses: 3 } }],
+      max_tool_calls: 3,
+      temperature: 0.1,
+    }),
+  })
+  const dati = await risposta.json().catch(() => null)
+  if (!risposta.ok || dati?.error) throw new Error('OpenRouter: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
+  const testo = dati?.choices?.[0]?.message?.content || ''
+  const candidati = estraiArrayJson(testo)
+  if (!candidati) throw new Error('OpenRouter: la ricerca non ha prodotto risultati leggibili')
+  await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
+    fornitore: 'openrouter', modello: MODELLO_OPENROUTER, durata_ms: Date.now() - iniziata,
+    utilizzo: usoOpenAICompatibile(dati) })
+  return normalizzaProposte(candidati, citazioniOpenRouter(dati), daEscludere, raggioKm)
+}
+
+const schemaPropostaExa = {
+  type: 'object', additionalProperties: false, required: ['proposte'],
+  properties: { proposte: { type: 'array', maxItems: 5, items: {
+    type: 'object', additionalProperties: false,
+    required: ['nome', 'indirizzo', 'descrizione', 'distanza_km', 'distanza', 'prezzo', 'voto', 'maps', 'telefono', 'fonti', 'non_verificato', 'contraddizioni', 'domanda_host'],
+    properties: {
+      nome: { type: 'string' }, indirizzo: { type: 'string' }, descrizione: { type: 'string' },
+      distanza_km: { type: ['number', 'null'] }, distanza: { type: 'string' }, prezzo: { type: 'string' },
+      voto: { type: 'string' }, maps: { type: 'string' }, telefono: { type: 'string' },
+      fonti: { type: 'array', items: { type: 'object', additionalProperties: false,
+        required: ['url', 'titolo', 'conferma', 'campi'], properties: {
+          url: { type: 'string' }, titolo: { type: 'string' }, conferma: { type: 'string' },
+          campi: { type: 'array', items: { type: 'string' } },
+        } } },
+      non_verificato: { type: 'array', items: { type: 'string' } },
+      contraddizioni: { type: 'array', items: { type: 'string' } }, domanda_host: { type: 'string' },
+    },
+  } } },
+}
+
+async function cercaConExa({ struttura, categoria, daEscludere, raggioKm }) {
+  const iniziata = Date.now()
+  const risposta = await fetch('https://api.exa.ai/answer', {
+    method: 'POST', signal: AbortSignal.timeout(8000),
+    headers: { 'content-type': 'application/json', 'x-api-key': process.env.EXA_API_KEY },
+    body: JSON.stringify({
+      query: promptScout({ struttura, categoria, daEscludere, raggioKm }) + '\nInserisci il risultato nel campo proposte.',
+      model: 'exa', stream: false, text: false, userLocation: 'IT', outputSchema: schemaPropostaExa,
+      systemPrompt: 'Usa fonti recenti e verificabili. Preferisci siti ufficiali. Non inventare dati o URL.',
+    }),
+  })
+  const dati = await risposta.json().catch(() => null)
+  if (!risposta.ok || dati?.error) throw new Error('Exa: ' + (dati?.error || dati?.tag || `HTTP ${risposta.status}`))
+  const candidati = dati?.answer?.proposte
+  if (!Array.isArray(candidati)) throw new Error('Exa: la ricerca non ha prodotto risultati leggibili')
+  await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
+    fornitore: 'exa', modello: 'exa-answer', durata_ms: Date.now() - iniziata })
+  return normalizzaProposte(candidati, (dati.citations || []).map((c) => c.url), daEscludere, raggioKm)
+}
+
+async function cercaConFallback(parametri) {
+  const motori = [
+    { disponibile: process.env.GEMINI_API_KEY, fornitore: 'google', modello: MODELLO_GEMINI, cerca: cercaConGemini },
+    { disponibile: process.env.ANTHROPIC_API_KEY, fornitore: 'anthropic', modello: MODELLO_ANTHROPIC, cerca: cercaConClaude },
+    { disponibile: process.env.OPENROUTER_API_KEY, fornitore: 'openrouter', modello: MODELLO_OPENROUTER, cerca: cercaConOpenRouter },
+    { disponibile: process.env.EXA_API_KEY, fornitore: 'exa', modello: 'exa-answer', cerca: cercaConExa },
+  ].filter((m) => m.disponibile)
+  if (!motori.length) throw new Error('Nessun fornitore AI configurato')
+
+  let ultimoErrore = null
+  let almenoUnaRicercaValida = false
+  for (const motore of motori) {
+    try {
+      const proposte = await motore.cerca(parametri)
+      if (proposte.length > 0) return proposte
+      almenoUnaRicercaValida = true
+      ultimoErrore = new Error(`${motore.fornitore}: nessuna proposta verificabile`)
+      console.info(`Scout/${motore.fornitore}: nessuna proposta verificabile, provo il successivo`)
+    } catch (errore) {
+      ultimoErrore = errore
+      console.warn(`Scout/${motore.fornitore}: passo al fornitore successivo:`, errore?.message)
+      await registraConsumoAI({ struttura_id: parametri.struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
+        fornitore: motore.fornitore, modello: motore.modello, esito: 'errore', errore_tipo: tipoErroreAI(errore) })
+    }
+  }
+  if (almenoUnaRicercaValida) return []
+  throw ultimoErrore || new Error('Nessuna proposta verificabile')
 }
 
 export default async function handler(req, res) {
@@ -232,8 +343,7 @@ export default async function handler(req, res) {
     // Verifica lo schema prima di consumare crediti di ricerca.
     const { error: erroreSchema } = await supabase.from('proposte').select('verifica').limit(0)
     if (erroreSchema) return res.status(503).json({ error: 'Ricerca con fonti non ancora disponibile. Contatta l’amministratore per completare l’aggiornamento.' })
-    const cerca = MOTORE_SCOUT === 'claude' ? cercaConClaude : cercaConGemini
-    const trovate = await cerca({ struttura, categoria, daEscludere, raggioKm })
+    const trovate = await cercaConFallback({ struttura, categoria, daEscludere, raggioKm })
 
     const righe = trovate.map(c => ({
       struttura_id,
@@ -256,10 +366,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ trovati: righe.length, avviso: righe.length ? '' : 'Nessuna nuova proposta con identità, descrizione e fonti sufficienti. Prova un’altra categoria o un raggio diverso.' })
   } catch (err) {
     console.error('Scout error:', err)
-    await registraConsumoAI({ struttura_id, servizio: 'scout', operazione: 'ricerca luoghi',
-      fornitore: MOTORE_SCOUT === 'claude' ? 'anthropic' : 'google',
-      modello: MOTORE_SCOUT === 'claude' ? 'claude-haiku-4-5-20251001' : 'gemini-3.1-flash-lite',
-      esito: 'errore', errore_tipo: tipoErroreAI(err) })
     const pubblico = errorePubblicoScout(err)
     return res.status(pubblico.stato).json({ error: pubblico.messaggio })
   }

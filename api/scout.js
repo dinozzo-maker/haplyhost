@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude } from '../lib/proposte-scout.js'
+import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm } from '../lib/proposte-scout.js'
 import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions, usoOpenAICompatibile } from '../lib/consumi-ai.js'
 
 const supabase = createClient(
@@ -103,7 +103,50 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'google', modello: MODELLO_GEMINI, durata_ms: Date.now() - iniziata,
     utilizzo: usoGeminiInteractions(dati) })
-  return normalizzaProposte(candidati, citazioniGemini(dati), daEscludere, raggioKm)
+  return normalizzaConDistanze(candidati, citazioniGemini(dati), struttura, daEscludere, raggioKm)
+}
+
+async function normalizzaConDistanze(candidati, citazioni, struttura, daEscludere, raggioKm) {
+  const chiave = process.env.VITE_GEOAPIFY_API_KEY
+  const latStruttura = Number(struttura?.lat)
+  const lngStruttura = Number(struttura?.lng)
+  if (!chiave || struttura?.lat == null || struttura?.lng == null || !Number.isFinite(latStruttura) || !Number.isFinite(lngStruttura)) {
+    throw new Error('Geoapify: coordinate della struttura o chiave non disponibili')
+  }
+
+  const arricchiti = await Promise.all((Array.isArray(candidati) ? candidati : []).slice(0, 8).map(async (candidato) => {
+    const indirizzo = String(candidato?.indirizzo || '').trim()
+    if (!indirizzo) return candidato
+    try {
+      const query = new URLSearchParams({ text: `${indirizzo}, ${struttura.citta || ''}`, limit: '1', filter: 'countrycode:it', apiKey: chiave })
+      const risposta = await fetch(`https://api.geoapify.com/v1/geocode/search?${query}`, { signal: AbortSignal.timeout(3500) })
+      const dati = await risposta.json().catch(() => null)
+      const proprieta = dati?.features?.[0]?.properties
+      const lat = Number(proprieta?.lat)
+      const lng = Number(proprieta?.lon)
+      const risultatoGenerico = ['country', 'state', 'county', 'city', 'postcode'].includes(proprieta?.result_type)
+      if (!risposta.ok || proprieta?.country_code !== 'it' || risultatoGenerico || !Number.isFinite(lat) || !Number.isFinite(lng)) return candidato
+      const km = Math.round(distanzaGeograficaKm(latStruttura, lngStruttura, lat, lng) * 10) / 10
+      const urlMappa = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`
+      return {
+        ...candidato,
+        distanza_km: km,
+        distanza: candidato.distanza || `Circa ${String(km).replace('.', ',')} km`,
+        fonti: [...(Array.isArray(candidato.fonti) ? candidato.fonti : []), {
+          url: urlMappa,
+          titolo: 'Posizione verificata sulla mappa',
+          conferma: 'Coordinate dell’indirizzo usate da Haplyhost per calcolare la distanza in linea d’aria.',
+          campi: ['distanza_km', 'distanza'],
+        }],
+        _citazioneDistanza: urlMappa,
+      }
+    } catch {
+      return candidato
+    }
+  }))
+
+  const citazioniDistanza = arricchiti.map((c) => c?._citazioneDistanza).filter(Boolean)
+  return normalizzaProposte(arricchiti, [...citazioni, ...citazioniDistanza], daEscludere, raggioKm)
 }
 
 // ---- MOTORE CLAUDE: ricerca web (fallback, oggi non selezionato) ----
@@ -161,7 +204,7 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
     throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
   }
 
-  return normalizzaProposte(candidati, citazioni, daEscludere, raggioKm)
+  return normalizzaConDistanze(candidati, citazioni, struttura, daEscludere, raggioKm)
 }
 
 function citazioniOpenRouter(dati) {
@@ -201,7 +244,7 @@ async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm 
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'openrouter', modello: MODELLO_OPENROUTER, durata_ms: Date.now() - iniziata,
     utilizzo: usoOpenAICompatibile(dati) })
-  return normalizzaProposte(candidati, citazioniOpenRouter(dati), daEscludere, raggioKm)
+  return normalizzaConDistanze(candidati, citazioniOpenRouter(dati), struttura, daEscludere, raggioKm)
 }
 
 const schemaPropostaExa = {
@@ -241,7 +284,7 @@ async function cercaConExa({ struttura, categoria, daEscludere, raggioKm }) {
   if (!Array.isArray(candidati)) throw new Error('Exa: la ricerca non ha prodotto risultati leggibili')
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'exa', modello: 'exa-answer', durata_ms: Date.now() - iniziata })
-  return normalizzaProposte(candidati, (dati.citations || []).map((c) => c.url), daEscludere, raggioKm)
+  return normalizzaConDistanze(candidati, (dati.citations || []).map((c) => c.url), struttura, daEscludere, raggioKm)
 }
 
 async function cercaConFallback(parametri) {

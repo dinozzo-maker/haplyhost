@@ -206,20 +206,28 @@ async function normalizzaConDistanze(candidati, citazioni, struttura, daEscluder
     const indirizzo = String(candidato?.indirizzo || '').trim()
     if (!indirizzo) return candidato
     try {
-      const query = new URLSearchParams({ text: `${indirizzo}, ${struttura.citta || ''}`, limit: '1', filter: 'countrycode:it', apiKey: chiave })
+      // L'indirizzo del candidato contiene già il suo comune. Aggiungere qui la
+      // città della struttura rende ambigue proprio le mete delle fasce lontane
+      // (es. "Agropoli, ..., Capaccio") e porta il geocoder sul luogo sbagliato.
+      const filtro = `countrycode:it|circle:${lngStruttura},${latStruttura},${Math.ceil(raggioKm * 1000)}`
+      const query = new URLSearchParams({ text: indirizzo, limit: '3', filter: filtro, lang: 'it', apiKey: chiave })
       const risposta = await fetch(`https://api.geoapify.com/v1/geocode/search?${query}`, { signal: AbortSignal.timeout(3500) })
       const dati = await risposta.json().catch(() => null)
-      const proprieta = dati?.features?.[0]?.properties
+      const proprieta = dati?.features?.map((f) => f?.properties).find((p) => {
+        const lat = Number(p?.lat)
+        const lng = Number(p?.lon)
+        const generico = ['country', 'state', 'county', 'city', 'postcode'].includes(p?.result_type)
+        return p?.country_code === 'it' && !generico && Number.isFinite(lat) && Number.isFinite(lng)
+      })
       const lat = Number(proprieta?.lat)
       const lng = Number(proprieta?.lon)
-      const risultatoGenerico = ['country', 'state', 'county', 'city', 'postcode'].includes(proprieta?.result_type)
-      if (!risposta.ok || proprieta?.country_code !== 'it' || risultatoGenerico || !Number.isFinite(lat) || !Number.isFinite(lng)) return candidato
+      if (!risposta.ok || !proprieta || !Number.isFinite(lat) || !Number.isFinite(lng)) return candidato
       const km = Math.round(distanzaGeograficaKm(latStruttura, lngStruttura, lat, lng) * 10) / 10
       const urlMappa = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`
       return {
         ...candidato,
         distanza_km: km,
-        distanza: candidato.distanza || `Circa ${String(km).replace('.', ',')} km`,
+        distanza: `Circa ${String(km).replace('.', ',')} km`,
         fonti: [...(Array.isArray(candidato.fonti) ? candidato.fonti : []), {
           url: urlMappa,
           titolo: 'Posizione verificata sulla mappa',

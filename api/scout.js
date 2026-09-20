@@ -18,6 +18,22 @@ const MOTORE_SCOUT = 'gemini'
 const RAGGI_KM = [1, 5, 15, 30, 150]
 const RAGGIO_DEFAULT_KM = 5
 
+// Le risposte dei fornitori possono contenere messaggi tecnici, URL e dettagli del
+// piano API. Restano nei log Vercel; nel pannello mostriamo solo indicazioni utili.
+function errorePubblicoScout(err) {
+  const dettaglio = String(err?.message || '').toLowerCase()
+  if (dettaglio.includes('quota') || dettaglio.includes('rate limit') || dettaglio.includes('resource_exhausted')) {
+    return {
+      stato: 429,
+      messaggio: 'Le ricerche automatiche hanno raggiunto il limite disponibile. Riprova più tardi: i luoghi già presenti non vengono modificati.',
+    }
+  }
+  if (dettaglio.includes('timeout') || dettaglio.includes('timed out') || err?.name === 'TimeoutError') {
+    return { stato: 504, messaggio: 'La ricerca sta impiegando troppo tempo. Riprova tra poco.' }
+  }
+  return { stato: 500, messaggio: 'La ricerca non è riuscita. Riprova tra poco.' }
+}
+
 const CATEGORIE = {
   spiagge: 'spiagge e lidi',
   mangiare: 'ristoranti, pizzerie e trattorie',
@@ -231,6 +247,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ trovati: righe.length, avviso: righe.length ? '' : 'Nessuna nuova proposta con identità, descrizione e fonti sufficienti. Prova un’altra categoria o un raggio diverso.' })
   } catch (err) {
     console.error('Scout error:', err)
-    return res.status(500).json({ error: err.message || 'Errore nella ricerca' })
+    const pubblico = errorePubblicoScout(err)
+    return res.status(pubblico.stato).json({ error: pubblico.messaggio })
   }
 }

@@ -20,6 +20,53 @@ const MODELLO_OPENROUTER = 'qwen/qwen3.8-27b:free'
 const RAGGI_KM = [1, 5, 15, 30, 150]
 const RAGGIO_DEFAULT_KM = 5
 
+function erroreFornitore(nome, risposta, dati) {
+  const erroreDati = dati?.error
+  const codiceGrezzo = erroreDati?.type || erroreDati?.code || dati?.tag || `HTTP_${risposta.status}`
+  const codice = String(codiceGrezzo).replace(/[^a-z0-9_-]+/gi, '_').slice(0, 80)
+  const messaggio = typeof erroreDati === 'string'
+    ? erroreDati
+    : (erroreDati?.message || dati?.message || `HTTP ${risposta.status}`)
+  const errore = new Error(`${nome}: HTTP ${risposta.status}; ${codice}; ${String(messaggio).slice(0, 300)}`)
+  errore.codice = codice
+  errore.httpStatus = risposta.status
+  return errore
+}
+
+function erroreScout(codice, messaggio) {
+  const errore = new Error(messaggio)
+  errore.codice = codice
+  return errore
+}
+
+async function assicuraCoordinateStruttura(struttura) {
+  const lat = Number(struttura?.lat)
+  const lng = Number(struttura?.lng)
+  if (struttura?.lat != null && struttura?.lng != null && Number.isFinite(lat) && Number.isFinite(lng)) return struttura
+
+  const chiave = process.env.VITE_GEOAPIFY_API_KEY?.trim()
+  if (!chiave) throw erroreScout('geoapify_config', 'Geoapify: chiave non configurata sul server')
+
+  const indirizzo = [struttura?.indirizzo, struttura?.citta].filter(Boolean).join(', ')
+  const query = new URLSearchParams({ text: indirizzo, limit: '1', filter: 'countrycode:it', lang: 'it', apiKey: chiave })
+  const risposta = await fetch(`https://api.geoapify.com/v1/geocode/search?${query}`, { signal: AbortSignal.timeout(5000) })
+  const dati = await risposta.json().catch(() => null)
+  if (!risposta.ok) throw erroreFornitore('Geoapify', risposta, dati || {})
+
+  const proprieta = dati?.features?.[0]?.properties
+  const latTrovata = Number(proprieta?.lat)
+  const lngTrovata = Number(proprieta?.lon)
+  const troppoGenerico = ['country', 'state', 'county', 'city', 'postcode'].includes(proprieta?.result_type)
+  if (!Number.isFinite(latTrovata) || !Number.isFinite(lngTrovata) || troppoGenerico) {
+    throw erroreScout('indirizzo_struttura', 'Geoapify: indirizzo della struttura non localizzato con precisione')
+  }
+
+  const aggiornata = { ...struttura, lat: latTrovata, lng: lngTrovata }
+  const { error } = await supabase.from('strutture').update({ lat: latTrovata, lng: lngTrovata }).eq('id', struttura.id)
+  if (error) console.warn('Scout: coordinate struttura trovate ma non salvate:', error.message)
+  return aggiornata
+}
+
 // Le risposte dei fornitori possono contenere messaggi tecnici, URL e dettagli del
 // piano API. Restano nei log Vercel; nel pannello mostriamo solo indicazioni utili.
 function errorePubblicoScout(err) {
@@ -28,6 +75,12 @@ function errorePubblicoScout(err) {
   const esiti = Array.isArray(err?.tentativi) && err.tentativi.length
     ? ' Dettaglio: ' + err.tentativi.map((t) => `${nomi[t.fornitore] || t.fornitore}: ${t.esito}`).join('; ') + '.'
     : ''
+  if (err?.codice === 'geoapify_config') {
+    return { stato: 503, messaggio: 'Manca la configurazione Geoapify necessaria per calcolare le distanze. Controlla la variabile VITE_GEOAPIFY_API_KEY su Vercel.' }
+  }
+  if (err?.codice === 'indirizzo_struttura') {
+    return { stato: 422, messaggio: 'Non riesco a localizzare con precisione l’indirizzo della struttura. Apri Dati della casa, scegli l’indirizzo dai suggerimenti e salva, poi riprova.' }
+  }
   if (dettaglio.includes('quota') || dettaglio.includes('rate limit') || dettaglio.includes('resource_exhausted')) {
     return {
       stato: 429,
@@ -91,7 +144,9 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
   const dati = Array.isArray(grezzo) ? (grezzo[0] || {}) : (grezzo || {})
   if (!risposta.ok || dati.error) {
     const dettaglio = dati.error?.message || JSON.stringify(grezzo)?.slice(0, 300) || `HTTP ${risposta.status}`
-    throw new Error('Gemini: ' + dettaglio)
+    const errore = erroreFornitore('Gemini', risposta, dati)
+    errore.message += `; ${dettaglio}`
+    throw errore
   }
 
   const testo = dati.output_text
@@ -207,7 +262,7 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
     })
     const dati = await risposta.json()
     if (!risposta.ok || dati?.type === 'error') {
-      throw new Error('Anthropic: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
+      throw erroreFornitore('Anthropic', risposta, dati)
     }
     await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
       fornitore: 'anthropic', modello: MODELLO_ANTHROPIC, durata_ms: Date.now() - iniziata,
@@ -264,13 +319,13 @@ async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm 
     body: JSON.stringify({
       model: MODELLO_OPENROUTER,
       messages: [{ role: 'user', content: promptScout({ struttura, categoria, daEscludere, raggioKm }) }],
-      tools: [{ type: 'openrouter:web_search', parameters: { engine: 'exa', mode: 'auto', max_results: 6, max_total_results: 12, max_uses: 3 } }],
+      tools: [{ type: 'openrouter:web_search', parameters: { engine: 'exa', max_results: 6, max_total_results: 12 } }],
       max_tool_calls: 3,
       temperature: 0.1,
     }),
   })
   const dati = await risposta.json().catch(() => null)
-  if (!risposta.ok || dati?.error) throw new Error('OpenRouter: ' + (dati?.error?.message || `HTTP ${risposta.status}`))
+  if (!risposta.ok || dati?.error) throw erroreFornitore('OpenRouter', risposta, dati || {})
   const testo = dati?.choices?.[0]?.message?.content || ''
   const candidati = estraiArrayJson(testo)
   if (!candidati) throw new Error('OpenRouter: la ricerca non ha prodotto risultati leggibili')
@@ -284,10 +339,10 @@ const schemaPropostaExa = {
   type: 'object', additionalProperties: false, required: ['proposte'],
   properties: { proposte: { type: 'array', maxItems: 5, items: {
     type: 'object', additionalProperties: false,
-    required: ['nome', 'indirizzo', 'descrizione', 'distanza_km', 'distanza', 'prezzo', 'voto', 'maps', 'telefono', 'fonti', 'non_verificato', 'contraddizioni', 'domanda_host'],
+    required: ['nome', 'indirizzo', 'descrizione', 'fonti'],
     properties: {
       nome: { type: 'string' }, indirizzo: { type: 'string' }, descrizione: { type: 'string' },
-      distanza_km: { type: ['number', 'null'] }, distanza: { type: 'string' }, prezzo: { type: 'string' },
+      prezzo: { type: 'string' },
       voto: { type: 'string' }, maps: { type: 'string' }, telefono: { type: 'string' },
       fonti: { type: 'array', items: { type: 'object', additionalProperties: false,
         required: ['url', 'titolo', 'conferma', 'campi'], properties: {
@@ -303,7 +358,7 @@ const schemaPropostaExa = {
 async function cercaConExa({ struttura, categoria, daEscludere, raggioKm }) {
   const iniziata = Date.now()
   const risposta = await fetch('https://api.exa.ai/answer', {
-    method: 'POST', signal: AbortSignal.timeout(8000),
+    method: 'POST', signal: AbortSignal.timeout(15000),
     headers: { 'content-type': 'application/json', 'x-api-key': process.env.EXA_API_KEY },
     body: JSON.stringify({
       query: promptScout({ struttura, categoria, daEscludere, raggioKm }) + '\nInserisci il risultato nel campo proposte.',
@@ -312,8 +367,15 @@ async function cercaConExa({ struttura, categoria, daEscludere, raggioKm }) {
     }),
   })
   const dati = await risposta.json().catch(() => null)
-  if (!risposta.ok || dati?.error) throw new Error('Exa: ' + (dati?.error || dati?.tag || `HTTP ${risposta.status}`))
-  const candidati = dati?.answer?.proposte
+  if (!risposta.ok || dati?.error) throw erroreFornitore('Exa', risposta, dati || {})
+  let rispostaStrutturata = dati?.answer
+  if (typeof rispostaStrutturata === 'string') {
+    try { rispostaStrutturata = JSON.parse(rispostaStrutturata) } catch { rispostaStrutturata = null }
+  }
+  const candidati = rispostaStrutturata?.proposte?.map((candidato) => ({
+    distanza_km: null, distanza: '', prezzo: '', voto: '', maps: '', telefono: '',
+    non_verificato: [], contraddizioni: [], domanda_host: '', ...candidato,
+  }))
   if (!Array.isArray(candidati)) throw new Error('Exa: la ricerca non ha prodotto risultati leggibili')
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'exa', modello: 'exa-answer', durata_ms: Date.now() - iniziata })
@@ -424,7 +486,11 @@ export default async function handler(req, res) {
     // Verifica lo schema prima di consumare crediti di ricerca.
     const { error: erroreSchema } = await supabase.from('proposte').select('verifica').limit(0)
     if (erroreSchema) return res.status(503).json({ error: 'Ricerca con fonti non ancora disponibile. Contatta l’amministratore per completare l’aggiornamento.' })
-    const trovate = await cercaConFallback({ struttura, categoria, daEscludere, raggioKm })
+    // Le strutture create prima dell'autocompletamento possono non avere ancora
+    // lat/lng. Le ricaviamo una volta dall'indirizzo e le salviamo: così fasce e
+    // meteo funzionano anche per quelle righe storiche.
+    const strutturaLocalizzata = await assicuraCoordinateStruttura(struttura)
+    const trovate = await cercaConFallback({ struttura: strutturaLocalizzata, categoria, daEscludere, raggioKm })
 
     const righe = trovate.map(c => ({
       struttura_id,

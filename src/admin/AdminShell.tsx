@@ -3,6 +3,7 @@ import { NavLink, useOutletContext } from 'react-router-dom'
 import { Outlet } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useSezioni } from '../useSezioni'
+import { filtraVisibili } from '../sezioni'
 import { Icona } from '../Icona'
 import type { ContestoHost } from './RichiedeLogin'
 import {
@@ -41,8 +42,9 @@ export default function AdminShell() {
   const { session, struttura, strutture, selezionaStruttura } = ctx
   const { tutte } = useSezioni()
   const isSuperadmin = !!ADMIN_EMAIL && session.user.email?.toLowerCase() === ADMIN_EMAIL
-  const elenchi = tutte.filter((s) => s.tipo === 'elenco')
-  const pagine = tutte.filter((s) => s.tipo === 'testo')
+  const sezioniVisibili = struttura ? filtraVisibili(tutte, struttura.sezioni_attive) : []
+  const elenchi = sezioniVisibili.filter((s) => s.tipo === 'elenco')
+  const pagine = sezioniVisibili.filter((s) => s.tipo === 'testo')
 
   return (
     <div className="min-h-screen bg-slate-50 lg:flex lg:bg-slate-100">

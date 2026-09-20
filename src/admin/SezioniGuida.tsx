@@ -15,7 +15,7 @@ const GRUPPI: { titolo: string; tipo: Sezione['tipo'] }[] = [
 ]
 
 export default function SezioniGuida() {
-  const { struttura } = useOutletContext<ContestoHost>()
+  const { struttura, aggiornaSezioniAttive } = useOutletContext<ContestoHost>()
   const { tutte: sezioniDisponibili } = useSezioni()
 
   const [attive, setAttive] = useState<Set<string>>(new Set())
@@ -76,6 +76,7 @@ export default function SezioniGuida() {
       setErrore('Errore nel salvataggio: ' + error.message)
       return
     }
+    aggiornaSezioniAttive([...attive])
     setSalvato(true)
   }
 

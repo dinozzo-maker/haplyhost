@@ -3,13 +3,14 @@ import { Navigate, Outlet } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import type { Session } from '@supabase/supabase-js'
 
-export type StrutturaHost = { id: string; nome: string; slug: string; attivo: boolean }
+export type StrutturaHost = { id: string; nome: string; slug: string; attivo: boolean; sezioni_attive: string[] | null }
 
 export type ContestoHost = {
   session: Session
   struttura: StrutturaHost | null // quella selezionata (di solito l'unica): tutte le pagine /admin/* leggono questa
   strutture: StrutturaHost[] // tutte quelle dell'host — normalmente 1, di più per un host "Portfolio"
   selezionaStruttura: (id: string) => void
+  aggiornaSezioniAttive: (sezioni: string[]) => void
 }
 
 // Chi ha più strutture sceglie quale sta modificando qui, non nell'URL (niente
@@ -45,7 +46,7 @@ export default function RichiedeLogin() {
 
       const { data: righe, error: erroreStrutture } = await supabase
         .from('strutture')
-        .select('id, nome, slug, attivo')
+        .select('id, nome, slug, attivo, sezioni_attive')
         .eq('owner_user_id', s.user.id)
         .order('creato_il')
       if (erroreStrutture) {
@@ -85,6 +86,13 @@ export default function RichiedeLogin() {
     }
   }
 
+  function aggiornaSezioniAttive(sezioniAttive: string[]) {
+    if (!selezionataId) return
+    setStrutture((correnti) => correnti.map((struttura) =>
+      struttura.id === selezionataId ? { ...struttura, sezioni_attive: sezioniAttive } : struttura
+    ))
+  }
+
   if (caricamento) return <p className="p-8 text-center">Caricamento...</p>
   if (senzaSessione || !session) return <Navigate to="/login" replace />
   if (errore) {
@@ -92,7 +100,7 @@ export default function RichiedeLogin() {
   }
 
   const struttura = strutture.find((s) => s.id === selezionataId) ?? null
-  const contesto: ContestoHost = { session, struttura, strutture, selezionaStruttura }
+  const contesto: ContestoHost = { session, struttura, strutture, selezionaStruttura, aggiornaSezioniAttive }
 
   return <Outlet context={contesto} />
 }

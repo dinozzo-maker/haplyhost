@@ -132,14 +132,14 @@ function estraiArrayJson(testo) {
 }
 
 // ---- MOTORE GEMINI: Google Maps grounding (Interactions API) ----
-async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
+async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm, raggioCompleto }) {
   const iniziata = Date.now()
   const haCoord = struttura?.lat != null && struttura?.lng != null
   const tool = haCoord
     ? { type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }
     : { type: 'google_maps' }
 
-  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm })
+  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto })
 
   const risposta = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
@@ -182,7 +182,7 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm }) {
     url: fonte.url, nome: fonte.name, titolo: fonte.title,
   }))
   const verificati = verificaNomiProposte(aggiungiFontiMaps(candidati, dati), fontiNomi)
-  return normalizzaConDistanze(verificati, citazioniGemini(dati), struttura, daEscludere, raggioKm)
+  return normalizzaConDistanze(verificati, citazioniGemini(dati), struttura, daEscludere, raggioKm, raggioCompleto)
 }
 
 function annotazioniGemini(dati) {
@@ -214,7 +214,7 @@ function aggiungiFontiMaps(candidati, dati) {
   })
 }
 
-async function normalizzaConDistanze(candidati, citazioni, struttura, daEscludere, raggioKm) {
+async function normalizzaConDistanze(candidati, citazioni, struttura, daEscludere, raggioKm, raggioCompleto) {
   const chiave = process.env.VITE_GEOAPIFY_API_KEY
   const latStruttura = Number(struttura?.lat)
   const lngStruttura = Number(struttura?.lng)
@@ -264,12 +264,12 @@ async function normalizzaConDistanze(candidati, citazioni, struttura, daEscluder
   }))
 
   const citazioniDistanza = arricchiti.map((c) => c?._citazioneDistanza).filter(Boolean)
-  return normalizzaProposte(arricchiti, [...citazioni, ...citazioniDistanza], daEscludere, raggioKm)
+  return normalizzaProposte(arricchiti, [...citazioni, ...citazioniDistanza], daEscludere, raggioKm, raggioCompleto)
 }
 
 // ---- MOTORE CLAUDE: ricerca web (fallback, oggi non selezionato) ----
-async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
-  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm })
+async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm, raggioCompleto }) {
+  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto })
 
   const messages = [{ role: 'user', content: prompt }]
 
@@ -326,7 +326,7 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm }) {
     throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
   }
 
-  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioni, struttura, daEscludere, raggioKm)
+  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioni, struttura, daEscludere, raggioKm, raggioCompleto)
 }
 
 function citazioniOpenRouter(dati) {
@@ -339,7 +339,7 @@ function citazioniOpenRouter(dati) {
 
 // OpenRouter usa Qwen gratuito per la sintesi e il proprio strumento server-side
 // di ricerca. È un fornitore separato da Gemini e Anthropic.
-async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm }) {
+async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm, raggioCompleto }) {
   const iniziata = Date.now()
   const risposta = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -352,7 +352,7 @@ async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm 
     },
     body: JSON.stringify({
       model: MODELLO_OPENROUTER,
-      messages: [{ role: 'user', content: promptScout({ struttura, categoria, daEscludere, raggioKm }) }],
+      messages: [{ role: 'user', content: promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto }) }],
       tools: [{ type: 'openrouter:web_search', parameters: { engine: 'exa', max_results: 6, max_total_results: 12 } }],
       max_tool_calls: 3,
       temperature: 0.1,
@@ -370,7 +370,7 @@ async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm 
     const fonte = annotazione.url_citation || annotazione
     return { url: fonte.url, titolo: fonte.title, testo: fonte.content }
   })
-  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioniOpenRouter(dati), struttura, daEscludere, raggioKm)
+  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioniOpenRouter(dati), struttura, daEscludere, raggioKm, raggioCompleto)
 }
 
 function tipoLuogoGeoapify(categorie, sezione) {
@@ -526,7 +526,7 @@ async function descrizioniConExa(candidati, strutturaId, sezione) {
   }
 }
 
-async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
+async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm, raggioCompleto }) {
   const categorieRichieste = CATEGORIE_GEOAPIFY[sezione]
   const chiave = process.env.VITE_GEOAPIFY_API_KEY?.trim()
   if (!categorieRichieste || !chiave) return []
@@ -550,7 +550,7 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
     return Array.isArray(dati?.features) ? dati.features : []
   }))
 
-  const minimo = ({ 1: 0, 5: 1, 15: 5, 30: 15, 150: 30 })[raggioKm] ?? 0
+  const minimo = raggioCompleto ? 0 : (({ 1: 0, 5: 1, 15: 5, 30: 15, 150: 30 })[raggioKm] ?? 0)
   const esclusi = new Set(daEscludere.map((nome) => String(nome || '').trim().toLocaleLowerCase('it')))
   const visti = new Set()
   const candidatiBase = risposte.flat().flatMap((feature) => {
@@ -563,7 +563,7 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
     if (!nome || !indirizzo || possibileDuplicato(nome, [...esclusi]) || visti.has(chiaveLuogo)
       || !Number.isFinite(lat) || !Number.isFinite(lng)) return []
     const km = Math.round(distanzaGeograficaKm(latStruttura, lngStruttura, lat, lng) * 10) / 10
-    if (km <= minimo || km > raggioKm) return []
+    if ((minimo > 0 && km <= minimo) || km > raggioKm) return []
     visti.add(chiaveLuogo)
     const url = urlOpenStreetMap(p, lat, lng)
     const distanza = `Circa ${String(km).replace('.', ',')} km`
@@ -602,7 +602,7 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm }) {
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'geoapify', modello: 'places-v2', durata_ms: Date.now() - iniziata })
   const citazioni = candidati.flatMap((c) => [c.maps, ...c.fonti.map((fonte) => fonte.url)])
-  return normalizzaProposte(candidati, citazioni, daEscludere, raggioKm)
+  return normalizzaProposte(candidati, citazioni, daEscludere, raggioKm, raggioCompleto)
 }
 
 async function cercaConFallback(parametri) {
@@ -648,7 +648,7 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Le ricerche online sono temporaneamente disattivate.' })
   }
 
-  const { struttura_id, sezione, raggio_km } = req.body || {}
+  const { struttura_id, sezione, raggio_km, configurazione } = req.body || {}
   const tokenHeader = (req.headers.authorization || '').replace(/^Bearer /i, '')
   const access_token = tokenHeader || req.body?.access_token
   if (!struttura_id || !sezione || !access_token) {
@@ -705,15 +705,26 @@ export default async function handler(req, res) {
     categoria = extra?.categoria || extra?.etichetta || sezione
   }
 
+  let ricercaPrenotata = false
   try {
     // Verifica lo schema prima di consumare crediti di ricerca.
     const { error: erroreSchema } = await supabase.from('proposte').select('verifica').limit(0)
     if (erroreSchema) return res.status(503).json({ error: 'Ricerca con fonti non ancora disponibile. Contatta l’amministratore per completare l’aggiornamento.' })
+    if (configurazione === true) {
+      if (!CATEGORIE[sezione]) {
+        const { data: extra } = await supabase.from('sezioni_extra').select('tipo').eq('chiave', sezione).eq('archiviata', false).maybeSingle()
+        if (extra?.tipo !== 'elenco') return res.status(400).json({ error: 'Sezione non ricercabile.' })
+      }
+      const { data: prenotata, error } = await supabase.rpc('prenota_ricerca_configurazione', { p_struttura_id: struttura_id, p_sezione: sezione })
+      if (error) return res.status(409).json({ error: 'Ricerca iniziale non disponibile. Verifica le sezioni e il limite di 10 ricerche.' })
+      if (!prenotata) return res.status(200).json({ trovati: 0, gia_eseguita: true })
+      ricercaPrenotata = true
+    }
     // Le strutture create prima dell'autocompletamento possono non avere ancora
     // lat/lng. Le ricaviamo una volta dall'indirizzo e le salviamo: così fasce e
     // meteo funzionano anche per quelle righe storiche.
     const strutturaLocalizzata = await assicuraCoordinateStruttura(struttura)
-    const trovate = await cercaConFallback({ struttura: strutturaLocalizzata, sezione, categoria, daEscludere, raggioKm })
+    const trovate = await cercaConFallback({ struttura: strutturaLocalizzata, sezione, categoria, daEscludere, raggioKm, raggioCompleto: configurazione === true })
 
     const righe = trovate.map(c => ({
       struttura_id,
@@ -733,8 +744,10 @@ export default async function handler(req, res) {
       if (error) throw new Error('Non è stato possibile salvare le proposte. Riprova.')
     }
 
+    if (ricercaPrenotata) await supabase.from('ricerche_configurazione').update({ stato: 'completata' }).eq('struttura_id', struttura_id).eq('sezione', sezione)
     return res.status(200).json({ trovati: righe.length, avviso: righe.length ? '' : 'Nessuna nuova proposta con identità, descrizione e fonti sufficienti. Prova un’altra categoria o un raggio diverso.' })
   } catch (err) {
+    if (ricercaPrenotata) await supabase.from('ricerche_configurazione').update({ stato: 'errore' }).eq('struttura_id', struttura_id).eq('sezione', sezione)
     console.error('Scout error:', err)
     const pubblico = errorePubblicoScout(err)
     return res.status(pubblico.stato).json({ error: pubblico.messaggio })

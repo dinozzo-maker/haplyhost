@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import IndirizzoAutomatico from './IndirizzoAutomatico'
+import GestisciWifi from './GestisciWifi'
 import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { ridimensionaImmagine } from '../immagine'
@@ -325,6 +326,8 @@ export default function ModificaCasa() {
           />
         </Campo>
       </Sezione>
+
+      <GestisciWifi key={struttura.id} strutturaId={struttura.id} />
 
       <Sezione titolo="Aspetto della guida ospiti" nota="Due leve per dare identità alla guida senza toccare il resto.">
         <Campo etichetta="Colore della guida" aiuto='Tinta di accento: bottoni, intestazione, pastiglie. Il default è "Mare".'>

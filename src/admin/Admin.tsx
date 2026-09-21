@@ -38,6 +38,17 @@ function Passo({ fatto, to, children }: { fatto?: boolean; to: string; children:
   )
 }
 
+function RiprendiConfigurazione({ strutturaId }: { strutturaId: string }) {
+  const [presente, setPresente] = useState(false)
+  useEffect(() => {
+    let attivo = true
+    void supabase.from('configurazioni_guida').select('struttura_id').eq('struttura_id', strutturaId).maybeSingle()
+      .then(({ data }) => { if (attivo) setPresente(!!data) })
+    return () => { attivo = false }
+  }, [strutturaId])
+  return presente ? <Link to="/admin/configurazione" className="block rounded-xl bg-slate-900 p-3 text-center text-sm font-semibold text-white">Riprendi la configurazione</Link> : null
+}
+
 export default function Admin() {
   const { session, struttura, strutture, selezionaStruttura } = useOutletContext<ContestoHost>()
   const { tutte: SEZIONI } = useSezioni()
@@ -160,6 +171,8 @@ export default function Admin() {
                 Preparala con calma. Gli ospiti la vedranno solo dopo che premi "Pubblica".
               </p>
             </div>
+
+            <RiprendiConfigurazione key={struttura.id} strutturaId={struttura.id} />
 
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Il minimo per partire</p>

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { generaDescrizioneCasa } from '../lib/genera-descrizione-casa.js'
+import { validaDatiCasa } from '../lib/configurazione-casa.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Metodo non permesso' })
   }
 
-  const { nome, indirizzo, citta: cittaSelezionata, link, access_token } = req.body
+  const { nome, indirizzo, citta: cittaSelezionata, link, access_token, modalita, richiesta_id } = req.body || {}
   if (!nome || !indirizzo || !access_token) {
     return res.status(400).json({ error: 'Dati mancanti' })
   }
@@ -67,11 +68,36 @@ export default async function handler(req, res) {
     }
   }
 
-  const { descrizione, citta } = await generaDescrizioneCasa({ nome, indirizzo, link })
+  let datiConfigurazione
+  if (modalita !== undefined) {
+    if (!['guidata', 'manuale'].includes(modalita) || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(richiesta_id || '')) {
+      return res.status(400).json({ error: 'Configurazione non valida.' })
+    }
+    try { datiConfigurazione = validaDatiCasa(req.body) } catch (errore) {
+      return res.status(400).json({ error: errore.message })
+    }
+    const { data: esistente } = await supabase.from('strutture').select('id, slug, nome')
+      .eq('id', richiesta_id).eq('owner_user_id', userId).maybeSingle()
+    if (esistente) return res.status(200).json({ struttura: esistente })
+    const { error } = await supabase.from('configurazioni_guida').select('struttura_id').limit(0)
+    if (error) return res.status(503).json({ error: 'La nuova configurazione sarà disponibile dopo l’aggiornamento del database.' })
+  }
+  const { descrizione, citta } = modalita === 'manuale' || (modalita === 'guidata' && !link)
+    ? { descrizione: '', citta: '' }
+    : await generaDescrizioneCasa({ nome, indirizzo, link })
 
   const slug = await trovaSlugLibero(generaSlugBase(nome))
 
-  const { data: nuovaStruttura, error: erroreCreazione } = await supabase
+  const { data: nuovaStruttura, error: erroreCreazione } = datiConfigurazione
+    ? await (async () => {
+      const { error } = await supabase.rpc('crea_casa_configurata', {
+        p_id: richiesta_id, p_owner: userId, p_slug: slug, p_modalita: modalita,
+        p_dati: { ...datiConfigurazione, citta: datiConfigurazione.citta || citta, descrizione_casa: descrizione },
+      })
+      if (error) return { data: null, error }
+      return supabase.from('strutture').select('id, slug, nome').eq('id', richiesta_id).single()
+    })()
+    : await supabase
     .from('strutture')
     .insert({
       slug,

@@ -2,17 +2,11 @@ import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { SEZIONI } from '../sezioni'
-import type { Sezione } from '../sezioni'
+import SceltaSezioni from './SceltaSezioni'
 import { useSezioni } from '../useSezioni'
 import type { ContestoHost } from './RichiedeLogin'
-import { Icona } from '../Icona'
-import { PaginaAdmin, Pulsante, Esito } from './ui'
 
-const GRUPPI: { titolo: string; tipo: Sezione['tipo'] }[] = [
-  { titolo: 'ELENCHI', tipo: 'elenco' },
-  { titolo: 'PAGINE DI TESTO', tipo: 'testo' },
-  { titolo: 'CONCIERGE', tipo: 'chat' },
-]
+import { PaginaAdmin, Pulsante, Esito } from './ui'
 
 export default function SezioniGuida() {
   const { struttura, aggiornaSezioniAttive } = useOutletContext<ContestoHost>()
@@ -50,16 +44,6 @@ export default function SezioniGuida() {
     carica()
   }, [struttura])
 
-  function toggle(chiave: string) {
-    setSalvato(false)
-    setAttive((prev) => {
-      const next = new Set(prev)
-      if (next.has(chiave)) next.delete(chiave)
-      else next.add(chiave)
-      return next
-    })
-  }
-
   async function salva() {
     if (!struttura) return
     setSalvataggio(true)
@@ -95,33 +79,7 @@ export default function SezioniGuida() {
       titolo="Sezioni della guida"
       sottotitolo="Scegli quali sezioni compaiono nella guida degli ospiti. Quelle spente restano gestibili dal pannello, ma l'ospite non le vede."
     >
-      {GRUPPI.map((g) => {
-        const items = sezioniDisponibili.filter((s) => s.tipo === g.tipo)
-        if (items.length === 0) return null
-        return (
-          <div key={g.tipo} className="flex flex-col gap-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{g.titolo}</p>
-            <div className="flex flex-col gap-2">
-              {items.map((s) => (
-                <label key={s.chiave} className="bg-white border border-slate-200 shadow-sm rounded-xl p-3.5 flex items-start justify-between gap-3 cursor-pointer">
-                  <span className="min-w-0">
-                    <span className="text-sm font-medium text-slate-900 inline-flex items-center gap-1.5">
-                      <Icona nome={s.icona} className="w-4 h-4 shrink-0 text-slate-500" /> {s.etichetta}
-                    </span>
-                    {s.descrizione && <span className="block text-xs text-slate-500 mt-0.5">{s.descrizione}</span>}
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={attive.has(s.chiave)}
-                    onChange={() => toggle(s.chiave)}
-                    className="w-5 h-5 accent-slate-900 shrink-0 mt-0.5"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        )
-      })}
+      <SceltaSezioni tutte={sezioniDisponibili} attive={[...attive]} onChange={valori => { setAttive(new Set(valori)); setSalvato(false) }} />
 
       <div className="flex flex-col gap-2">
         <Pulsante onClick={salva} disabled={salvataggio}>

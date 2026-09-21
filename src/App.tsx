@@ -15,6 +15,7 @@ const RichiedeLogin = lazy(() => import('./admin/RichiedeLogin'))
 const AdminShell = lazy(() => import('./admin/AdminShell'))
 const Admin = lazy(() => import('./admin/Admin'))
 const CreaStruttura = lazy(() => import('./admin/CreaStruttura'))
+const ConfiguraGuida = lazy(() => import('./admin/ConfiguraGuida'))
 const ModificaCasa = lazy(() => import('./admin/ModificaCasa'))
 const NoteGennarino = lazy(() => import('./admin/NoteGennarino'))
 const DomandeOspiti = lazy(() => import('./admin/DomandeOspiti'))
@@ -38,6 +39,7 @@ function App() {
         <Route element={<AdminShell />}>
           <Route index element={<Admin />} />
           <Route path="nuova-struttura" element={<CreaStruttura aggiuntiva />} />
+          <Route path="configurazione" element={<ConfiguraGuida />} />
           <Route path="modifica-casa" element={<ModificaCasa />} />
           <Route path="note" element={<NoteGennarino />} />
           <Route path="domande" element={<DomandeOspiti />} />

@@ -13,7 +13,7 @@ const CHIAVI_SISTEMA = [
 // Sotto-rotte del pannello: una sezione non può chiamarsi così o l'URL /admin/<chiave> collide.
 const CHIAVI_RISERVATE = [
   'modifica-casa', 'note', 'domande', 'traduzioni', 'sezioni-guida',
-  'sezioni-extra', 'invita-host', 'nuova-struttura', 'statistiche',
+  'sezioni-extra', 'invita-host', 'nuova-struttura', 'statistiche', 'configurazione',
 ]
 
 async function superadmin(req) {

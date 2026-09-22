@@ -151,7 +151,7 @@ export default function InvitaHost() {
 
   if (!isSuperadmin) {
     return (
-      <PaginaAdmin titolo="Invita un nuovo host">
+      <PaginaAdmin titolo="Invita un nuovo host" piattaforma>
         <p className="text-sm text-slate-500">Sezione riservata all'amministratore della piattaforma.</p>
       </PaginaAdmin>
     )
@@ -161,6 +161,7 @@ export default function InvitaHost() {
     <PaginaAdmin
       titolo="Invita un nuovo host"
       sottotitolo="Autorizza l'email del cliente e ottieni un link da mandargli. Solo le email autorizzate qui possono accedere al pannello."
+      piattaforma
     >
       <Sezione>
         <Campo etichetta="Email del cliente">

@@ -214,7 +214,7 @@ export default function SezioniExtra() {
 
   if (!isSuperadmin) {
     return (
-      <PaginaAdmin titolo="Sezioni della piattaforma">
+      <PaginaAdmin titolo="Sezioni della piattaforma" piattaforma>
         <p className="text-sm text-slate-500">Sezione riservata all'amministratore della piattaforma.</p>
       </PaginaAdmin>
     )
@@ -224,6 +224,7 @@ export default function SezioniExtra() {
     <PaginaAdmin
       titolo="Sezioni della piattaforma"
       sottotitolo="Sezioni extra che si aggiungono a quelle di serie. Ogni host le trova in “Sezioni della guida” e decide se attivarle: nascono spente per tutti."
+      piattaforma
     >
       <Sezione>
         {modifica && (

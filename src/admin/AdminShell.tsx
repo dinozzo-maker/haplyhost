@@ -29,8 +29,12 @@ function VoceNav({ to, end, children }: { to: string; end?: boolean; children: R
   )
 }
 
-function EtichettaGruppo({ children }: { children: ReactNode }) {
-  return <p className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase">{children}</p>
+function EtichettaGruppo({ children, viola }: { children: ReactNode; viola?: boolean }) {
+  return (
+    <p className={`px-3 pb-1 text-[10px] font-bold tracking-wider uppercase ${viola ? 'text-violet-400' : 'text-slate-500'}`}>
+      {children}
+    </p>
+  )
 }
 
 // Guscio del pannello host: su schermi larghi (lg, 1024px+) aggiunge una barra
@@ -121,10 +125,10 @@ export default function AdminShell() {
 
           {isSuperadmin && (
             <div className="flex flex-col gap-0.5">
-              <EtichettaGruppo>Piattaforma</EtichettaGruppo>
-              <VoceNav to="/admin/invita-host"><UserPlus className="w-4 h-4 shrink-0" />Invita un nuovo host</VoceNav>
-              <VoceNav to="/admin/sezioni-extra"><Puzzle className="w-4 h-4 shrink-0" />Sezioni della piattaforma</VoceNav>
-              <VoceNav to="/admin/consumi-ai"><Gauge className="w-4 h-4 shrink-0" />Consumi AI</VoceNav>
+              <EtichettaGruppo viola>Piattaforma</EtichettaGruppo>
+              <VoceNav to="/admin/invita-host"><UserPlus className="w-4 h-4 shrink-0 text-violet-400" />Invita un nuovo host</VoceNav>
+              <VoceNav to="/admin/sezioni-extra"><Puzzle className="w-4 h-4 shrink-0 text-violet-400" />Sezioni della piattaforma</VoceNav>
+              <VoceNav to="/admin/consumi-ai"><Gauge className="w-4 h-4 shrink-0 text-violet-400" />Consumi AI</VoceNav>
             </div>
           )}
         </nav>

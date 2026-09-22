@@ -644,6 +644,61 @@
   height: 24px;
 }
 
+/* Home concierge: stili circoscritti, compatibili con i colori scelti dall'host. */
+.g-home { gap: 18px; }
+.g-home .g-hero { min-height: 174px; display: flex; flex-direction: column; justify-content: flex-end; padding-top: 56px; background-color: #253844; }
+.g-home .g-hero .name { font-size: clamp(28px, 6vw, 38px); overflow-wrap: anywhere; }
+.g-home .g-hero .welcome { padding-right: 70px; }
+.g-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(85px, 1fr)); gap: 9px; }
+.g-quick:empty { display: none; }
+.g-quick a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 15px 7px; min-height: 88px; text-align: center; border: 1px solid var(--g-line); border-radius: 17px; background: var(--g-card); font-size: 13px; font-weight: 800; line-height: 1.35; overflow-wrap: anywhere; }
+.g-quick svg { color: var(--g-accent-d); width: 27px; height: 27px; }
+.g-quick .q-whatsapp svg { color: #168644; }
+.g-home-featured { display: grid; gap: 18px; min-width: 0; }
+.g-home .g-ask { color: #17232d; background: linear-gradient(125deg, color-mix(in srgb, var(--g-accent) 55%, #fff), color-mix(in srgb, var(--g-accent) 25%, #fff)); padding: 22px 18px; gap: 14px; }
+.g-home .a-title { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+.g-home .a-heading { font-size: clamp(25px, 5vw, 32px); line-height: 1.15; letter-spacing: -.025em; font-weight: 800; }
+.g-home .a-subtitle { font-size: 14px; line-height: 1.5; }
+.g-home .a-composer { background: #fffdf5; border-radius: 16px; padding: 6px 6px 6px 14px; }
+.g-home .a-composer input { color: #17232d; font-size: 16px; min-height: 44px; }
+.g-home .a-composer input::placeholder { color: #53616b; }
+.g-home .a-composer button { background: #17232d; color: #fff; border-radius: 12px; width: 44px; height: 44px; }
+.g-home .a-composer button:disabled { opacity: .5; }
+.g-home .a-chips { gap: 8px; }
+.g-home .a-chips button { color: #17232d; background: #ffffffb8; font-size: 13px; padding: 10px 12px; min-height: 44px; text-align: left; border-radius: 13px; }
+.g-home .a-chips button:hover { background: #fff; }
+.g-home .g-today { flex-direction: column; align-items: stretch; overflow: hidden; padding: 0; gap: 0; }
+.g-home .t-photo { width: 100%; height: 175px; object-fit: cover; }
+.g-home .t-photo[hidden] { display: none; }
+.g-home .t-badge { margin: 18px 18px 0; }
+.g-home .t-photo:not([hidden]) + .t-badge { display: none; }
+.g-home .t-body { padding: 18px; gap: 5px; }
+.g-home .t-name { font-size: 21px; line-height: 1.25; }
+.g-home .t-desc { white-space: normal; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.g-home .t-action { display: flex; align-items: center; gap: 8px; margin-top: 9px; font-size: 14px; font-weight: 800; }
+.g-home .g-section-label { text-transform: none; letter-spacing: -.015em; color: var(--g-ink); font-size: 22px; scroll-margin-top: 20px; }
+.g-home .g-tile { min-height: 96px; justify-content: center; }
+.g-home .g-tile .lbl { font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.g-home-privacy { align-self: center; font-size: 12px; text-decoration: underline; padding: 12px; color: var(--g-ink-2); }
+.g-tabbar a { font-size: 12px; min-height: 48px; min-width: 72px; }
+.g-tabbar a[aria-current="location"] { color: var(--g-accent-d); }
+.g-shell { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+@media (prefers-color-scheme: dark) {
+  .g-quick .q-whatsapp svg { color: #4ee889; }
+}
+@media (min-width: 900px) {
+  .g-shell { max-width: 1000px; min-height: 100dvh; }
+  .g-tabbar { max-width: 1000px; }
+  .g-page, .g-chat { max-width: 760px; margin-inline: auto; padding: 28px; }
+  .g-home { max-width: none; padding: 28px 36px; gap: 24px; }
+  .g-home .g-hero { min-height: 240px; padding: 32px; }
+  .g-home .g-hero .name { font-size: 44px; }
+  .g-home-featured:has(> .g-ask):has(> .g-today) { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: stretch; }
+  .g-home .t-photo { height: 200px; }
+  .g-home .g-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .g-fab { right: max(20px, calc(50% - 500px + 20px)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .g-shell *,
   .g-shell *::before,

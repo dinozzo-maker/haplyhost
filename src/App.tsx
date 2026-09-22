@@ -10,6 +10,7 @@ import { useSezioni } from './useSezioni'
 const SezionePage = lazy(() => import('./SezionePage'))
 const PaginaStatica = lazy(() => import('./PaginaStatica'))
 const Gennarino = lazy(() => import('./Gennarino'))
+const Privacy = lazy(() => import('./PaginaPrivacy'))
 const Login = lazy(() => import('./admin/Login'))
 const RichiedeLogin = lazy(() => import('./admin/RichiedeLogin'))
 const AdminShell = lazy(() => import('./admin/AdminShell'))
@@ -65,6 +66,7 @@ function App() {
       </Route>
       <Route path="/:slug" element={<Struttura />}>
         <Route index element={<Home />} />
+        <Route path="privacy" element={<Privacy />} />
         {SEZIONI.filter((s) => s.tipo === 'testo').map((s) => (
           <Route key={s.chiave} path={s.chiave} element={<PaginaStatica chiave={s.chiave} />} />
         ))}

@@ -1,21 +1,24 @@
 import type { CSSProperties, FormEvent } from 'react'
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { supabase } from './supabaseClient'
 import type { StrutturaRow } from './Struttura'
 import { etichettaSezione, filtraVisibili } from './sezioni'
-import { campoTradotto, saluto, SUGGERIMENTI_GENNARINO, T, useLingua } from './lingua'
+import { campoTradotto, saluto, T, useLingua } from './lingua'
 import SelettoreLingua from './SelettoreLingua'
 import { useSezioni } from './useSezioni'
 import { Icona } from './Icona'
 import Meteo from './Meteo'
-import { MessageCircle, Send } from 'lucide-react'
+import { PRIVACY } from './privacy'
+import { MessageCircle, Send, Wifi, House, ArrowRight } from 'lucide-react'
+import { TESTI_HOME } from './testiHome'
 
 type LuogoPick = {
   id: string
   nome: string
   descrizione: string | null
   sezione: string
+  foto_url: string | null
   traduzioni: Record<string, Record<string, string>> | null
 }
 
@@ -23,10 +26,17 @@ export default function Home() {
   const struttura = useOutletContext<StrutturaRow>()
   const { slug } = useParams()
   const navigate = useNavigate()
+  const { hash } = useLocation()
   const { tutte } = useSezioni()
   const { lingua } = useLingua()
   const [pick, setPick] = useState<LuogoPick | null>(null)
   const [domanda, setDomanda] = useState('')
+  const testi = TESTI_HOME[lingua]
+  const numeroWhatsApp = (struttura.host_telefono ?? '').replace(/\D/g, '')
+
+  useEffect(() => {
+    if (hash === '#esplora') document.getElementById('esplora')?.scrollIntoView({ block: 'start' })
+  }, [hash])
 
   // La chat vive nella barra in basso / nella FAB / nella nuova scorciatoia "Chiedi a
   // Gennarino" qui sotto, non tra le tessere.
@@ -44,7 +54,7 @@ export default function Home() {
     async function carica() {
       const { data } = await supabase
         .from('luoghi')
-        .select('id, nome, descrizione, sezione, voto, traduzioni')
+        .select('id, nome, descrizione, sezione, voto, foto_url, traduzioni')
         .eq('struttura_id', struttura.id)
         .eq('attivo', true)
         .not('voto', 'is', null)
@@ -87,11 +97,11 @@ export default function Home() {
   }
 
   return (
-    <div className="g-page">
+    <div className="g-page g-home">
       <div className="g-hero" style={heroStile}>
         <Meteo lat={struttura.lat} lng={struttura.lng} />
         <span className="welcome">{saluto(T[lingua])}</span>
-        <p className="name">{struttura.nome}</p>
+        <h1 className="name">{struttura.nome}</h1>
         <span className="sub">
           {struttura.citta ? `${struttura.citta} — ` : ''}
           {T[lingua].heroSub}
@@ -100,34 +110,48 @@ export default function Home() {
 
       <SelettoreLingua />
 
+      <div className="g-quick">
+        {visibili.some((s) => s.chiave === 'casa') && <>
+          <Link to={`/${slug}/casa`}><Wifi aria-hidden="true" /><span>Wi-Fi</span></Link>
+          <Link to={`/${slug}/casa`}><House aria-hidden="true" /><span>{testi.casa}</span></Link>
+        </>}
+        {numeroWhatsApp && <a className="q-whatsapp" href={`https://wa.me/${numeroWhatsApp}`} target="_blank" rel="noreferrer"><MessageCircle aria-hidden="true" /><span>{testi.whatsapp}</span></a>}
+      </div>
+
+      <div className="g-home-featured">
       {chat && (
         <div className="g-ask">
           <span className="a-title">
             <MessageCircle className="w-4 h-4" /> {T[lingua].chiediAGennarino}
           </span>
+          <h2 className="a-heading">{testi.titolo}</h2>
+          <p className="a-subtitle">{testi.sottotitolo}</p>
           <form onSubmit={inviaDomanda} className="a-composer">
             <input
               value={domanda}
               maxLength={1500}
               onChange={(e) => setDomanda(e.target.value)}
               placeholder={T[lingua].chiediPlaceholder}
+              aria-label={T[lingua].chiediPlaceholder}
             />
-            <button type="submit" aria-label={T[lingua].gennarinoInvia}>
+            <button type="submit" disabled={!domanda.trim()} aria-label={T[lingua].gennarinoInvia}>
               <Send className="w-4 h-4" />
             </button>
           </form>
           <div className="a-chips">
-            {SUGGERIMENTI_GENNARINO[lingua].map((s) => (
+            {testi.suggerimenti.map((s) => (
               <button key={s} type="button" onClick={() => chiediSubito(s)}>
                 {s}
               </button>
             ))}
           </div>
+          <p className="text-xs leading-relaxed mt-3">{PRIVACY[lingua].breve} <Link className="underline" to={`/${slug}/privacy`}>{PRIVACY[lingua].titolo}</Link></p>
         </div>
       )}
 
-      {pick && (
+      {pick && sezionePick && (
         <Link to={`/${slug}/${pick.sezione}#luogo-${pick.id}`} className="g-today">
+          {pick.foto_url && <img className="t-photo" src={pick.foto_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.hidden = true }} />}
           <span className="t-badge">
             <Icona nome={sezionePick?.icona} />
           </span>
@@ -135,11 +159,13 @@ export default function Home() {
             <span className="t-eyebrow">{T[lingua].oggiTiConsiglio}</span>
             <span className="t-name">{pick.nome}</span>
             {descrizionePick && <span className="t-desc">{descrizionePick}</span>}
+            <span className="t-action">{testi.scopri} <ArrowRight size={16} aria-hidden="true" /></span>
           </span>
         </Link>
       )}
+      </div>
 
-      <p className="g-section-label">{T[lingua].esplora}</p>
+      <h2 id="esplora" className="g-section-label">{T[lingua].esplora}</h2>
       <div className="g-grid">
         {tessere.map((s) => (
           <Link key={s.chiave} to={`/${slug}/${s.chiave}`} className="g-tile">
@@ -150,6 +176,7 @@ export default function Home() {
           </Link>
         ))}
       </div>
+      <Link className="g-home-privacy" to={`/${slug}/privacy`}>{PRIVACY[lingua].titolo}</Link>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate, useOutletContext } from 'react-router-dom'
+import { Link, useParams, useLocation, useNavigate, useOutletContext } from 'react-router-dom'
+import { PRIVACY } from './privacy'
 import type { StrutturaRow } from './Struttura'
 import { conNome, T, useLingua } from './lingua'
 import { conTelefoni, contieneTelefono, reTelefono } from './telefono'
@@ -13,6 +14,7 @@ export default function Gennarino() {
   const location = useLocation()
   const navigate = useNavigate()
   const { lingua } = useLingua()
+  const { slug } = useParams()
   // La cronologia vive in sessionStorage (per struttura): resta leggendo la guida finché
   // resta aperto il browser, ma si dimentica quando lo si chiude — così un ospite futuro
   // sullo stesso dispositivo non si ritrova la chat di quello precedente.
@@ -121,7 +123,7 @@ export default function Gennarino() {
       })}
       {caricamento && <p className="g-hint">{T[lingua].gennarinoScrivendo}</p>}
 
-      <p className="text-[11px] leading-relaxed text-slate-400 px-1 mt-auto">{T[lingua].gennarinoPrivacy}</p>
+      <p className="text-xs leading-relaxed px-1 mt-auto">{PRIVACY[lingua].breve} <Link className="underline" to={`/${slug}/privacy`}>{PRIVACY[lingua].titolo}</Link></p>
       <div className="g-composer">
         <input
           value={testo}

@@ -1,6 +1,8 @@
-import { NavLink } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useSezioni } from './useSezioni'
-import { etichettaSezione, filtraVisibili } from './sezioni'
+import { filtraVisibili } from './sezioni'
+import { Compass } from 'lucide-react'
+import { TESTI_HOME } from './testiHome'
 import { T, useLingua } from './lingua'
 import type { StrutturaRow } from './Struttura'
 import { Icona } from './Icona'
@@ -11,26 +13,24 @@ export default function TabBar({ slug, struttura }: { slug: string; struttura: S
   const { tutte } = useSezioni()
   const { lingua } = useLingua()
   const visibili = filtraVisibili(tutte, struttura.sezioni_attive)
-  const elenchi = visibili.filter((s) => s.tipo === 'elenco').slice(0, 2)
+  const { pathname, hash } = useLocation()
+  const home = pathname.replace(/\/$/, '') === `/${slug}`
   const chat = visibili.find((s) => s.tipo === 'chat')
 
   return (
     <nav className="g-tabbar" aria-label={T[lingua].navigazione}>
-      <NavLink to={`/${slug}`} end>
+      <Link to={`/${slug}`} aria-current={home && !hash ? 'page' : undefined} onClick={() => { if (home) window.scrollTo({ top: 0 }) }}>
         <span className="t-emo"><Icona nome="home" /></span>
         {T[lingua].tabHome}
-      </NavLink>
-      {elenchi.map((s) => (
-        <NavLink key={s.chiave} to={`/${slug}/${s.chiave}`}>
-          <span className="t-emo"><Icona nome={s.icona} /></span>
-          {etichettaSezione(s, lingua)}
-        </NavLink>
-      ))}
+      </Link>
+      <Link to={`/${slug}#esplora`} aria-current={home && hash === '#esplora' ? 'location' : undefined} onClick={() => { if (home) document.getElementById('esplora')?.scrollIntoView({ block: 'start' }) }}>
+        <span className="t-emo"><Compass /></span>{TESTI_HOME[lingua].esplora}
+      </Link>
       {chat && (
-        <NavLink to={`/${slug}/${chat.chiave}`}>
+        <Link to={`/${slug}/${chat.chiave}`} aria-current={pathname.endsWith(`/${chat.chiave}`) ? 'page' : undefined}>
           <span className="t-emo"><Icona nome={chat.icona} /></span>
           Gennarino
-        </NavLink>
+        </Link>
       )}
     </nav>
   )

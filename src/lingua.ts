@@ -86,15 +86,6 @@ export const FRASI_TELEFONO: Record<Lingua, string[]> = {
   es: ['por teléfono', 'al teléfono'],
 }
 
-// Esempi cliccabili sotto la casella "Chiedi a Gennarino" in Home.tsx.
-export const SUGGERIMENTI_GENNARINO: Record<Lingua, string[]> = {
-  it: ['Dove mangio stasera?', 'Come funziona il Wi-Fi?', 'A che ora è il check-out?'],
-  en: ['Where should I eat tonight?', 'How does the Wi-Fi work?', 'What time is check-out?'],
-  fr: ['Où dîner ce soir ?', 'Comment fonctionne le Wi-Fi ?', 'À quelle heure est le départ ?'],
-  de: ['Wo kann ich heute Abend essen?', 'Wie funktioniert das WLAN?', 'Wann ist der Check-out?'],
-  es: ['¿Dónde ceno esta noche?', '¿Cómo funciona el Wi-Fi?', '¿A qué hora es el check-out?'],
-}
-
 // ---- dizionario dei testi fissi della guida ----
 const IT = {
   tornaHome: 'Torna alla home',
@@ -118,7 +109,6 @@ const IT = {
   gennarinoPlaceholder: 'Scrivi qui…',
   gennarinoInvia: 'Invia',
   gennarinoErrore: 'Non sono riuscito a rispondere, riprova tra poco.',
-  gennarinoPrivacy: 'Le domande vengono salvate in forma anonima per migliorare la guida. Non inserire dati personali.',
   salutoNotte: 'Buonanotte',
   salutoMattina: 'Buongiorno',
   salutoPomeriggio: 'Buon pomeriggio',
@@ -165,7 +155,6 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     gennarinoPlaceholder: 'Type here…',
     gennarinoInvia: 'Send',
     gennarinoErrore: "I couldn't reply, please try again shortly.",
-    gennarinoPrivacy: 'Questions are saved anonymously to improve the guide. Do not include personal information.',
     salutoNotte: 'Good night',
     salutoMattina: 'Good morning',
     salutoPomeriggio: 'Good afternoon',
@@ -198,7 +187,6 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     gennarinoPlaceholder: 'Écrivez ici…',
     gennarinoInvia: 'Envoyer',
     gennarinoErrore: "Je n'ai pas pu répondre, réessayez dans un instant.",
-    gennarinoPrivacy: 'Les questions sont enregistrées de façon anonyme pour améliorer le guide. N’indiquez pas de données personnelles.',
     salutoNotte: 'Bonne nuit',
     salutoMattina: 'Bonjour',
     salutoPomeriggio: 'Bon après-midi',
@@ -231,7 +219,6 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     gennarinoPlaceholder: 'Hier schreiben…',
     gennarinoInvia: 'Senden',
     gennarinoErrore: 'Ich konnte nicht antworten, bitte versuchen Sie es gleich noch einmal.',
-    gennarinoPrivacy: 'Fragen werden anonym gespeichert, um den Guide zu verbessern. Bitte keine persönlichen Daten eingeben.',
     salutoNotte: 'Gute Nacht',
     salutoMattina: 'Guten Morgen',
     salutoPomeriggio: 'Guten Tag',
@@ -264,7 +251,6 @@ export const T: Record<Lingua, Record<ChiaveTesto, string>> = {
     gennarinoPlaceholder: 'Escribe aquí…',
     gennarinoInvia: 'Enviar',
     gennarinoErrore: 'No he podido responder, inténtalo de nuevo en un momento.',
-    gennarinoPrivacy: 'Las preguntas se guardan de forma anónima para mejorar la guía. No incluyas datos personales.',
     salutoNotte: 'Buenas noches',
     salutoMattina: 'Buenos días',
     salutoPomeriggio: 'Buenas tardes',

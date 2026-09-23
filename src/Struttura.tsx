@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { useParams, Outlet } from 'react-router-dom'
+import { useParams, useSearchParams, Outlet } from 'react-router-dom'
 import { supabase } from './supabaseClient'
+import { salvaTokenSoggiorno } from './soggiornoOspite'
 import { T, useLingua } from './lingua'
 import { LinguaProvider } from './LinguaProvider'
 import TabBar from './TabBar'
@@ -63,6 +64,18 @@ export default function Struttura() {
     }
     carica()
   }, [slug])
+
+  // Link personale del soggiorno (?s=<token>): si ricorda e si toglie dall'indirizzo,
+  // così non viene copiato per sbaglio inoltrando la pagina. Serve solo al Wi-Fi.
+  const [parametri, setParametri] = useSearchParams()
+  useEffect(() => {
+    const token = parametri.get('s')
+    if (!slug || !token) return
+    salvaTokenSoggiorno(slug, token)
+    const resto = new URLSearchParams(parametri)
+    resto.delete('s')
+    setParametri(resto, { replace: true })
+  }, [slug, parametri, setParametri])
 
   // Il manifest nasce per questa guida specifica: l'ospite che la installa
   // ritrova la stessa struttura quando apre l'icona dalla schermata Home.

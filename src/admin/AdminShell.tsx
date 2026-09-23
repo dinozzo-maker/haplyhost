@@ -8,7 +8,7 @@ import { Icona } from '../Icona'
 import type { ContestoHost } from './RichiedeLogin'
 import {
   Home, Settings, NotebookPen, MessageCircleQuestion, BarChart3, LayoutGrid, Languages, Eye,
-  Layers, LogOut,
+  Layers, LogOut, KeyRound,
 } from 'lucide-react'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
@@ -73,6 +73,7 @@ export default function AdminShell() {
           <div className="flex flex-col gap-0.5">
             <EtichettaGruppo>Guida</EtichettaGruppo>
             <VoceNav to="/admin/modifica-casa"><Settings className="w-4 h-4 shrink-0" />Dati della casa</VoceNav>
+            <VoceNav to="/admin/soggiorni"><KeyRound className="w-4 h-4 shrink-0" />Soggiorni e Wi-Fi</VoceNav>
             <VoceNav to="/admin/note"><NotebookPen className="w-4 h-4 shrink-0" />Note per Gennarino</VoceNav>
             <VoceNav to="/admin/domande"><MessageCircleQuestion className="w-4 h-4 shrink-0" />Domande ospiti</VoceNav>
             <VoceNav to="/admin/statistiche"><BarChart3 className="w-4 h-4 shrink-0" />Statistiche Gennarino</VoceNav>

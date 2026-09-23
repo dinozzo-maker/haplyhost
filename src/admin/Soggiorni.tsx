@@ -1,0 +1,171 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useOutletContext } from 'react-router-dom'
+import { Copy, Check, Trash2 } from 'lucide-react'
+import { supabase } from '../supabaseClient'
+import { oggiInItalia, statoSoggiorno } from '../../lib/soggiorni.js'
+import type { ContestoHost } from './RichiedeLogin'
+import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
+
+type Soggiorno = { id: string; nome: string; checkin: string; checkout: string; token: string }
+
+const ETICHETTA_STATO = {
+  presto: { testo: 'In arrivo', classe: 'bg-amber-100 text-amber-800' },
+  in_corso: { testo: 'In corso', classe: 'bg-green-100 text-green-800' },
+  scaduto: { testo: 'Concluso', classe: 'bg-slate-100 text-slate-500' },
+} as const
+
+function formatta(giorno: string) {
+  return new Date(`${giorno}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export default function Soggiorni() {
+  const { struttura } = useOutletContext<ContestoHost>()
+
+  const [elenco, setElenco] = useState<Soggiorno[]>([])
+  const [caricamento, setCaricamento] = useState(true)
+  const [nome, setNome] = useState('')
+  const [checkin, setCheckin] = useState('')
+  const [checkout, setCheckout] = useState('')
+  const [salvataggio, setSalvataggio] = useState(false)
+  const [errore, setErrore] = useState('')
+  const [copiato, setCopiato] = useState<string | null>(null)
+
+  const carica = useCallback(async () => {
+    if (!struttura) return
+    const { data, error } = await supabase
+      .from('soggiorni')
+      .select('id, nome, checkin, checkout, token')
+      .eq('struttura_id', struttura.id)
+      .order('checkin', { ascending: false })
+    if (error) {
+      setErrore('Non riesco a caricare i soggiorni.')
+    } else {
+      setElenco(data ?? [])
+    }
+    setCaricamento(false)
+  }, [struttura])
+
+  useEffect(() => {
+    void carica()
+  }, [carica])
+
+  if (!struttura) {
+    return (
+      <PaginaAdmin titolo="Soggiorni e Wi-Fi">
+        <p className="text-sm text-slate-500">Non hai ancora una struttura.</p>
+      </PaginaAdmin>
+    )
+  }
+
+  const linkOspite = (token: string) => `${window.location.origin}/${struttura.slug}?s=${token}`
+
+  async function aggiungi() {
+    if (!struttura) return
+    setErrore('')
+    if (!nome.trim()) return setErrore('Scrivi il nome dell’ospite (serve solo a te, per riconoscere il soggiorno).')
+    if (!checkin || !checkout) return setErrore('Scegli la data di check-in e quella di check-out.')
+    if (checkout < checkin) return setErrore('Il check-out non può essere prima del check-in.')
+
+    setSalvataggio(true)
+    const { error } = await supabase
+      .from('soggiorni')
+      .insert({ struttura_id: struttura.id, nome: nome.trim(), checkin, checkout })
+    setSalvataggio(false)
+    if (error) return setErrore('Errore nel salvataggio: ' + error.message)
+
+    setNome('')
+    setCheckin('')
+    setCheckout('')
+    await carica()
+  }
+
+  async function elimina(s: Soggiorno) {
+    if (!window.confirm(`Eliminare il soggiorno di ${s.nome}? Il suo link smetterà subito di funzionare.`)) return
+    const { error } = await supabase.from('soggiorni').delete().eq('id', s.id)
+    if (error) return setErrore('Errore: ' + error.message)
+    await carica()
+  }
+
+  async function copiaLink(s: Soggiorno) {
+    try {
+      await navigator.clipboard.writeText(linkOspite(s.token))
+      setCopiato(s.id)
+      window.setTimeout(() => setCopiato((c) => (c === s.id ? null : c)), 2000)
+    } catch {
+      window.prompt('Copia il link:', linkOspite(s.token))
+    }
+  }
+
+  const oggi = oggiInItalia()
+
+  return (
+    <PaginaAdmin
+      titolo="Soggiorni e Wi-Fi"
+      sottotitolo={
+        <>
+          La password del Wi-Fi è visibile all’ospite <strong>solo dal giorno del check-in al giorno del
+          check-out</strong>, e solo con il suo link personale. Crea un soggiorno, copia il link e mandalo
+          all’ospite (WhatsApp, email…). Le reti si inseriscono in{' '}
+          <Link to="/admin/modifica-casa" className="underline">Dati della casa</Link>.
+        </>
+      }
+    >
+      <Sezione titolo="Nuovo soggiorno">
+        <Campo etichetta="Nome dell’ospite" aiuto="Lo vedi solo tu: serve a riconoscere il soggiorno nell’elenco.">
+          <input className={classeCampo} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Famiglia Rossi" maxLength={80} />
+        </Campo>
+        <div className="grid grid-cols-2 gap-3">
+          <Campo etichetta="Check-in">
+            <input type="date" className={classeCampo} value={checkin} onChange={(e) => {
+              setCheckin(e.target.value)
+              if (!checkout || checkout < e.target.value) setCheckout(e.target.value)
+            }} />
+          </Campo>
+          <Campo etichetta="Check-out">
+            <input type="date" className={classeCampo} value={checkout} min={checkin || undefined} onChange={(e) => setCheckout(e.target.value)} />
+          </Campo>
+        </div>
+        <Pulsante onClick={aggiungi} disabled={salvataggio}>{salvataggio ? 'Salvo...' : 'Crea soggiorno e link'}</Pulsante>
+        {errore && <Esito ok={false}>{errore}</Esito>}
+      </Sezione>
+
+      <Sezione titolo="Soggiorni">
+        {caricamento && <p className="text-sm text-slate-500">Caricamento...</p>}
+        {!caricamento && elenco.length === 0 && (
+          <p className="text-sm text-slate-500">Nessun soggiorno ancora. Creane uno qui sopra.</p>
+        )}
+        <ul className="flex flex-col gap-3">
+          {elenco.map((s) => {
+            const stato = ETICHETTA_STATO[statoSoggiorno(s.checkin, s.checkout, oggi)]
+            return (
+              <li key={s.id} className="flex flex-col gap-2 border border-slate-200 rounded-xl p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{s.nome}</p>
+                    <p className="text-xs text-slate-500">{formatta(s.checkin)} → {formatta(s.checkout)}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${stato.classe}`}>{stato.testo}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => copiaLink(s)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    {copiato === s.id ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                    {copiato === s.id ? 'Link copiato ✓' : 'Copia il link'}
+                  </button>
+                  <button
+                    onClick={() => elimina(s)}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="w-4 h-4" /> Elimina
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      </Sezione>
+    </PaginaAdmin>
+  )
+}

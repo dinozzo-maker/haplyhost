@@ -14,7 +14,7 @@ export default function RetiWifi({ reti, onChange, disabilitato = false }: {
   return <fieldset disabled={disabilitato} className="flex min-w-0 flex-col gap-4">
     <legend className="mb-2 text-sm font-bold text-slate-900">Reti Wi-Fi</legend>
     <p className="text-sm text-slate-500">Aggiungi una rete per ogni zona della casa. Puoi completarle anche in seguito.</p>
-    <p className="text-xs text-slate-500">Per ora le reti sono conservate nel pannello host e non vengono mostrate nella guida pubblica.</p>
+    <p className="text-xs text-slate-500">Gli ospiti vedono le reti nella pagina Casa &amp; Wi-Fi solo con il link personale del loro soggiorno (da «Soggiorni e Wi-Fi»), dal giorno del check-in.</p>
     {reti.map((rete, indice) => <div key={indice} className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700"><Wifi className="w-4 h-4" />Rete {indice + 1}</span>

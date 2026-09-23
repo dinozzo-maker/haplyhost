@@ -7,6 +7,7 @@ import { conTelefoni, reTelefono } from './telefono'
 import { etichettaSezione } from './sezioni'
 import { useSezioni } from './useSezioni'
 import { Icona } from './Icona'
+import BloccoWifi from './BloccoWifi'
 import { MessageCircle, Phone } from 'lucide-react'
 
 type PaginaRow = {
@@ -83,6 +84,8 @@ export default function PaginaStatica({ chiave }: { chiave: string }) {
       {!caricamento && !errore && pagina && (
         <div className="g-prose">{conTelefoni(contenuto, reTelefono(chiave === 'emergenze'))}</div>
       )}
+
+      {chiave === 'casa' && slug && <BloccoWifi slug={slug} />}
 
       {!errore && mostraTasti && (
         <div className="g-contatti">

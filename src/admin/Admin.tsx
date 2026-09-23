@@ -7,7 +7,7 @@ import type { ContestoHost } from './RichiedeLogin'
 import CreaStruttura from './CreaStruttura'
 import {
   Settings, NotebookPen, MessageCircleQuestion, BarChart3, LayoutGrid, Languages, Eye,
-  Layers, CircleCheck, Circle, ArrowRight, TriangleAlert,
+  Layers, CircleCheck, Circle, ArrowRight, TriangleAlert, KeyRound,
 } from 'lucide-react'
 import { Campo, classeCampo, Pulsante, Esito } from './ui'
 
@@ -251,6 +251,9 @@ export default function Admin() {
         <div className="flex flex-col gap-2 lg:hidden">
           <Scorciatoia to="/admin/modifica-casa">
             <Settings className="w-4 h-4 text-slate-400 shrink-0" /> Modifica dati della casa
+          </Scorciatoia>
+          <Scorciatoia to="/admin/soggiorni">
+            <KeyRound className="w-4 h-4 text-slate-400 shrink-0" /> Soggiorni e Wi-Fi
           </Scorciatoia>
           <Scorciatoia to="/admin/note">
             <NotebookPen className="w-4 h-4 text-slate-400 shrink-0" /> Note per Gennarino

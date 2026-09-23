@@ -11,6 +11,7 @@ const supabase = createClient(
 // deploy falliva). Si sceglie con ?azione=:
 //   ?azione=verifica-slug&slug=...  → { esiste }
 //   ?azione=wifi&slug=...&s=<token> → reti Wi-Fi, solo nei giorni del soggiorno
+//   ?azione=soggiorno&slug=...&s=<token> → nome e date del soggiorno, per il benvenuto in home
 // Prima erano api/verifica-slug.js e api/wifi.js: stessa logica, stesse risposte.
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -19,6 +20,7 @@ export default async function handler(req, res) {
   const azione = String(req.query.azione || '')
   if (azione === 'verifica-slug') return verificaSlug(req, res)
   if (azione === 'wifi') return wifi(req, res)
+  if (azione === 'soggiorno') return benvenuto(req, res)
   return res.status(400).json({ error: 'Azione non valida' })
 }
 
@@ -36,6 +38,42 @@ async function verificaSlug(req, res) {
   return res.status(200).json({ esiste: !!data })
 }
 
+// Cerca il soggiorno a cui appartiene il token, solo se la guida è pubblicata. Ritorna
+// { struttura, soggiorno } oppure null (token/slug sbagliati, guida in bozza: come per
+// Gennarino, non si serve niente finché l'host non pubblica). Tutte le azioni "con token"
+// passano da qui, così le regole d'accesso stanno in un posto solo.
+async function trovaSoggiorno(req, colonne) {
+  const slug = String(req.query.slug || '').trim()
+  const token = String(req.query.s || '').trim()
+  if (!slug || !tokenValido(token)) return null
+
+  const { data: struttura } = await supabase
+    .from('strutture')
+    .select('id, attivo')
+    .eq('slug', slug)
+    .maybeSingle()
+  if (!struttura || !struttura.attivo) return null
+
+  const { data: soggiorno } = await supabase
+    .from('soggiorni')
+    .select(colonne)
+    .eq('struttura_id', struttura.id)
+    .eq('token', token)
+    .maybeSingle()
+  if (!soggiorno) return null
+  return { struttura, soggiorno }
+}
+
+// Benvenuto in home: nome (scritto dall'host per riconoscere il soggiorno, ora mostrato
+// all'ospite) e date. Solo con un token valido; mai dati di altri soggiorni.
+async function benvenuto(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  const trovato = await trovaSoggiorno(req, 'nome, checkin, checkout')
+  if (!trovato) return res.status(404).json({ stato: 'non_valido' })
+  const { nome, checkin, checkout } = trovato.soggiorno
+  return res.status(200).json({ stato: statoSoggiorno(checkin, checkout), nome, checkin, checkout })
+}
+
 // Protetto dal token del soggiorno. È l'unico punto da cui una password Wi-Fi arriva a un
 // ospite (strutture_segreti non ha nessuna lettura pubblica). La password esce SOLO se il
 // token esiste per quella struttura E oggi (fuso italiano) è tra il check-in e il check-out
@@ -44,31 +82,9 @@ async function wifi(req, res) {
   // Mai in cache: la stessa URL deve dare risposte diverse nei giorni diversi.
   res.setHeader('Cache-Control', 'no-store')
 
-  const slug = String(req.query.slug || '').trim()
-  const token = String(req.query.s || '').trim()
-  if (!slug || !tokenValido(token)) {
-    return res.status(404).json({ stato: 'non_valido' })
-  }
-
-  const { data: struttura } = await supabase
-    .from('strutture')
-    .select('id, attivo')
-    .eq('slug', slug)
-    .maybeSingle()
-  // Guida in bozza: come per Gennarino, non si serve niente finché l'host non pubblica.
-  if (!struttura || !struttura.attivo) {
-    return res.status(404).json({ stato: 'non_valido' })
-  }
-
-  const { data: soggiorno } = await supabase
-    .from('soggiorni')
-    .select('checkin, checkout')
-    .eq('struttura_id', struttura.id)
-    .eq('token', token)
-    .maybeSingle()
-  if (!soggiorno) {
-    return res.status(404).json({ stato: 'non_valido' })
-  }
+  const trovato = await trovaSoggiorno(req, 'checkin, checkout')
+  if (!trovato) return res.status(404).json({ stato: 'non_valido' })
+  const { struttura, soggiorno } = trovato
 
   const stato = statoSoggiorno(soggiorno.checkin, soggiorno.checkout)
   if (stato === 'presto') {

@@ -62,7 +62,7 @@ export default function Soggiorni() {
   async function aggiungi() {
     if (!struttura) return
     setErrore('')
-    if (!nome.trim()) return setErrore('Scrivi il nome dell’ospite (serve solo a te, per riconoscere il soggiorno).')
+    if (!nome.trim()) return setErrore('Scrivi il nome dell’ospite: compare nel suo benvenuto (es. Famiglia Rossi).')
     if (!checkin || !checkout) return setErrore('Scegli la data di check-in e quella di check-out.')
     if (checkout < checkin) return setErrore('Il check-out non può essere prima del check-in.')
 
@@ -103,15 +103,15 @@ export default function Soggiorni() {
       titolo="Soggiorni e Wi-Fi"
       sottotitolo={
         <>
-          La password del Wi-Fi è visibile all’ospite <strong>solo dal giorno del check-in al giorno del
-          check-out</strong>, e solo con il suo link personale. Crea un soggiorno, copia il link e mandalo
+          Con il suo link personale l’ospite vede un benvenuto con il suo nome e le sue date, e la password del Wi-Fi <strong>solo dal giorno del check-in al giorno del
+          check-out</strong>. Crea un soggiorno, copia il link e mandalo
           all’ospite (WhatsApp, email…). Le reti si inseriscono in{' '}
           <Link to="/admin/modifica-casa" className="underline">Dati della casa</Link>.
         </>
       }
     >
       <Sezione titolo="Nuovo soggiorno">
-        <Campo etichetta="Nome dell’ospite" aiuto="Lo vedi solo tu: serve a riconoscere il soggiorno nell’elenco.">
+        <Campo etichetta="Nome dell’ospite" aiuto="Compare nel benvenuto dell’ospite (es. «Buongiorno, Famiglia Rossi!») e serve a te per riconoscere il soggiorno. Lo vede solo chi apre il suo link.">
           <input className={classeCampo} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Famiglia Rossi" maxLength={80} />
         </Campo>
         <div className="grid grid-cols-2 gap-3">

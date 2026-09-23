@@ -13,6 +13,7 @@ import { PRIVACY } from './privacy'
 import { MessageCircle, Send, Wifi, House, ArrowRight } from 'lucide-react'
 import { TESTI_HOME } from './testiHome'
 import CreditoFoto from './CreditoFoto'
+import Benvenuto from './Benvenuto'
 
 type LuogoPick = {
   id: string
@@ -111,6 +112,8 @@ export default function Home() {
       </div>
 
       <SelettoreLingua />
+
+      <Benvenuto slug={slug ?? ''} orarioCheckin={struttura.checkin} orarioCheckout={struttura.checkout} />
 
       <div className="g-quick">
         {visibili.some((s) => s.chiave === 'casa') && <>

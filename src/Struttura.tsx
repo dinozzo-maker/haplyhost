@@ -18,6 +18,8 @@ export type StrutturaRow = {
   host_telefono: string | null
   lat: number | null
   lng: number | null
+  checkin: string | null
+  checkout: string | null
 }
 
 export default function Struttura() {
@@ -37,7 +39,7 @@ export default function Struttura() {
       setErrore(false)
       const { data, error } = await supabase
         .from('strutture')
-        .select('id, nome, citta, sezioni_attive, accento, copertina_url, host_telefono, lat, lng')
+        .select('id, nome, citta, sezioni_attive, accento, copertina_url, host_telefono, lat, lng, checkin, checkout')
         .eq('slug', slug)
         .maybeSingle()
 

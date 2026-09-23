@@ -7,7 +7,7 @@ import type { ContestoHost } from './RichiedeLogin'
 import CreaStruttura from './CreaStruttura'
 import {
   Settings, NotebookPen, MessageCircleQuestion, BarChart3, LayoutGrid, Languages, Eye,
-  UserPlus, Puzzle, Gauge, CircleCheck, Circle, ArrowRight, TriangleAlert,
+  Layers, CircleCheck, Circle, ArrowRight, TriangleAlert,
 } from 'lucide-react'
 import { Campo, classeCampo, Pulsante, Esito } from './ui'
 
@@ -277,18 +277,9 @@ export default function Admin() {
 
         {isSuperadmin && (
           <div className="lg:hidden">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Piattaforma</p>
-            <div className="flex flex-col gap-2">
-              <Scorciatoia to="/admin/invita-host">
-                <UserPlus className="w-4 h-4 text-slate-400 shrink-0" /> Invita un nuovo host
-              </Scorciatoia>
-              <Scorciatoia to="/admin/sezioni-extra">
-                <Puzzle className="w-4 h-4 text-slate-400 shrink-0" /> Sezioni della piattaforma
-              </Scorciatoia>
-              <Scorciatoia to="/admin/consumi-ai">
-                <Gauge className="w-4 h-4 text-slate-400 shrink-0" /> Consumi AI
-              </Scorciatoia>
-            </div>
+            <Scorciatoia to="/admin/piattaforma">
+              <Layers className="w-4 h-4 text-violet-500 shrink-0" /> Vai alla piattaforma
+            </Scorciatoia>
           </div>
         )}
 

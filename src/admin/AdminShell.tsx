@@ -8,7 +8,7 @@ import { Icona } from '../Icona'
 import type { ContestoHost } from './RichiedeLogin'
 import {
   Home, Settings, NotebookPen, MessageCircleQuestion, BarChart3, LayoutGrid, Languages, Eye,
-  UserPlus, Puzzle, Gauge, LogOut,
+  Layers, LogOut,
 } from 'lucide-react'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
@@ -29,12 +29,8 @@ function VoceNav({ to, end, children }: { to: string; end?: boolean; children: R
   )
 }
 
-function EtichettaGruppo({ children, viola }: { children: ReactNode; viola?: boolean }) {
-  return (
-    <p className={`px-3 pb-1 text-[10px] font-bold tracking-wider uppercase ${viola ? 'text-violet-400' : 'text-slate-500'}`}>
-      {children}
-    </p>
-  )
+function EtichettaGruppo({ children }: { children: ReactNode }) {
+  return <p className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase">{children}</p>
 }
 
 // Guscio del pannello host: su schermi larghi (lg, 1024px+) aggiunge una barra
@@ -123,15 +119,18 @@ export default function AdminShell() {
             </VoceNav>
           </div>
 
-          {isSuperadmin && (
-            <div className="flex flex-col gap-0.5">
-              <EtichettaGruppo viola>Piattaforma</EtichettaGruppo>
-              <VoceNav to="/admin/invita-host"><UserPlus className="w-4 h-4 shrink-0 text-violet-400" />Invita un nuovo host</VoceNav>
-              <VoceNav to="/admin/sezioni-extra"><Puzzle className="w-4 h-4 shrink-0 text-violet-400" />Sezioni della piattaforma</VoceNav>
-              <VoceNav to="/admin/consumi-ai"><Gauge className="w-4 h-4 shrink-0 text-violet-400" />Consumi AI</VoceNav>
-            </div>
-          )}
         </nav>
+
+        {isSuperadmin && (
+          <div className="px-3 pb-3 pt-2 border-t border-slate-800">
+            <NavLink
+              to="/admin/piattaforma"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-violet-300 hover:bg-violet-900/40 hover:text-violet-100"
+            >
+              <Layers className="w-4 h-4 shrink-0" />Vai alla piattaforma
+            </NavLink>
+          </div>
+        )}
 
         <div className="px-3 pb-4 pt-2 border-t border-slate-800">
           <p className="px-3 pb-2 text-[11px] text-slate-500 truncate">{session.user.email}</p>

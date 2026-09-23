@@ -53,7 +53,7 @@ export default function ConsumiAI() {
     })()
   }, [autorizzato, session.access_token])
   if (!autorizzato) return <Navigate to="/admin" replace />
-  return <PaginaAdmin titolo="Consumi AI" sottotitolo="Conteggi tecnici della piattaforma. Non vengono salvati testi delle domande, risposte o dati degli ospiti." piattaforma>
+  return <PaginaAdmin titolo="Consumi AI" sottotitolo="Conteggi tecnici della piattaforma. Non vengono salvati testi delle domande, risposte o dati degli ospiti." indietro="/admin/piattaforma">
     {!dati && !errore && <p className="text-sm text-slate-500">Caricamento…</p>}
     {errore && <Sezione><p className="text-sm text-red-700">{errore}</p></Sezione>}
     {dati && <>

@@ -114,7 +114,7 @@ haplyhost/
 │   │                          DELETE la elimina. Tabella `sezioni_extra`, service role.
 │   ├── consumi-ai.js        ← (17-22/09/2026) SOLO superadmin (verifica email via `supabase.auth.getUser(token)`): GET
 │   │                          totali Oggi/7gg/30gg + tabella per servizio/fornitore/modello + ultimi errori (solo tipo e
-│   │                          data, mai il messaggio) da `consumi_ai`. Rotta `/admin/consumi-ai`.
+│   │                          data, mai il messaggio) da `consumi_ai`. Rotta `/admin/piattaforma/consumi-ai`.
 │   ├── manifest.js          ← (17/09/2026) manifest PWA dinamico, GET ?slug=... — così installando la guida di UNA
 │   │                          struttura l'icona apre proprio quella, non una Home generica.
 │   └── verifica-slug.js     ← pubblico, volutamente minimo: GET ?slug=... → { esiste: bool }, nient'altro. Usato da Struttura.tsx
@@ -273,10 +273,24 @@ haplyhost/
 │       │                          tema scuro il pannello risultava nero e i testi scuri illeggibili — l'admin non segue il tema
 │       │                          del sistema, resta sempre chiaro (a differenza della guida ospiti). Contenuto centrale
 │       │                          `lg:px-6` (17-22/09/2026, insieme al `max-w-3xl` di ui.tsx/Admin.tsx sotto — pagine meno
-│       │                          strette accanto alla barra laterale). Link "Consumi AI" in navigazione, solo superadmin.
-│       │                          Gruppo "Piattaforma" (22/09/2026): etichetta e icone in viola (`text-violet-400`),
-│       │                          in coerenza con il badge di `<PaginaAdmin piattaforma>` (vedi ui.tsx sopra) — stesso
-│       │                          scopo, rendere visibile quando si è usciti dal contesto di una singola struttura.
+│       │                          strette accanto alla barra laterale). **Un solo link "Vai alla piattaforma"** (22/09/2026,
+│       │                          testo viola, in fondo alla barra) al posto del vecchio gruppo con 3 link diretti — vedi
+│       │                          `PiattaformaShell.tsx` sotto: l'area piattaforma è stata separata del tutto, non è più
+│       │                          raggiungibile dentro questa barra laterale.
+│       ├── PiattaformaShell.tsx ← (22/09/2026) shell A SÉ per l'area piattaforma, rotta /admin/piattaforma/* — non un
+│       │                          gruppo dentro AdminShell.tsx: colore diverso (barra laterale viola/indaco `bg-violet-950`,
+│       │                          non slate-900) così è impossibile confondere "sto gestendo Villa Virginia" con "sto
+│       │                          gestendo la piattaforma". Verifica SUBITO `isSuperadmin` e rimanda a `/admin` se non lo
+│       │                          sei (un host che digita l'URL a mano non deve nemmeno vedere questa shell) — le pagine
+│       │                          sotto hanno comunque ciascuna il proprio controllo, difesa doppia. Riceve lo stesso
+│       │                          `ContestoHost` di RichiedeLogin/AdminShell e lo ripassa INVARIATO: InvitaHost.tsx,
+│       │                          SezioniExtra.tsx, ConsumiAI.tsx continuano a leggere `session` da
+│       │                          `useOutletContext<ContestoHost>()` come prima, non sanno di essere sotto una shell
+│       │                          diversa. Sotto lg: non rende nulla (stesso principio di AdminShell), le pagine hanno il
+│       │                          loro back-link (`<PaginaAdmin indietro="/admin/piattaforma">`).
+│       ├── PiattaformaHome.tsx  ← (22/09/2026) rotta /admin/piattaforma (index): 3 card (Consumi AI, Invita host, Sezioni
+│       │                          piattaforma) — su desktop la barra laterale di PiattaformaShell.tsx già naviga, questa
+│       │                          pagina serve soprattutto su mobile e come punto d'arrivo di "Vai alla piattaforma".
 │       ├── ui.tsx               ← (14/09/2026) "vestito" condiviso del pannello — punto 4 del redesign strategico, non un design
 │       │                          system a parte come `g-*` (quello è della guida): `<PaginaAdmin titolo/sottotitolo>` (back-link
 │       │                          con icona, intestazione, spaziatura — largo `max-w-xl` su desktop accanto alla barra laterale),
@@ -293,12 +307,12 @@ haplyhost/
 │       │                          ignorata — e anche con la sintassi giusta l'ordine di generazione CSS di Tailwind non è
 │       │                          garantito). Per un bottone con un colore diverso dal variante (es. il verde di
 │       │                          "Accetta"/"Cerca nuovi luoghi" in GestisciSezione.tsx) si scrive un `<button>` semplice con
-│       │                          le classi per esteso, non `<Pulsante>` più un override. `<PaginaAdmin piattaforma>`
-│       │                          (22/09/2026): mostra il badge viola "Modalità piattaforma" — le pagine SOLO
-│       │                          superadmin (Invita host, Sezioni piattaforma, Consumi AI) prima non avevano nessun
-│       │                          segnale visivo che le distinguesse dalle pagine di una singola struttura, solo
-│       │                          l'etichetta "Piattaforma" nella barra laterale (anch'essa tinta di viola ora, vedi
-│       │                          AdminShell.tsx sotto)
+│       │                          le classi per esteso, non `<Pulsante>` più un override. `indietro` di `PaginaAdmin` accetta
+│       │                          anche una stringa, non solo booleano (22/09/2026): le pagine sotto `/admin/piattaforma`
+│       │                          (InvitaHost, SezioniExtra, ConsumiAI) tornano a `/admin/piattaforma`, non a `/admin` —
+│       │                          quell'area è stata separata del tutto (shell propria, non più solo un colore diverso:
+│       │                          un primo tentativo col solo badge viola "Modalità piattaforma" è stato scartato lo
+│       │                          stesso giorno a favore di questa separazione vera — vedi `PiattaformaShell.tsx` sotto)
 │       ├── Admin.tsx            ← dashboard host: bottoni "Gestisci X" / "Modifica X" generati da `useSezioni()`. Se l'host non ha ancora una struttura, mostra <CreaStruttura />.
 │       │                          Se ne ha più di una: tendina "Struttura" in cima su mobile (cambia `selezionaStruttura`, niente
 │       │                          reload; su desktop la stessa tendina è nella barra laterale di AdminShell, questa è `lg:hidden`).
@@ -308,8 +322,8 @@ haplyhost/
 │       │                          `strutture.attivo` (UPDATE owner). L'elenco dei link (Modifica dati/Note/Domande/…) e il
 │       │                          pulsante Esci sono `lg:hidden`: su desktop sono già nella barra laterale, qui restano solo i
 │       │                          contenuti da dashboard (stato online, checklist, avviso traduzioni).
-│       │                          Sezione "PIATTAFORMA" (solo se email === VITE_ADMIN_EMAIL): link a /admin/invita-host,
-│       │                          /admin/sezioni-extra e /admin/consumi-ai (17-22/09/2026).
+│       │                          Un solo link "Vai alla piattaforma" → /admin/piattaforma (solo se email === VITE_ADMIN_EMAIL;
+│       │                          22/09/2026, prima 3 link diretti — vedi PiattaformaShell.tsx sotto per l'area separata).
 │       │                          Vestito di ui.tsx (16/09/2026): niente `<PaginaAdmin>` (è già il pannello, nessun back-link);
 │       │                          due helper locali non condivisi altrove — `Scorciatoia` (card bianca per i link di
 │       │                          navigazione) e `Passo` (riga della checklist "Primi passi") — perché qui la struttura
@@ -365,11 +379,13 @@ haplyhost/
 │       │                          Chiamata diretta dal browser (`VITE_GEOAPIFY_API_KEY`). Senza la chiave degrada da solo a
 │       │                          un campo di testo semplice con una nota — stesso principio di Meteo.tsx. Usato in
 │       │                          CreaStruttura.tsx e ModificaCasa.tsx.
-│       ├── ConsumiAI.tsx        ← (17-22/09/2026) rotta /admin/consumi-ai, SOLO superadmin: dashboard di `api/consumi-ai.js`
+│       ├── ConsumiAI.tsx        ← (17-22/09/2026) rotta /admin/piattaforma/consumi-ai (22/09/2026, prima /admin/consumi-ai —
+│       │                          vedi PiattaformaShell.tsx sopra), SOLO superadmin: dashboard di `api/consumi-ai.js`
 │       │                          — totali Oggi/7gg/30gg, tabella per servizio/fornitore/modello, ultimi errori (solo tipo,
 │       │                          mai il testo). Nota esplicita nella pagina: né Google né Anthropic espongono un vero
 │       │                          saldo residuo via API, questi sono consumi osservati, non un credito rimanente.
-│       ├── InvitaHost.tsx       ← rotta /admin/invita-host, SOLO superadmin: form (email, nome riferimento, piano, note) → POST /api/host-autorizzati
+│       ├── InvitaHost.tsx       ← rotta /admin/piattaforma/invita-host (22/09/2026, prima /admin/invita-host), SOLO
+│       │                          superadmin: form (email, nome riferimento, piano, note) → POST /api/host-autorizzati
 │       │                          → mostra il link di invito da copiare e mandare. Sotto, l'elenco degli host già autorizzati.
 │       ├── ModificaCasa.tsx     ← rotta /admin/modifica-casa: form con TUTTI i dati struttura senza altro editor (nome, indirizzo
 │       │                          via `IndirizzoAutomatico.tsx`, citta, descrizione_casa, host_nome, host_telefono, checkin,
@@ -392,7 +408,8 @@ haplyhost/
 │       │                          Filtra SOLO la guida ospiti (Home.tsx), non il pannello. NULL = tutte le sistema, custom escluse.
 │       │                          Checklist ora `SceltaSezioni.tsx` (17-22/09/2026, riusata dal wizard — vedi CreaStruttura.tsx),
 │       │                          non più una checkbox-list scritta apposta per questa pagina
-│       ├── SezioniExtra.tsx     ← rotta /admin/sezioni-extra, SOLO superadmin: crea/elimina sezioni custom (etichetta, icona via
+│       ├── SezioniExtra.tsx     ← rotta /admin/piattaforma/sezioni-extra (22/09/2026, prima /admin/sezioni-extra), SOLO
+│       │                          superadmin: crea/elimina sezioni custom (etichetta, icona via
 │       │                          selettore icone lucide-react — righe tematiche da ICONE_SCELTA, non più emoji (13/09/2026) —,
 │       │                          descrizione, tipo testo|elenco, categoria per Scout se elenco) → POST/DELETE /api/sezioni-extra.
 │       ├── GestisciSezione.tsx  ← UNICO componente riusato per tutte e 7 le sezioni 'elenco': elenco ordinato dal più vicino al più
@@ -418,7 +435,7 @@ haplyhost/
 
 ## Pattern architetturali importanti
 
-1. **Le sezioni si iterano da `useSezioni().tutte`**, non da `SEZIONI` direttamente. `SEZIONI` (in `sezioni.ts`) sono le 14 di sistema; `useSezioni()` le unisce alle righe di `sezioni_extra` (custom del superadmin). `App.tsx`, `Home.tsx`, `Admin.tsx`, `SezioniGuida.tsx` generano rotte/bottoni da `tutte`. Una sezione di sistema nuova = una riga in `sezioni.ts`; una sezione custom = riga in `sezioni_extra` (dalla pagina `/admin/sezioni-extra`). Non toccare le rotte a mano. `App.tsx` ha una rotta `*` sotto `/admin` che tiene gli URL `/admin/...` sconosciuti dentro il pannello (loading → redirect a `/admin`) invece di farli cadere sulla rotta ospite `/:slug`.
+1. **Le sezioni si iterano da `useSezioni().tutte`**, non da `SEZIONI` direttamente. `SEZIONI` (in `sezioni.ts`) sono le 14 di sistema; `useSezioni()` le unisce alle righe di `sezioni_extra` (custom del superadmin). `App.tsx`, `Home.tsx`, `Admin.tsx`, `SezioniGuida.tsx` generano rotte/bottoni da `tutte`. Una sezione di sistema nuova = una riga in `sezioni.ts`; una sezione custom = riga in `sezioni_extra` (dalla pagina `/admin/piattaforma/sezioni-extra`). Non toccare le rotte a mano. `App.tsx` ha una rotta `*` sotto `/admin` che tiene gli URL `/admin/...` sconosciuti dentro il pannello (loading → redirect a `/admin`) invece di farli cadere sulla rotta ospite `/:slug`.
 2. **Multi-tenancy lato host**: `RichiedeLogin.tsx` risolve *tutte* le strutture con `owner_user_id = auth.uid()` (di solito una) e passa via `Outlet context` quella "selezionata" come `struttura` a tutte le pagine `/admin/*` — nessun componente admin deve cercare una struttura per slug fisso, tutti leggono `struttura` dal contesto e restano validi anche per un host con più proprietà. Un host con più strutture (10/09/2026, niente tabella ponte: `owner_user_id` è già una FK non-unica, un utente può possedere più righe di `strutture`) le cambia da una tendina in `Admin.tsx`; la scelta vive in `localStorage`, non nell'URL.
 3. **Multi-tenancy lato ospite**: `Struttura.tsx` risolve la struttura dallo `:slug` nell'URL, la passa via `Outlet context` a `Home`, `SezionePage`, `PaginaStatica`, `Gennarino`.
 4. **Componenti generici parametrizzati**, non uno per sezione: `GestisciSezione` prende `{sezione, etichetta}`, `GestisciPagina` prende `{chiave, etichetta}`, `PaginaStatica` prende `{chiave}`. Estendere questi invece di crearne di nuovi.
@@ -519,7 +536,7 @@ sezioni_extra (   -- sezioni della guida create dal superadmin, oltre alle 14 di
   -- RLS on: SELECT pubblico (serve a ogni guida); scrittura solo via api/sezioni-extra.js con service role
 )
 
-consumi_ai (   -- migration 0019 (17-22/09/2026): una riga per chiamata AI, per api/consumi-ai.js (/admin/consumi-ai)
+consumi_ai (   -- migration 0019 (17-22/09/2026): una riga per chiamata AI, per api/consumi-ai.js (/admin/piattaforma/consumi-ai)
   id uuid pk, servizio text, operazione text, fornitore text, modello text,
   esito text,   -- 'ok' | 'errore'
   errore_tipo text,   -- da tipoErroreAI(): credito o limite | timeout | chiave o permessi | richiesta non valida | servizio non disponibile | fornitore
@@ -632,7 +649,7 @@ Mitigazioni fatte:
   poi OpenRouter (**gratis**), poi Geoapify+Exa in cascata (vedi `api/scout.js` nella struttura del
   repo sopra), invece di un solo motore fisso. E soprattutto: **ora c'è visibilità reale sui consumi**
   — ogni chiamata AI (Gennarino, Scout, traduzioni, descrizioni) scrive una riga in `consumi_ai`
-  (`lib/consumi-ai.js`), consultabile dal superadmin in `/admin/consumi-ai` (totali, per servizio/
+  (`lib/consumi-ai.js`), consultabile dal superadmin in `/admin/piattaforma/consumi-ai` (totali, per servizio/
   fornitore/modello, errori). Non è un saldo residuo (Google/Anthropic non lo espongono via API), ma
   prima di questo non c'era NESSUNA visibilità sui consumi finché non arrivava un errore o un saldo
   negativo — questo era il primo punto debole che ha causato l'incidente del 31/08.
@@ -664,14 +681,14 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 - Contenuti reali di Villa Virginia importati da StayFlow V1 (55 luoghi + 6 pagine testuali)
 - Gennarino: chat AI grounded sui dati reali della struttura, markdown disabilitato nel prompt, log su `domande`
 - Pannello host: login magic-link, gestione on/off + modifica/elimina/**aggiungi a mano** luoghi su tutte le sezioni elenco (con distanza in lista), editor per le pagine testuali, link "Vedi la guida degli ospiti", pagina "Sezioni della guida" (scegli quali tessere mostrare agli ospiti — `strutture.sezioni_attive`)
-- **Sezioni custom del superadmin**: pagina `/admin/sezioni-extra` (solo superadmin) per creare e modificare sezioni oltre le 14 di sistema, tipo testo o elenco. Vivono in `sezioni_extra`, si uniscono ovunque via `useSezioni()`, nascono spente per tutti gli host. “Archivia” le nasconde senza cancellare i contenuti; “Ripristina” le riporta online. **Prerequisiti prod: migration 0004 + 0016.**
+- **Sezioni custom del superadmin**: pagina `/admin/piattaforma/sezioni-extra` (22/09/2026, prima `/admin/sezioni-extra`; solo superadmin) per creare e modificare sezioni oltre le 14 di sistema, tipo testo o elenco. Vivono in `sezioni_extra`, si uniscono ovunque via `useSezioni()`, nascono spente per tutti gli host. “Archivia” le nasconde senza cancellare i contenuti; “Ripristina” le riporta online. **Prerequisiti prod: migration 0004 + 0016.**
 - Scout: ricerca nuovi luoghi con approvazione a lotto. Riattivato (`RICERCHE_ATTIVE`). Restituisce anche prezzo e voto Google (colonne `proposte.prezzo`/`voto`, copiati nel luogo alla scelta). Errori/esito veri mostrati nel pannello. **Raggio di ricerca (13/09/2026)**: tendina in `GestisciSezione.tsx` (1/5/15/30/150 km, default 5) → `raggio_km` nel prompt invece del generico "vicino a questo indirizzo". ⚠️ Vedi il bullet "Scout irrobustito (17-22/09/2026)" più sotto — il motore unico `MOTORE_SCOUT` di questa riga non esiste più, sostituito da una cascata di 4 fornitori.
 - **Reskin della guida ospiti** (migration 0005, verificato in prod 03/09/2026): design system "g-*" in `src/index.css` (spirito StayFlow: Nunito, hero, griglia di tessere, barra in basso `TabBar`, FAB `GennarinoFab`, modalità chiara/scura). Due leve per l'host in ModificaCasa: colore d'accento (`strutture.accento`, 5 preset, iniettato come `--g-accent` inline sullo `.g-shell`) e foto di copertina — **"Carica foto"** (upload su Storage bucket `copertine`, migration 0006) o link incollato. Schede luogo con pastiglie prezzo/voto (`luoghi.prezzo`/`voto` da Scout). Selettore icone in SezioniExtra (13/09/2026, era emoji). "+ Aggiungi un luogo a mano" in GestisciSezione. Il pannello admin ha il suo vestito separato (`admin/ui.tsx`, 14-16/09/2026, vedi sotto). "Il consiglio di oggi": rimandato.
 - **Caricamento più leggero (17/09/2026):** `App.tsx` carica chat, sezioni secondarie e pannello host solo quando vengono aperti (`lazy` + `Suspense`). La guida Home non scarica più in anticipo l'intero Admin: bundle iniziale da circa 566 KB a 271 KB, senza cambiare rotte o funzionalità.
 - **Errori guida ospiti (17/09/2026):** `SezionePage.tsx` e `PaginaStatica.tsx` distinguono un contenuto davvero vuoto da un errore di caricamento Supabase. Nel secondo caso mostrano `T[lingua].erroreCaricamento`, invece di far pensare all'ospite che l'host non abbia inserito nulla.
 - **Scout irrobustito (17-22/09/2026, lavoro fatto passando il progetto per ChatGPT/Codex)** — `MOTORE_SCOUT` rimosso: ora una cascata di 4 fornitori (Gemini → Claude → OpenRouter gratis → Geoapify+Exa), che salta chi non ha la chiave e passa oltre su errore o zero risultati verificati. Tre problemi reali corretti nello stesso lavoro: **doppioni** (Scout aveva proposto "Vaillum" quando esisteva già "Vatillum Pizzeria Paestum" — ora `lib/identita-luoghi.js` li blocca lato server, e ri-controlla anche le proposte più vecchie salvate prima di questo controllo); **fonti non verificate** (un nome dev'essere citato letteralmente nella fonte, non solo "una fonte esiste da qualche parte" — `proposte.verifica`, migration 0017, mostrata come pannello "Fonti e dettagli da verificare"); **distanza inventata dal modello** (ora sempre ricalcolata da coordinate vere via Geoapify, mai quella dichiarata dall'AI). Il flusso di approvazione è cambiato da Accetta/Rifiuta per-riga a spunte + un unico "Salva le scelte" (RPC `salva_scelte_proposte`, migration 0018, transazione atomica). Vedi `api/scout.js` e `lib/proposte-scout.js`/`lib/identita-luoghi.js` nella struttura del repo sopra per il dettaglio tecnico. **Prerequisiti prod aggiuntivi**: `VITE_GEOAPIFY_API_KEY` (già usata anche per l'autocompletamento indirizzo, vedi sotto), `OPENROUTER_API_KEY`, `EXA_API_KEY` (facoltativa) su Vercel.
-- **Pagine piattaforma differenziate (22/09/2026)** — Invita host, Sezioni piattaforma e Consumi AI (le uniche 3 pagine SOLO superadmin) ora si distinguono visivamente dalle pagine di una singola struttura: badge viola "Modalità piattaforma" in cima (`<PaginaAdmin piattaforma>`, `ui.tsx`) + lo stesso viola sull'etichetta e le icone del gruppo "Piattaforma" nella barra laterale. Scelta leggera rispetto all'alternativa (una sezione a sé con shell separata): stesso `AdminShell`, stessa navigazione, solo un accento di colore diverso. Verificato in locale con un contesto superadmin finto (rimosso a fine verifica).
-- **Consumi AI (17-22/09/2026)** — prima non c'era NESSUNA visibilità sui consumi delle chiamate AI finché non arrivava un errore o un saldo negativo (causa diretta dell'incidente del 31/08). Ora ogni chiamata (Gennarino, Scout, traduzioni, descrizione casa) registra una riga in `consumi_ai` (`lib/consumi-ai.js`, "fire and forget": non deve mai far fallire la chiamata che sta misurando); il superadmin la vede in `/admin/consumi-ai` — totali Oggi/7gg/30gg, per servizio/fornitore/modello, ultimi errori (solo tipo, mai testo). **Non è un saldo residuo**: Google e Anthropic non espongono un vero credito rimanente via API, la pagina lo dice esplicitamente.
+- **Area piattaforma separata (22/09/2026)** — Invita host, Sezioni piattaforma e Consumi AI (le uniche pagine SOLO superadmin) sono state spostate sotto `/admin/piattaforma/*`, con una shell propria (`PiattaformaShell.tsx`, barra laterale viola/indaco, non slate) invece di stare dentro `AdminShell.tsx` come un gruppo di link. **Primo tentativo, scartato lo stesso giorno**: solo un badge viola "Modalità piattaforma" sulle pagine + tinta viola sul gruppo nella barra laterale, tutto ancora dentro `AdminShell.tsx` — troppo leggero, il cliente ha chiesto una separazione vera. `AdminShell.tsx` ora ha un solo link "Vai alla piattaforma"; `Admin.tsx` (dashboard, mobile) idem. `PiattaformaShell.tsx` verifica da sé `isSuperadmin` e rimanda a `/admin` altrimenti (un host non può nemmeno vederla digitando l'URL a mano) e ripassa lo stesso `ContestoHost` via `Outlet`, invariato — le tre pagine non hanno dovuto cambiare la loro logica, solo il target del back-link (`indietro="/admin/piattaforma"`, `PaginaAdmin` ora accetta anche una stringa oltre a `true/false`). Nuova pagina hub `PiattaformaHome.tsx` (indice di `/admin/piattaforma`, principalmente per mobile). Verificato in locale (mobile e desktop, contesto superadmin finto rimosso a fine verifica).
+- **Consumi AI (17-22/09/2026)** — prima non c'era NESSUNA visibilità sui consumi delle chiamate AI finché non arrivava un errore o un saldo negativo (causa diretta dell'incidente del 31/08). Ora ogni chiamata (Gennarino, Scout, traduzioni, descrizione casa) registra una riga in `consumi_ai` (`lib/consumi-ai.js`, "fire and forget": non deve mai far fallire la chiamata che sta misurando); il superadmin la vede in `/admin/piattaforma/consumi-ai` — totali Oggi/7gg/30gg, per servizio/fornitore/modello, ultimi errori (solo tipo, mai testo). **Non è un saldo residuo**: Google e Anthropic non espongono un vero credito rimanente via API, la pagina lo dice esplicitamente.
 - **Autocompletamento indirizzo (17-22/09/2026)** — `src/admin/IndirizzoAutomatico.tsx`, Geoapify, usato in CreaStruttura e ModificaCasa. Degrada da solo a un campo di testo semplice se manca la chiave, come già fa Meteo.tsx per il meteo.
 - **Configurazione guidata della guida + reti Wi-Fi multiple (17-22/09/2026)** — la feature più grande di questa finestra. Onboarding di una nuova struttura ora scegli **guidata** (AI-assisted, con un wizard a 3 passi: dati casa → sezioni da mostrare → una ricerca Scout automatica per sezione con approvazione) o **manuale** (guida vuota, zero chiamate AI, verificato nei test). Progresso salvato **server-side** (`configurazioni_guida`, non nello stato del componente) apposta perché chiudere la scheda a metà non perda nulla — `Admin.tsx` mostra "Riprendi la configurazione" se la riga esiste. La ricerca automatica iniziale è a tetto rigido (**10 sezioni per struttura**, RPC `prenota_ricerca_configurazione`) e idempotente (non riparte due volte sulla stessa sezione). **Reti Wi-Fi multiple**: `strutture_segreti.reti_wifi` (jsonb, fino a 20 reti con nome/password/zona) sostituisce concettualmente le vecchie colonne singole (non cancellate, solo superate) — editabili sia in fase di creazione (`RetiWifi.tsx`) sia dopo (`GestisciWifi.tsx` dentro ModificaCasa.tsx), con una policy RLS nuova che apre `strutture_segreti` all'host proprietario (prima era raggiungibile SOLO da service role, zero accesso diretto). ⚠️ **Non ancora deciso**: se e come mostrare il Wi-Fi nella guida ospiti — per ora resta solo nel pannello host (vedi `docs/configurazione-guida.md`, non codice ma note dell'autore). Vedi `ConfiguraGuida.tsx`, `SceltaSezioni.tsx`, `PassiConfigurazione.tsx`, `RetiWifi.tsx`, `GestisciWifi.tsx` nella struttura del repo sopra.
 - **Pannello admin più largo su desktop (17-22/09/2026)** — `PaginaAdmin`/`Admin.tsx`/`AdminShell.tsx` passano da `lg:max-w-xl` a `lg:max-w-3xl lg:px-8`: pagine meno strette accanto alla barra laterale. Puro layout, nessun cambio di comportamento.
@@ -701,7 +718,7 @@ cache 24h su `/api/consiglio` della V1; rigenerare la `GEMINI_API_KEY` (passata 
 
 **Gate registrazione host + invito superadmin (pubblicato, testato in prod 31/08/2026):**
 - `Login.tsx` con `shouldCreateUser: false` — si accede solo con email già in Supabase Auth. Email sconosciuta → messaggio, non il link.
-- **Invito host**: tabella `host_autorizzati` + `api/host-autorizzati.js` (GET/POST/DELETE) + `src/admin/InvitaHost.tsx` (rotta `/admin/invita-host`, link "PIATTAFORMA" nel pannello solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email, genera il link di invito e può rimuovere un host: prima le sue strutture passano al superadmin, poi l'account Auth viene eliminato. Questo evita strutture senza proprietario (17/09/2026).
+- **Invito host**: tabella `host_autorizzati` + `api/host-autorizzati.js` (GET/POST/DELETE) + `src/admin/InvitaHost.tsx` (rotta `/admin/piattaforma/invita-host`, 22/09/2026 — prima `/admin/invita-host` — raggiungibile solo dall'area piattaforma, vedi PiattaformaShell.tsx, solo se `email === VITE_ADMIN_EMAIL`). Il superadmin autorizza un'email, genera il link di invito e può rimuovere un host: prima le sue strutture passano al superadmin, poi l'account Auth viene eliminato. Questo evita strutture senza proprietario (17/09/2026).
 - Serve `VITE_ADMIN_EMAIL` su Vercel + `.env.local` = email del superadmin (oggi `bernardinocalifano@gmail.com`, che possiede Villa Virginia).
 - **Incremento B — fatto (09-10/09/2026)**: `importa-casa.js` popola `registrato_il` E verifica `host_autorizzati` (403 se l'email non è in elenco; carve-out per il superadmin `VITE_ADMIN_EMAIL`). Ora il flusso è chiuso su due livelli: login (`shouldCreateUser: false`) + questo check. Un account Auth creato a mano, saltando "Invita host", non riesce più a creare la struttura.
 - **Guida in bozza + pubblicazione (09/09/2026)**: nuove strutture nascono `attivo=false`. `Admin.tsx` mostra la card "Primi passi" (checklist: pagine di testo ○/✓, luoghi ○/✓; + link a dati casa, colore/foto, sezioni, traduzioni) e il pulsante "Pubblica la guida" (→ `attivo=true`). Quando è online: "🟢 La guida è online" + "Metti offline" (con conferma). L'host vede/apre la propria guida anche da spenta (migration 0010). **Aggiornato (13/09/2026)**: un ospite anonimo che apre lo slug di una guida non pubblica ora vede "Questa guida non è ancora pubblica" invece di "Struttura non trovata" — `api/verifica-slug.js` (endpoint pubblico, ritorna solo `{esiste}`) fa la distinzione senza esporre i dati della struttura.

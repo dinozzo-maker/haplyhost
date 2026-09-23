@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Layers } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 // Impianto grafico comune del pannello host — "vestito" del punto 4 del redesign
 // (14/09/2026): tipografia, colori e componenti condivisi, sopra Tailwind grezzo.
@@ -13,46 +13,32 @@ export function PaginaAdmin({
   titolo,
   sottotitolo,
   indietro = true,
-  piattaforma = false,
   children,
 }: {
   titolo: string
   sottotitolo?: ReactNode
   // false solo per la primissima struttura di un host: non c'è ancora un pannello
-  // a cui tornare (Admin.tsx la mostra al posto della dashboard, non come rotta a sé)
-  indietro?: boolean
-  // true per le pagine SOLO superadmin (Invita host, Sezioni piattaforma, Consumi AI):
-  // aggiunge il badge "Modalità piattaforma" — un segnale visivo che qui non si sta
-  // toccando una singola struttura ma la piattaforma intera (16/09/2026 aveva già
-  // introdotto una sezione "Piattaforma" nel pannello, ma senza nulla che la
-  // distinguesse visivamente dalle pagine di una singola struttura)
-  piattaforma?: boolean
+  // a cui tornare (Admin.tsx la mostra al posto della dashboard, non come rotta a sé).
+  // Una stringa punta altrove del solito "/admin" — usata dalle pagine sotto
+  // /admin/piattaforma (22/09/2026), che tornano a "/admin/piattaforma", non alla
+  // dashboard di una struttura: quella è un'area a sé, vedi PiattaformaShell.tsx.
+  indietro?: boolean | string
   children: ReactNode
 }) {
   return (
     <div className="max-w-sm mx-auto px-5 py-6 lg:max-w-3xl lg:px-8 lg:py-10">
       {indietro && (
         <Link
-          to="/admin"
+          to={typeof indietro === 'string' ? indietro : '/admin'}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition mb-5"
         >
           <ArrowLeft className="w-4 h-4" /> Torna al pannello
         </Link>
       )}
-      {piattaforma && <BadgePiattaforma />}
       <h1 className="text-2xl font-bold text-slate-900 tracking-tight text-balance">{titolo}</h1>
       {sottotitolo && <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">{sottotitolo}</p>}
       <div className="flex flex-col gap-6 mt-7">{children}</div>
     </div>
-  )
-}
-
-// Badge "sei nella piattaforma, non in una struttura" — vedi `piattaforma` sopra.
-function BadgePiattaforma() {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold px-2.5 py-1 mb-3">
-      <Layers className="w-3.5 h-3.5" /> Modalità piattaforma
-    </span>
   )
 }
 

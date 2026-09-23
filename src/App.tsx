@@ -14,6 +14,8 @@ const Privacy = lazy(() => import('./PaginaPrivacy'))
 const Login = lazy(() => import('./admin/Login'))
 const RichiedeLogin = lazy(() => import('./admin/RichiedeLogin'))
 const AdminShell = lazy(() => import('./admin/AdminShell'))
+const PiattaformaShell = lazy(() => import('./admin/PiattaformaShell'))
+const PiattaformaHome = lazy(() => import('./admin/PiattaformaHome'))
 const Admin = lazy(() => import('./admin/Admin'))
 const CreaStruttura = lazy(() => import('./admin/CreaStruttura'))
 const ConfiguraGuida = lazy(() => import('./admin/ConfiguraGuida'))
@@ -47,9 +49,6 @@ function App() {
           <Route path="statistiche" element={<StatisticheDomande />} />
           <Route path="traduzioni" element={<TraduciGuida />} />
           <Route path="sezioni-guida" element={<SezioniGuida />} />
-          <Route path="sezioni-extra" element={<SezioniExtra />} />
-          <Route path="invita-host" element={<InvitaHost />} />
-          <Route path="consumi-ai" element={<ConsumiAI />} />
           {SEZIONI.filter((s) => s.tipo === 'elenco').map((s) => (
             <Route key={s.chiave} path={s.chiave} element={<GestisciSezione sezione={s.chiave} etichetta={s.etichetta} />} />
           ))}
@@ -62,6 +61,14 @@ function App() {
             path="*"
             element={caricamento ? <p className="p-8 text-center">Caricamento...</p> : <Navigate to="/admin" replace />}
           />
+        </Route>
+        {/* Area piattaforma (22/09/2026): shell e navigazione proprie (PiattaformaShell.tsx),
+            separate da quelle di una singola struttura — vedi CLAUDE.md. */}
+        <Route path="piattaforma" element={<PiattaformaShell />}>
+          <Route index element={<PiattaformaHome />} />
+          <Route path="invita-host" element={<InvitaHost />} />
+          <Route path="sezioni-extra" element={<SezioniExtra />} />
+          <Route path="consumi-ai" element={<ConsumiAI />} />
         </Route>
       </Route>
       <Route path="/:slug" element={<Struttura />}>

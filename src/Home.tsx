@@ -12,6 +12,7 @@ import Meteo from './Meteo'
 import { PRIVACY } from './privacy'
 import { MessageCircle, Send, Wifi, House, ArrowRight } from 'lucide-react'
 import { TESTI_HOME } from './testiHome'
+import CreditoFoto from './CreditoFoto'
 
 type LuogoPick = {
   id: string
@@ -19,6 +20,7 @@ type LuogoPick = {
   descrizione: string | null
   sezione: string
   foto_url: string | null
+  foto_credito: string | null
   traduzioni: Record<string, Record<string, string>> | null
 }
 
@@ -54,7 +56,7 @@ export default function Home() {
     async function carica() {
       const { data } = await supabase
         .from('luoghi')
-        .select('id, nome, descrizione, sezione, voto, foto_url, traduzioni')
+        .select('id, nome, descrizione, sezione, voto, foto_url, foto_credito, traduzioni')
         .eq('struttura_id', struttura.id)
         .eq('attivo', true)
         .not('voto', 'is', null)
@@ -159,6 +161,7 @@ export default function Home() {
             <span className="t-eyebrow">{T[lingua].oggiTiConsiglio}</span>
             <span className="t-name">{pick.nome}</span>
             {descrizionePick && <span className="t-desc">{descrizionePick}</span>}
+            {pick.foto_url && <CreditoFoto credito={pick.foto_credito} url={null} senzaLink className="t-credito" />}
             <span className="t-action">{testi.scopri} <ArrowRight size={16} aria-hidden="true" /></span>
           </span>
         </Link>

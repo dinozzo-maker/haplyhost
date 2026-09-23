@@ -7,6 +7,7 @@ import { etichettaSezione } from './sezioni'
 import { useSezioni } from './useSezioni'
 import { Icona } from './Icona'
 import { ordinaPerDistanza } from './distanza'
+import CreditoFoto from './CreditoFoto'
 import { Map as IconaMappa, Phone } from 'lucide-react'
 
 type LuogoRow = {
@@ -20,6 +21,8 @@ type LuogoRow = {
   voto: string | null
   categoria: string | null
   foto_url: string | null
+  foto_credito: string | null
+  foto_credito_url: string | null
   traduzioni: Record<string, Record<string, string>> | null
 }
 
@@ -44,7 +47,7 @@ export default function SezionePage() {
       setErrore(false)
       const { data, error } = await supabase
         .from('luoghi')
-        .select('id, nome, descrizione, distanza, maps, telefono, prezzo, voto, categoria, foto_url, traduzioni')
+        .select('id, nome, descrizione, distanza, maps, telefono, prezzo, voto, categoria, foto_url, foto_credito, foto_credito_url, traduzioni')
         .eq('struttura_id', struttura.id)
         .eq('sezione', sezione)
         .eq('attivo', true)
@@ -91,7 +94,8 @@ export default function SezionePage() {
         const distanza = campoTradotto(l.distanza, l.traduzioni, 'distanza', lingua)
         return (
           <div key={l.id} id={`luogo-${l.id}`} className={`g-place${daEvidenziare === `luogo-${l.id}` ? ' evidenziato' : ''}`}>
-            {l.foto_url && <img src={l.foto_url} alt="" className="pl-foto" />}
+            {l.foto_url && <img src={l.foto_url} alt="" className="pl-foto" loading="lazy" />}
+            {l.foto_url && <CreditoFoto credito={l.foto_credito} url={l.foto_credito_url} className="pl-credito" />}
             <div className="pl-content">
               <div className="pl-top">
                 <span className="pl-name">{l.nome}</span>

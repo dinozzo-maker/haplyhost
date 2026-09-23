@@ -6,7 +6,7 @@ import { ordinaPerDistanza } from '../distanza'
 import { possibileDuplicato } from '../../lib/identita-luoghi.js'
 import type { ContestoHost } from './RichiedeLogin'
 import { Search } from 'lucide-react'
-import { PaginaAdmin, Campo, classeCampo, Pulsante, Esito } from './ui'
+import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
 
 // INTERRUTTORE: deve restare uguale a RICERCHE_ATTIVE in api/scout.js.
 // false = pulsante nascosto e ricerche bloccate.
@@ -134,6 +134,8 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
   const [raggio, setRaggio] = useState(5)
   const [caricamentoFotoId, setCaricamentoFotoId] = useState<string | null>(null)
   const [fotoEsito, setFotoEsito] = useState('') // '' | 'ok' | messaggio d'errore
+  const [cercandoFoto, setCercandoFoto] = useState(false)
+  const [esitoFotoAuto, setEsitoFotoAuto] = useState('')
 
   // Vale anche per le proposte salvate prima del nuovo controllo lato server.
   // Una somiglianza segnala un possibile duplicato; non rinomina nessun luogo.
@@ -274,7 +276,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
     }
 
     const { data: pub } = supabase.storage.from('copertine').getPublicUrl(percorso)
-    const { error } = await supabase.from('luoghi').update({ foto_url: pub.publicUrl }).eq('id', l.id)
+    const { error } = await supabase.from('luoghi').update({ foto_url: pub.publicUrl, foto_credito: null, foto_credito_url: null }).eq('id', l.id)
 
     setCaricamentoFotoId(null)
     if (error) {
@@ -287,7 +289,7 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
 
   async function rimuoviFotoLuogo(l: LuogoRow) {
     setFotoEsito('')
-    const { error } = await supabase.from('luoghi').update({ foto_url: null }).eq('id', l.id)
+    const { error } = await supabase.from('luoghi').update({ foto_url: null, foto_credito: null, foto_credito_url: null }).eq('id', l.id)
     if (error) {
       setFotoEsito('Non sono riuscito a togliere la foto: ' + error.message)
       return
@@ -329,6 +331,53 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       setEsitoScout('Errore di connessione durante la ricerca.')
     } finally {
       setCercando(false)
+    }
+  }
+
+  // Foto automatiche da Wikimedia Commons (api/foto-luoghi.js, gratis, nessuna AI). Il server
+  // lavora a piccoli giri per stare nel tempo massimo: qui si ripete finché ha finito,
+  // ricordando i luoghi già provati per non ricominciare da quelli senza foto.
+  async function cercaFotoAutomatiche() {
+    if (!strutturaId) return
+    setCercandoFoto(true)
+    setEsitoFotoAuto('')
+    const provati: string[] = []
+    let trovate = 0
+    let errori = 0
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token || ''
+      for (let giro = 0; giro < 40; giro++) {
+        const res = await fetch('/api/foto-luoghi', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ struttura_id: strutturaId, access_token: accessToken, sezione, provati }),
+        })
+        const dati = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setEsitoFotoAuto(dati.error || 'La ricerca delle foto non è riuscita, riprova.')
+          break
+        }
+        provati.push(...(dati.provati ?? []))
+        trovate += dati.trovate ?? 0
+        errori += dati.errori ?? 0
+        setEsitoFotoAuto(`Cerco… controllati ${provati.length} luoghi, ${trovate} foto trovate.`)
+        if (!dati.rimanenti || !dati.provati?.length) {
+          setEsitoFotoAuto(
+            provati.length === 0
+              ? 'Tutti i luoghi di questa sezione hanno già una foto.'
+              : `Fatto: ${trovate} foto trovate su ${provati.length} luoghi senza foto.` +
+                (errori ? ` ${errori} non sono riuscito a scaricarle, puoi riprovare.` : '') +
+                (provati.length - trovate > 0 ? ' Per gli altri, carica la foto a mano.' : '')
+          )
+          break
+        }
+      }
+    } catch {
+      setEsitoFotoAuto('Errore di connessione durante la ricerca delle foto.')
+    } finally {
+      setCercandoFoto(false)
+      await caricaTutto(strutturaId)
     }
   }
 
@@ -384,6 +433,16 @@ export default function GestisciSezione({ sezione, etichetta }: { sezione: strin
       ) : (
         <p className="text-sm text-slate-400">La ricerca automatica di nuovi luoghi è disattivata per ora.</p>
       )}
+
+      <Sezione
+        titolo="Foto automatiche"
+        nota="Cerca su Wikipedia e Wikimedia Commons una foto libera per i luoghi che non ne hanno. Funziona per spiagge, monumenti, paesi e siti storici; ristoranti, negozi e locali piccoli di solito non ne hanno, e per quelli puoi caricare la foto a mano. Le foto che hai già caricato non vengono mai cambiate."
+      >
+        <Pulsante variante="secondario" onClick={cercaFotoAutomatiche} disabled={cercandoFoto || cercando || !strutturaId}>
+          {cercandoFoto ? 'Cerco le foto…' : 'Cerca le foto mancanti'}
+        </Pulsante>
+        {esitoFotoAuto && <p className="text-sm text-slate-500 text-center">{esitoFotoAuto}</p>}
+      </Sezione>
 
       {proposte.length > 0 && (
         <div className="flex flex-col gap-2">

@@ -4,7 +4,8 @@
   ],
   "functions": {
     "api/scout.js": { "maxDuration": 60 },
-    "api/traduci-guida.js": { "maxDuration": 60 }
+    "api/traduci-guida.js": { "maxDuration": 60 },
+    "api/foto-luoghi.js": { "maxDuration": 60 }
   },
   "crons": [
     { "path": "/api/pulisci-domande", "schedule": "0 3 * * *" }

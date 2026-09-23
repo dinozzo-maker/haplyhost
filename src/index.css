@@ -365,6 +365,25 @@
   height: 140px;
   object-fit: cover;
 }
+.g-place .pl-credito {
+  display: block;
+  padding: 4px 14px 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--g-ink-2);
+  opacity: 0.8;
+}
+.g-place .pl-credito a {
+  color: inherit;
+  text-decoration: underline;
+}
+.g-today .t-credito {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--g-ink-2);
+  opacity: 0.8;
+}
 .g-place .pl-content {
   padding: 14px;
 }

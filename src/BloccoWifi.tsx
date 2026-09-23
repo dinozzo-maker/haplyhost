@@ -34,7 +34,7 @@ async function copiaTesto(testo: string): Promise<boolean> {
 }
 
 // Wi-Fi nella pagina "Casa & Wi-Fi". La password non è mai nella pagina pubblica: la
-// chiede a /api/wifi con il token del soggiorno, e il server la dà solo dal giorno del
+// chiede a /api/ospite?azione=wifi con il token del soggiorno, e il server la dà solo dal giorno del
 // check-in al giorno del check-out. Senza link personale mostra solo come ottenerla.
 export default function BloccoWifi({ slug }: { slug: string }) {
   const { lingua } = useLingua()
@@ -47,7 +47,7 @@ export default function BloccoWifi({ slug }: { slug: string }) {
   useEffect(() => {
     if (!token) return
     let attivo = true
-    fetch(`/api/wifi?slug=${encodeURIComponent(slug)}&s=${encodeURIComponent(token)}`)
+    fetch(`/api/ospite?azione=wifi&slug=${encodeURIComponent(slug)}&s=${encodeURIComponent(token)}`)
       .then(async (res) => {
         if (res.status === 404) return { stato: 'non_valido' } as Risposta
         if (!res.ok) throw new Error(String(res.status))

@@ -6,15 +6,41 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// Endpoint PUBBLICO ma protetto dal token del soggiorno: GET ?slug=...&s=<token>.
-// È l'unico punto da cui una password Wi-Fi arriva a un ospite (strutture_segreti non
-// ha nessuna lettura pubblica). La password esce SOLO se il token esiste per quella
-// struttura E oggi (fuso italiano) è tra il check-in e il check-out del soggiorno.
-// Prima del check-in o dopo il check-out la risposta non contiene nessuna rete.
+// Endpoint PUBBLICI in sola lettura per la guida ospiti, riuniti in UNA funzione perché il
+// piano Vercel Hobby ammette al massimo 12 funzioni per deploy (23/09/2026: con la 13ª il
+// deploy falliva). Si sceglie con ?azione=:
+//   ?azione=verifica-slug&slug=...  → { esiste }
+//   ?azione=wifi&slug=...&s=<token> → reti Wi-Fi, solo nei giorni del soggiorno
+// Prima erano api/verifica-slug.js e api/wifi.js: stessa logica, stesse risposte.
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Metodo non permesso' })
   }
+  const azione = String(req.query.azione || '')
+  if (azione === 'verifica-slug') return verificaSlug(req, res)
+  if (azione === 'wifi') return wifi(req, res)
+  return res.status(400).json({ error: 'Azione non valida' })
+}
+
+// VOLUTAMENTE minimo: dice solo se uno slug esiste in `strutture`, niente altro. Serve a
+// Struttura.tsx per distinguere "guida non ancora pubblica" (attivo=false, la RLS pubblica
+// non la fa vedere) da "slug sbagliato" — senza esporre nome/indirizzo/telefono/ecc. di una
+// struttura che l'host non ha ancora pubblicato.
+async function verificaSlug(req, res) {
+  const slug = String(req.query.slug || '').trim()
+  if (!slug) {
+    return res.status(400).json({ error: 'Slug mancante' })
+  }
+
+  const { data } = await supabase.from('strutture').select('id').eq('slug', slug).maybeSingle()
+  return res.status(200).json({ esiste: !!data })
+}
+
+// Protetto dal token del soggiorno. È l'unico punto da cui una password Wi-Fi arriva a un
+// ospite (strutture_segreti non ha nessuna lettura pubblica). La password esce SOLO se il
+// token esiste per quella struttura E oggi (fuso italiano) è tra il check-in e il check-out
+// del soggiorno. Prima del check-in o dopo il check-out la risposta non contiene nessuna rete.
+async function wifi(req, res) {
   // Mai in cache: la stessa URL deve dare risposte diverse nei giorni diversi.
   res.setHeader('Cache-Control', 'no-store')
 

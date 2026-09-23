@@ -25,7 +25,7 @@ export default function Struttura() {
   const [struttura, setStruttura] = useState<StrutturaRow | null>(null)
   // La RLS pubblica nasconde una struttura con attivo=false esattamente come uno slug
   // sbagliato (data = null in entrambi i casi): per distinguerle si chiede a un
-  // endpoint minimo (api/verifica-slug) se lo slug esiste, senza rivelarne i dati.
+  // endpoint minimo (api/ospite?azione=verifica-slug) se lo slug esiste, senza rivelarne i dati.
   const [nonPubblica, setNonPubblica] = useState(false)
   const [errore, setErrore] = useState(false)
   const [caricamento, setCaricamento] = useState(true)
@@ -51,7 +51,7 @@ export default function Struttura() {
 
       if (!data && slug) {
         try {
-          const res = await fetch(`/api/verifica-slug?slug=${encodeURIComponent(slug)}`)
+          const res = await fetch(`/api/ospite?azione=verifica-slug&slug=${encodeURIComponent(slug)}`)
           const dati = await res.json()
           setNonPubblica(!!dati.esiste)
         } catch {

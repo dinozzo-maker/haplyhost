@@ -11,6 +11,7 @@ const SezionePage = lazy(() => import('./SezionePage'))
 const PaginaStatica = lazy(() => import('./PaginaStatica'))
 const Gennarino = lazy(() => import('./Gennarino'))
 const Privacy = lazy(() => import('./PaginaPrivacy'))
+const Presentazione = lazy(() => import('./Presentazione'))
 const Login = lazy(() => import('./admin/Login'))
 const RichiedeLogin = lazy(() => import('./admin/RichiedeLogin'))
 const AdminShell = lazy(() => import('./admin/AdminShell'))
@@ -38,6 +39,8 @@ function App() {
   return (
     <Suspense fallback={<p className="p-8 text-center text-sm text-slate-500">Caricamento...</p>}>
       <Routes>
+      {/* Pagina di presentazione di Haplyhost per i proprietari (non è una guida ospiti) */}
+      <Route path="/" element={<Presentazione />} />
       <Route path="/login" element={<Login />} />
       <Route path="/admin" element={<RichiedeLogin />}>
         <Route element={<AdminShell />}>

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { Copy, Check, Trash2 } from 'lucide-react'
+import { Copy, Check, Trash2, MessageSquareText } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { oggiInItalia, statoSoggiorno } from '../../lib/soggiorni.js'
+import { MOMENTI, LINGUE_MESSAGGI, momentoConsigliato, costruisciMessaggio } from '../../lib/messaggi-ospiti.js'
+import type { MomentoMessaggio } from '../../lib/messaggi-ospiti.js'
 import type { ContestoHost } from './RichiedeLogin'
 import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
 
@@ -24,6 +26,15 @@ const ETICHETTA_STATO = {
   scaduto: { testo: 'Concluso', classe: 'bg-slate-100 text-slate-500' },
 } as const
 
+// Etichette e suggerimenti dei messaggi pronti (i testi veri sono in lib/messaggi-ospiti.js).
+const MESSAGGI_INFO: Record<MomentoMessaggio, { titolo: string; quando: string }> = {
+  prima: { titolo: 'Il giorno prima dell\'arrivo', quando: 'Al posto del messaggio che mandi adesso: presenta la guida e dice che lì c\'è il Wi-Fi.' },
+  arrivo: { titolo: 'La mattina dell\'arrivo', quando: 'Richiama la guida e il Wi-Fi proprio quando servono.' },
+  meta: { titolo: 'A metà soggiorno', quando: 'Ricorda i consigli su cosa fare e Gennarino.' },
+  partenza: { titolo: 'Prima della partenza', quando: 'Il giorno prima o la mattina del check-out.' },
+  dopo: { titolo: 'Dopo la partenza', quando: 'Ringrazia e chiede una recensione (senza il link della guida).' },
+}
+
 function formatta(giorno: string) {
   return new Date(`${giorno}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -43,6 +54,10 @@ export default function Soggiorni() {
   const [salvataggio, setSalvataggio] = useState(false)
   const [errore, setErrore] = useState('')
   const [copiato, setCopiato] = useState<string | null>(null)
+  // Messaggi pronti: lingua scelta, quale è stato appena copiato, dati della casa per riempirli.
+  const [linguaMessaggi, setLinguaMessaggi] = useState('it')
+  const [messaggioCopiato, setMessaggioCopiato] = useState<string | null>(null)
+  const [casa, setCasa] = useState<{ nome: string; host_nome: string | null; checkin: string | null; checkout: string | null } | null>(null)
 
   const carica = useCallback(async () => {
     if (!struttura) return
@@ -77,6 +92,15 @@ export default function Soggiorni() {
   useEffect(() => {
     void carica()
   }, [carica])
+
+  // Nome della casa, host e orari standard: servono a scrivere i messaggi pronti.
+  useEffect(() => {
+    if (!struttura) return
+    let attivo = true
+    void supabase.from('strutture').select('nome, host_nome, checkin, checkout').eq('id', struttura.id).maybeSingle()
+      .then(({ data }) => { if (attivo && data) setCasa(data) })
+    return () => { attivo = false }
+  }, [struttura])
 
   if (!struttura) {
     return (
@@ -125,6 +149,16 @@ export default function Soggiorni() {
     }
   }
 
+  async function copiaMessaggio(chiave: string, testo: string) {
+    try {
+      await navigator.clipboard.writeText(testo)
+      setMessaggioCopiato(chiave)
+      window.setTimeout(() => setMessaggioCopiato((c) => (c === chiave ? null : c)), 2000)
+    } catch {
+      window.prompt('Copia il messaggio:', testo)
+    }
+  }
+
   const oggi = oggiInItalia()
 
   return (
@@ -163,6 +197,18 @@ export default function Soggiorni() {
         {caricamento && <p className="text-sm text-slate-500">Caricamento...</p>}
         {!caricamento && elenco.length === 0 && (
           <p className="text-sm text-slate-500">Nessun soggiorno ancora. Creane uno qui sopra.</p>
+        )}
+        {elenco.length > 0 && (
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            Lingua dei messaggi pronti
+            <select
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-normal text-slate-800"
+              value={linguaMessaggi}
+              onChange={(e) => setLinguaMessaggi(e.target.value)}
+            >
+              {LINGUE_MESSAGGI.map((l) => <option key={l.codice} value={l.codice}>{l.etichetta}</option>)}
+            </select>
+          </label>
         )}
         <ul className="flex flex-col gap-3">
           {elenco.map((s) => {
@@ -206,6 +252,54 @@ export default function Soggiorni() {
                     <Trash2 className="w-4 h-4" /> Elimina
                   </button>
                 </div>
+                <details className="rounded-lg border border-slate-200">
+                  <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-700">
+                    <MessageSquareText className="w-4 h-4" /> Messaggi pronti da copiare
+                  </summary>
+                  <div className="flex flex-col gap-3 border-t border-slate-200 p-3">
+                    {MOMENTI.map((momento) => {
+                      const chiave = `${s.id}:${momento}`
+                      const testo = costruisciMessaggio(momento, linguaMessaggi, {
+                        nome: s.nome,
+                        casa: casa?.nome ?? struttura.nome,
+                        link: linkOspite(s.token),
+                        checkin: s.checkin,
+                        checkout: s.checkout,
+                        orarioCheckin: casa?.checkin,
+                        orarioCheckout: casa?.checkout,
+                        host: casa?.host_nome,
+                      })
+                      const consigliato = momentoConsigliato(s.checkin, s.checkout, oggi) === momento
+                      return (
+                        <div key={momento} className={`rounded-lg p-3 ${consigliato ? 'border border-amber-300 bg-amber-50' : 'bg-slate-50'}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-600">{MESSAGGI_INFO[momento].titolo}</p>
+                            {consigliato && <span className="shrink-0 rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-900">Consigliato ora</span>}
+                          </div>
+                          <p className="mt-0.5 text-xs text-slate-500">{MESSAGGI_INFO[momento].quando}</p>
+                          <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-slate-800">{testo}</pre>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => copiaMessaggio(chiave, testo)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              {messaggioCopiato === chiave ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                              {messaggioCopiato === chiave ? 'Copiato ✓' : 'Copia il messaggio'}
+                            </button>
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(testo)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center rounded-lg bg-[#25D366] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+                            >
+                              Apri in WhatsApp
+                            </a>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </details>
               </li>
             )
           })}

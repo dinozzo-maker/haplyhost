@@ -6,7 +6,17 @@ import { oggiInItalia, statoSoggiorno } from '../../lib/soggiorni.js'
 import type { ContestoHost } from './RichiedeLogin'
 import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
 
-type Soggiorno = { id: string; nome: string; checkin: string; checkout: string; token: string }
+type Soggiorno = {
+  id: string
+  nome: string
+  checkin: string
+  checkout: string
+  token: string
+  // Aperture della guida col link di questo soggiorno (migration 0024). Assenti se la
+  // migration non è ancora stata lanciata: la pagina funziona lo stesso, senza conteggio.
+  aperture?: number
+  ultima_apertura?: string | null
+}
 
 const ETICHETTA_STATO = {
   presto: { testo: 'In arrivo', classe: 'bg-amber-100 text-amber-800' },
@@ -16,6 +26,10 @@ const ETICHETTA_STATO = {
 
 function formatta(giorno: string) {
   return new Date(`${giorno}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function formattaOra(istante: string) {
+  return new Date(istante).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function Soggiorni() {
@@ -32,15 +46,30 @@ export default function Soggiorni() {
 
   const carica = useCallback(async () => {
     if (!struttura) return
-    const { data, error } = await supabase
+    const base = 'id, nome, checkin, checkout, token'
+    let righe: Soggiorno[] | null = null
+    let fallita = false
+    const completa = await supabase
       .from('soggiorni')
-      .select('id, nome, checkin, checkout, token')
+      .select(`${base}, aperture, ultima_apertura`)
       .eq('struttura_id', struttura.id)
       .order('checkin', { ascending: false })
-    if (error) {
+    if (!completa.error) {
+      righe = completa.data as Soggiorno[]
+    } else {
+      // Senza le colonne nuove (migration 0024 non ancora lanciata) si carica comunque l'elenco.
+      const semplice = await supabase
+        .from('soggiorni')
+        .select(base)
+        .eq('struttura_id', struttura.id)
+        .order('checkin', { ascending: false })
+      if (semplice.error) fallita = true
+      else righe = semplice.data as Soggiorno[]
+    }
+    if (fallita) {
       setErrore('Non riesco a caricare i soggiorni.')
     } else {
-      setElenco(data ?? [])
+      setElenco(righe ?? [])
     }
     setCaricamento(false)
   }, [struttura])
@@ -107,6 +136,7 @@ export default function Soggiorni() {
           check-out</strong>. Crea un soggiorno, copia il link e mandalo
           all’ospite (WhatsApp, email…). Le reti si inseriscono in{' '}
           <Link to="/admin/modifica-casa" className="underline">Dati della casa</Link>.
+          Vedi anche se l'ospite ha aperto la guida (conta una visita ogni 30 minuti; anche le aperture che fai tu per provare il link).
         </>
       }
     >
@@ -136,7 +166,8 @@ export default function Soggiorni() {
         )}
         <ul className="flex flex-col gap-3">
           {elenco.map((s) => {
-            const stato = ETICHETTA_STATO[statoSoggiorno(s.checkin, s.checkout, oggi)]
+            const statoChiave = statoSoggiorno(s.checkin, s.checkout, oggi)
+            const stato = ETICHETTA_STATO[statoChiave]
             return (
               <li key={s.id} className="flex flex-col gap-2 border border-slate-200 rounded-xl p-3.5">
                 <div className="flex items-start justify-between gap-2">
@@ -146,6 +177,20 @@ export default function Soggiorni() {
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${stato.classe}`}>{stato.testo}</span>
                 </div>
+                {s.aperture !== undefined && (
+                  s.aperture > 0 ? (
+                    <p className="text-xs text-green-700">
+                      Guida aperta {s.aperture} {s.aperture === 1 ? 'volta' : 'volte'}
+                      {s.ultima_apertura ? ` · ultima il ${formattaOra(s.ultima_apertura)}` : ''}
+                    </p>
+                  ) : (
+                    <p className={`text-xs ${statoChiave === 'in_corso' ? 'font-semibold text-amber-700' : 'text-slate-500'}`}>
+                      {statoChiave === 'in_corso'
+                        ? 'Non ha ancora aperto la guida: potresti mandargli un promemoria.'
+                        : statoChiave === 'scaduto' ? 'La guida non è stata aperta.' : 'Non ancora aperta.'}
+                    </p>
+                  )
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <button
                     onClick={() => copiaLink(s)}

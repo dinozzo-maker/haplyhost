@@ -12,6 +12,7 @@ const supabase = createClient(
 //   ?azione=verifica-slug&slug=...  → { esiste }
 //   ?azione=wifi&slug=...&s=<token> → reti Wi-Fi, solo nei giorni del soggiorno
 //   ?azione=soggiorno&slug=...&s=<token> → nome e date del soggiorno, per il benvenuto in home
+//   (le azioni con token segnano anche un'apertura della guida per quel soggiorno, vedi registraApertura)
 // Prima erano api/verifica-slug.js e api/wifi.js: stessa logica, stesse risposte.
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -56,12 +57,25 @@ async function trovaSoggiorno(req, colonne) {
 
   const { data: soggiorno } = await supabase
     .from('soggiorni')
-    .select(colonne)
+    .select(`id, ${colonne}`)
     .eq('struttura_id', struttura.id)
     .eq('token', token)
     .maybeSingle()
   if (!soggiorno) return null
   return { struttura, soggiorno }
+}
+
+// Segna che l'ospite ha aperto la guida col suo link (migration 0024). Il database conta
+// una nuova apertura solo se l'ultima è di oltre 30 minuti fa. Non deve MAI far fallire la
+// risposta all'ospite: un errore qui si registra nel log e si va avanti. Si aspetta la
+// risposta (senza, Vercel può fermare la funzione prima che l'aggiornamento parta).
+async function registraApertura(idSoggiorno) {
+  try {
+    const { error } = await supabase.rpc('registra_apertura_soggiorno', { p_id: idSoggiorno })
+    if (error) console.error('ospite: apertura non registrata', error.message)
+  } catch (errore) {
+    console.error('ospite: apertura non registrata', errore?.message)
+  }
 }
 
 // Benvenuto in home: nome (scritto dall'host per riconoscere il soggiorno, ora mostrato
@@ -70,6 +84,7 @@ async function benvenuto(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   const trovato = await trovaSoggiorno(req, 'nome, checkin, checkout')
   if (!trovato) return res.status(404).json({ stato: 'non_valido' })
+  await registraApertura(trovato.soggiorno.id)
   const { nome, checkin, checkout } = trovato.soggiorno
   return res.status(200).json({ stato: statoSoggiorno(checkin, checkout), nome, checkin, checkout })
 }
@@ -84,6 +99,7 @@ async function wifi(req, res) {
 
   const trovato = await trovaSoggiorno(req, 'checkin, checkout')
   if (!trovato) return res.status(404).json({ stato: 'non_valido' })
+  await registraApertura(trovato.soggiorno.id)
   const { struttura, soggiorno } = trovato
 
   const stato = statoSoggiorno(soggiorno.checkin, soggiorno.checkout)

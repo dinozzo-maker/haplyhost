@@ -10,6 +10,7 @@ import {
   Layers, CircleCheck, Circle, ArrowRight, TriangleAlert, KeyRound,
 } from 'lucide-react'
 import { Campo, classeCampo, Pulsante, Esito } from './ui'
+import { useUnita } from '../useUnita'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
 
@@ -35,6 +36,31 @@ function Passo({ fatto, to, children }: { fatto?: boolean; to: string; children:
         <span>{children}</span>
       </Link>
     </li>
+  )
+}
+
+// "Unità usate: 3 di 5": camere o alloggi prenotabili che il piano dell'host include (vedi
+// lib/unita.js). Non si mostra senza limite (superadmin) né se il dato non è disponibile.
+function UnitaUsate() {
+  const { unita } = useUnita()
+  if (!unita || unita.incluse === null) return null
+  const piena = unita.usate >= unita.incluse
+  const percentuale = Math.min(100, Math.round((unita.usate / unita.incluse) * 100))
+  return (
+    <div className={`rounded-2xl border p-3.5 text-sm ${piena ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white shadow-sm'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-slate-900">Unità usate: {unita.usate} di {unita.incluse}</span>
+        <Link to="/admin/modifica-casa" className="text-xs text-slate-500 underline shrink-0">Modifica</Link>
+      </div>
+      <div className="mt-2 h-1.5 rounded-full bg-slate-200 overflow-hidden" aria-hidden="true">
+        <div className={`h-full rounded-full ${piena ? 'bg-amber-500' : 'bg-slate-900'}`} style={{ width: `${percentuale}%` }} />
+      </div>
+      <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+        {piena
+          ? "Hai usato tutte le unità del tuo piano. Per aggiungerne altre serve un piano più grande: scrivi all'amministratore di Haplyhost."
+          : 'Una unità è una camera o un alloggio prenotabile. Si indicano in «Dati della casa».'}
+      </p>
+    </div>
   )
 }
 
@@ -202,6 +228,8 @@ export default function Admin() {
           </div>
         )}
         {erroreStato && <Esito ok={false}>{erroreStato}</Esito>}
+
+        <UnitaUsate />
 
         {daTradurre > 0 && (
           <Link

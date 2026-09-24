@@ -13,6 +13,8 @@ type HostRow = {
   note: string | null
   autorizzato_il: string
   registrato_il: string | null
+  unita_incluse: number | null
+  unita_usate: number
 }
 
 const PIANI = [
@@ -33,6 +35,11 @@ export default function InvitaHost() {
   const [nomeRiferimento, setNomeRiferimento] = useState('')
   const [piano, setPiano] = useState('guida')
   const [note, setNote] = useState('')
+  const [unitaIncluse, setUnitaIncluse] = useState('') // vuoto = piano base (5)
+
+  // Upgrade di un host già autorizzato: bozza del nuovo limite per email, e host in salvataggio.
+  const [bozzeUnita, setBozzeUnita] = useState<Record<string, string>>({})
+  const [salvandoUnita, setSalvandoUnita] = useState('')
 
   const [invio, setInvio] = useState(false)
   const [errore, setErrore] = useState('')
@@ -93,6 +100,9 @@ export default function InvitaHost() {
           nome_riferimento: nomeRiferimento.trim(),
           piano,
           note: note.trim(),
+          // Solo se scritto: lasciato vuoto un nuovo host parte dal piano base (5 unità) e a un host
+          // già autorizzato non si tocca il limite che gli era stato dato.
+          ...(unitaIncluse.trim() ? { unita_incluse: unitaIncluse.trim() } : {}),
         }),
       })
       const dati = await res.json()
@@ -105,6 +115,7 @@ export default function InvitaHost() {
       setEmail('')
       setNomeRiferimento('')
       setNote('')
+      setUnitaIncluse('')
       await caricaLista()
     } catch {
       setErrore('Errore di connessione, riprova.')
@@ -120,6 +131,37 @@ export default function InvitaHost() {
       setTimeout(() => setCopiato(false), 2000)
     } catch {
       setCopiato(false)
+    }
+  }
+
+  // Upgrade (o riduzione) del piano: cambia le unità incluse di un host. Abbassare sotto le
+  // unità già usate non toglie nulla all'host, gli impedisce solo di aggiungerne altre.
+  async function salvaUnita(h: HostRow) {
+    const valore = (bozzeUnita[h.email] ?? '').trim()
+    if (!valore) return
+    setSalvandoUnita(h.email)
+    setErroreLista('')
+    try {
+      const res = await fetch('/api/host-autorizzati', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({ email: h.email, unita_incluse: valore }),
+      })
+      const dati = await res.json()
+      if (!res.ok) {
+        setErroreLista(dati.error || 'Non riesco ad aggiornare le unità.')
+      } else {
+        setBozzeUnita((b) => {
+          const resto = { ...b }
+          delete resto[h.email]
+          return resto
+        })
+        await caricaLista()
+      }
+    } catch {
+      setErroreLista('Errore di connessione durante l\'aggiornamento.')
+    } finally {
+      setSalvandoUnita('')
     }
   }
 
@@ -191,6 +233,18 @@ export default function InvitaHost() {
           </select>
         </Campo>
 
+        <Campo etichetta="Unità incluse (facoltativo)" aiuto="Camere o alloggi inclusi nel piano. Lascia vuoto per 5 (piano base). Per un host già autorizzato, lasciando vuoto il suo limite non cambia.">
+          <input
+            className={classeCampo}
+            type="number"
+            min={1}
+            max={999}
+            value={unitaIncluse}
+            onChange={(e) => setUnitaIncluse(e.target.value)}
+            placeholder="5"
+          />
+        </Campo>
+
         <Campo etichetta="Note (facoltative)">
           <textarea className={classeCampo} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         </Campo>
@@ -239,6 +293,33 @@ export default function InvitaHost() {
                 {h.registrato_il ? 'registrato' : 'in attesa di registrazione'}
               </p>
               {h.note && <p className="text-xs text-slate-500 mt-1">{h.note}</p>}
+              <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+                <span>
+                  Unità: <strong>{h.unita_usate}</strong> di{' '}
+                  <strong>{h.unita_incluse == null || h.unita_incluse >= 999 ? 'illimitate' : h.unita_incluse}</strong>
+                </span>
+                {h.email.toLowerCase() !== ADMIN_EMAIL && (
+                  <>
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      aria-label={`Nuove unità incluse per ${h.email}`}
+                      className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-xs"
+                      value={bozzeUnita[h.email] ?? ''}
+                      onChange={(e) => setBozzeUnita((b) => ({ ...b, [h.email]: e.target.value }))}
+                      placeholder="nuove"
+                    />
+                    <button
+                      onClick={() => salvaUnita(h)}
+                      disabled={salvandoUnita === h.email || !(bozzeUnita[h.email] ?? '').trim()}
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      {salvandoUnita === h.email ? '...' : 'Aggiorna'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>

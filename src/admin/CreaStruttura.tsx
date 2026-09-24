@@ -7,6 +7,8 @@ import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
 import RetiWifi from './RetiWifi'
 import type { ReteWifi } from './RetiWifi'
 import PassiConfigurazione from './PassiConfigurazione'
+import { useUnita } from '../useUnita'
+import { leggiUnita, verificaUnita } from '../../lib/unita.js'
 
 export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boolean }) {
   const [modalita, setModalita] = useState<'guidata' | 'manuale' | null>(null)
@@ -19,6 +21,8 @@ export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boo
   const [checkin, setCheckin] = useState('')
   const [checkout, setCheckout] = useState('')
   const [reti, setReti] = useState<ReteWifi[]>([])
+  const [unita, setUnita] = useState('1')
+  const { unita: quota } = useUnita()
   const [caricamento, setCaricamento] = useState(false)
   const [errore, setErrore] = useState('')
   const richiestaId = useRef(crypto.randomUUID())
@@ -28,6 +32,13 @@ export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boo
     if (invioInCorso.current) return
     if (!nome.trim() || !indirizzo.trim()) { setErrore('Nome e indirizzo sono obbligatori.'); return }
     if (reti.some(rete => !rete.nome.trim() && (rete.password || rete.zona))) { setErrore('Inserisci il nome di ogni rete Wi-Fi oppure rimuovila.'); return }
+    let richieste: number
+    try { richieste = leggiUnita(unita) } catch (e) { setErrore(e instanceof Error ? e.message : 'Numero di unità non valido.'); return }
+    // Il server e il database ricontrollano: qui si evita solo di far partire la richiesta.
+    if (quota) {
+      const verifica = verificaUnita({ usate: quota.usate, incluse: quota.incluse, richieste })
+      if (!verifica.ok) { setErrore(verifica.messaggio); return }
+    }
     invioInCorso.current = true
     setErrore('')
     setCaricamento(true)
@@ -35,7 +46,7 @@ export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boo
       const { data } = await supabase.auth.getSession()
       const res = await fetch('/api/importa-casa', {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ nome, indirizzo, citta, link: modalita === 'guidata' ? link : '',
+        body: JSON.stringify({ nome, indirizzo, citta, link: modalita === 'guidata' ? link : '', unita: richieste,
           host_nome: hostNome, host_telefono: telefono, checkin, checkout, reti_wifi: reti,
           modalita, richiesta_id: richiestaId.current, access_token: data.session?.access_token }),
       })
@@ -78,6 +89,11 @@ export default function CreaStruttura({ aggiuntiva = false }: { aggiuntiva?: boo
           <Campo etichetta="Nome della struttura"><input required maxLength={200} className={classeCampo} value={nome} onChange={e => setNome(e.target.value)} placeholder="Es. Villa Virginia" /></Campo>
           <IndirizzoAutomatico valore={indirizzo} onChange={valore => { setIndirizzo(valore); setCitta('') }} onSeleziona={setCitta} />
           {modalita === 'guidata' && <Campo etichetta="Link del sito o dell’annuncio (facoltativo)" aiuto="Proveremo a ricavare la descrizione. Se il sito non è leggibile, potrai scriverla dal pannello."><input type="url" maxLength={2000} className={classeCampo} value={link} onChange={e => setLink(e.target.value)} placeholder="https://..." /></Campo>}
+        </Sezione>
+        <Sezione titolo="Camere o alloggi" nota={quota && quota.incluse !== null ? `Il tuo piano include ${quota.incluse} unità: ne hai già usate ${quota.usate}.` : undefined}>
+          <Campo etichetta="Quante camere o alloggi prenotabili?" aiuto="Un B&B con 5 camere: 5. Una casa o un appartamento intero: 1. Conta per il limite del tuo piano.">
+            <input type="number" required min={1} max={999} className={classeCampo} value={unita} onChange={e => setUnita(e.target.value)} />
+          </Campo>
         </Sezione>
         <Sezione titolo="Arrivo e contatti" nota="Informazioni facoltative, utili ai tuoi ospiti.">
           <div className="grid gap-4 lg:grid-cols-2">

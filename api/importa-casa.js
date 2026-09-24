@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { generaDescrizioneCasa } from '../lib/genera-descrizione-casa.js'
 import { validaDatiCasa } from '../lib/configurazione-casa.js'
+import { leggiUnita, verificaUnita, eErroreLimiteUnita, MESSAGGIO_LIMITE_GENERICO } from '../lib/unita.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -44,8 +45,10 @@ export default async function handler(req, res) {
   const emailHost = (userData.user.email || '').trim().toLowerCase()
 
   // Un host può avere più strutture (pannello: selettore in Admin.tsx quando ne ha
-  // più di una) — niente più blocco "ne hai già una". Il limite, se servirà in base
-  // al piano (Guida/Concierge/Portfolio), va aggiunto qui in futuro.
+  // più di una). Il limite è sulle UNITÀ (camere o alloggi) incluse nel suo piano, non sul
+  // numero di strutture: vedi lib/unita.js e la migration 0023. Si controlla più sotto,
+  // PRIMA di chiamare l'AI, così un host oltre il limite non fa spendere nulla.
+  let unitaIncluse = null // null = nessun limite (superadmin)
 
   // Cancello: l'email dev'essere tra gli host autorizzati (o essere il superadmin).
   // Il link di invito lo genera solo il superadmin da /admin/invita-host, che scrive
@@ -54,7 +57,7 @@ export default async function handler(req, res) {
   if (emailHost !== adminEmail) {
     const { data: autorizzato, error: erroreAutorizzato } = await supabase
       .from('host_autorizzati')
-      .select('email')
+      .select('email, unita_incluse')
       .eq('email', emailHost)
       .maybeSingle()
     if (erroreAutorizzato) {
@@ -66,6 +69,7 @@ export default async function handler(req, res) {
         error: "Questa email non risulta tra gli host autorizzati. Scrivi all'amministratore di Haplyhost per l'attivazione.",
       })
     }
+    unitaIncluse = autorizzato.unita_incluse ?? null
   }
 
   let datiConfigurazione
@@ -82,6 +86,23 @@ export default async function handler(req, res) {
     const { error } = await supabase.from('configurazioni_guida').select('struttura_id').limit(0)
     if (error) return res.status(503).json({ error: 'La nuova configurazione sarà disponibile dopo l’aggiornamento del database.' })
   }
+  // Limite di unità del piano. Anche il percorso vecchio (senza `modalita`) passa da qui.
+  let unita
+  try { unita = datiConfigurazione ? datiConfigurazione.unita : leggiUnita(req.body.unita) } catch (errore) {
+    return res.status(400).json({ error: errore.message })
+  }
+  if (unitaIncluse !== null) {
+    const { data: esistenti, error: erroreUnita } = await supabase
+      .from('strutture').select('unita').eq('owner_user_id', userId)
+    if (erroreUnita) {
+      console.error('importa-casa: lettura unità fallita', erroreUnita)
+      return res.status(503).json({ error: 'Non riesco a verificare il limite del tuo piano adesso, riprova tra poco.' })
+    }
+    const usate = (esistenti || []).reduce((somma, r) => somma + (r.unita || 1), 0)
+    const verifica = verificaUnita({ usate, incluse: unitaIncluse, richieste: unita })
+    if (!verifica.ok) return res.status(403).json({ error: verifica.messaggio, codice: 'LIMITE_UNITA' })
+  }
+
   const { descrizione, citta } = modalita === 'manuale' || (modalita === 'guidata' && !link)
     ? { descrizione: '', citta: '' }
     : await generaDescrizioneCasa({ nome, indirizzo, link })
@@ -105,6 +126,7 @@ export default async function handler(req, res) {
       indirizzo,
       citta: (typeof cittaSelezionata === 'string' ? cittaSelezionata.trim().slice(0, 200) : '') || citta || null,
       owner_user_id: userId,
+      unita,
       descrizione_casa: descrizione,
       // Nasce NON pubblica: l'host la prepara e poi la pubblica dal pannello
       // ("Pubblica la guida" in Admin.tsx). Fino ad allora gli ospiti non la vedono;
@@ -116,6 +138,9 @@ export default async function handler(req, res) {
 
   if (erroreCreazione) {
     console.error(erroreCreazione)
+    // Il controllo qui sopra prende quasi tutti i casi; questo è quello del database (due
+    // richieste insieme, o un limite cambiato nel frattempo).
+    if (eErroreLimiteUnita(erroreCreazione)) return res.status(403).json({ error: MESSAGGIO_LIMITE_GENERICO, codice: 'LIMITE_UNITA' })
     return res.status(500).json({ error: 'Errore nella creazione della struttura' })
   }
 

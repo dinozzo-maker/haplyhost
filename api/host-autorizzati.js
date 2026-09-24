@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { leggiUnita } from '../lib/unita.js'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -32,23 +33,46 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('host_autorizzati')
-      .select('email, nome_riferimento, piano, note, autorizzato_il, registrato_il')
+      .select('email, nome_riferimento, piano, note, autorizzato_il, registrato_il, unita_incluse')
       .order('autorizzato_il', { ascending: false })
 
     if (error) {
       console.error(error)
       return res.status(500).json({ error: "Errore nel leggere l'elenco" })
     }
-    return res.status(200).json({ host: data || [] })
+
+    // Unità già usate da ciascun host (somma su tutte le sue strutture). Best-effort: se
+    // non si riesce a calcolarle, l'elenco si vede lo stesso, senza il conteggio.
+    const usatePerEmail = {}
+    try {
+      const { data: lista } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const emailPerId = Object.fromEntries((lista?.users || []).map((u) => [u.id, (u.email || '').toLowerCase()]))
+      const { data: strutture } = await supabase.from('strutture').select('owner_user_id, unita').not('owner_user_id', 'is', null)
+      for (const s of strutture || []) {
+        const email = emailPerId[s.owner_user_id]
+        if (email) usatePerEmail[email] = (usatePerEmail[email] || 0) + (s.unita || 1)
+      }
+    } catch (err) {
+      console.error('host-autorizzati: conteggio unità non riuscito', err)
+    }
+    const host = (data || []).map((h) => ({ ...h, unita_usate: usatePerEmail[h.email.toLowerCase()] ?? 0 }))
+    return res.status(200).json({ host })
   }
 
   if (req.method === 'POST') {
-    const { email, nome_riferimento, piano, note } = req.body || {}
+    const { email, nome_riferimento, piano, note, unita_incluse } = req.body || {}
     const emailPulita = (email || '').trim().toLowerCase()
     if (!emailPulita || !emailPulita.includes('@')) {
       return res.status(400).json({ error: 'Email non valida' })
     }
     const pianoPulito = PIANI.includes(piano) ? piano : null
+    // Le unità incluse si scrivono SOLO se indicate: un nuovo host parte dal default del
+    // database (5, piano base); rigenerare il link a un host già autorizzato non deve
+    // riportargli il limite a 5 se gli era stato alzato.
+    let unitaPulite
+    try { unitaPulite = leggiUnita(unita_incluse, null) } catch (errore) {
+      return res.status(400).json({ error: errore.message })
+    }
 
     const { error: erroreUpsert } = await supabase
       .from('host_autorizzati')
@@ -58,6 +82,7 @@ export default async function handler(req, res) {
           nome_riferimento: nome_riferimento?.trim() || null,
           piano: pianoPulito,
           note: note?.trim() || null,
+          ...(unitaPulite !== null ? { unita_incluse: unitaPulite } : {}),
         },
         { onConflict: 'email' }
       )
@@ -90,6 +115,29 @@ export default async function handler(req, res) {
 
     const link = risultato.data?.properties?.action_link || ''
     return res.status(200).json({ link })
+  }
+
+  // Upgrade (o riduzione) del piano di un host già autorizzato: cambia le unità incluse.
+  if (req.method === 'PATCH') {
+    const emailPulita = (req.body?.email || '').trim().toLowerCase()
+    if (!emailPulita) return res.status(400).json({ error: 'Email mancante' })
+    let unita
+    try { unita = leggiUnita(req.body?.unita_incluse, null) } catch (errore) {
+      return res.status(400).json({ error: errore.message })
+    }
+    if (unita === null) return res.status(400).json({ error: 'Scrivi quante unità sono incluse nel piano.' })
+
+    const { data, error } = await supabase
+      .from('host_autorizzati')
+      .update({ unita_incluse: unita })
+      .eq('email', emailPulita)
+      .select('email')
+    if (error) {
+      console.error(error)
+      return res.status(500).json({ error: 'Non sono riuscito ad aggiornare le unità.' })
+    }
+    if (!data?.length) return res.status(404).json({ error: 'Host non trovato' })
+    return res.status(200).json({ ok: true, unita_incluse: unita })
   }
 
   if (req.method === 'DELETE') {

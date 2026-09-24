@@ -4,6 +4,8 @@ import GestisciWifi from './GestisciWifi'
 import { useOutletContext } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { ridimensionaImmagine } from '../immagine'
+import { useUnita } from '../useUnita'
+import { leggiUnita, verificaUnita, eErroreLimiteUnita, MESSAGGIO_LIMITE_GENERICO } from '../../lib/unita.js'
 import type { ContestoHost } from './RichiedeLogin'
 import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
 
@@ -17,6 +19,7 @@ type DatiCasa = {
   checkin: string
   checkout: string
   max_ospiti: string
+  unita: string
   accento: string
   copertina_url: string
 }
@@ -31,6 +34,7 @@ const VUOTO: DatiCasa = {
   checkin: '',
   checkout: '',
   max_ospiti: '',
+  unita: '1',
   accento: '',
   copertina_url: '',
 }
@@ -52,6 +56,10 @@ export default function ModificaCasa() {
   const [salvataggio, setSalvataggio] = useState(false)
   const [salvato, setSalvato] = useState(false)
   const [errore, setErrore] = useState('')
+  // Unità di questa struttura come salvate nel database: serve a calcolare quante ne restano
+  // per le altre strutture dello stesso host.
+  const [unitaSalvate, setUnitaSalvate] = useState(1)
+  const { unita: quota, ricarica: ricaricaQuota } = useUnita()
 
   // Foto di copertina: caricamento file su Supabase Storage
   const [caricamentoFoto, setCaricamentoFoto] = useState(false)
@@ -72,7 +80,7 @@ export default function ModificaCasa() {
 
       const { data, error } = await supabase
         .from('strutture')
-        .select('nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti, accento, copertina_url')
+        .select('nome, indirizzo, citta, descrizione_casa, host_nome, host_telefono, checkin, checkout, max_ospiti, unita, accento, copertina_url')
         .eq('id', struttura.id)
         .single()
 
@@ -92,9 +100,11 @@ export default function ModificaCasa() {
         checkin: data.checkin ?? '',
         checkout: data.checkout ?? '',
         max_ospiti: data.max_ospiti != null ? String(data.max_ospiti) : '',
+        unita: String(data.unita ?? 1),
         accento: data.accento ?? '',
         copertina_url: data.copertina_url ?? '',
       })
+      setUnitaSalvate(data.unita ?? 1)
       setCaricamento(false)
     }
     carica()
@@ -182,6 +192,20 @@ export default function ModificaCasa() {
       setErrore('Nome e indirizzo sono obbligatori.')
       return
     }
+    let unita: number
+    try { unita = leggiUnita(dati.unita) } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Numero di camere o alloggi non valido.')
+      return
+    }
+    // Le unità delle ALTRE strutture dell'host: quelle usate in totale meno questa. Il
+    // database ricontrolla comunque (migration 0023): qui si spiega prima, in chiaro.
+    if (quota) {
+      const verifica = verificaUnita({ usate: quota.usate - unitaSalvate, incluse: quota.incluse, richieste: unita })
+      if (!verifica.ok) {
+        setErrore(verifica.messaggio)
+        return
+      }
+    }
     setErrore('')
     setSalvataggio(true)
     setSalvato(false)
@@ -189,6 +213,7 @@ export default function ModificaCasa() {
     const { error } = await supabase
       .from('strutture')
       .update({
+        unita,
         nome: dati.nome.trim(),
         indirizzo: dati.indirizzo.trim(),
         citta: dati.citta.trim(),
@@ -206,9 +231,11 @@ export default function ModificaCasa() {
     setSalvataggio(false)
 
     if (error) {
-      setErrore('Errore nel salvataggio: ' + error.message)
+      setErrore(eErroreLimiteUnita(error) ? MESSAGGIO_LIMITE_GENERICO : 'Errore nel salvataggio: ' + error.message)
       return
     }
+    setUnitaSalvate(unita)
+    void ricaricaQuota()
     setSalvato(true)
   }
 
@@ -315,6 +342,24 @@ export default function ModificaCasa() {
             </Campo>
           </div>
         </div>
+
+        <Campo
+          etichetta="Camere o alloggi prenotabili"
+          aiuto={
+            quota && quota.incluse !== null
+              ? `Un B&B con 5 camere: 5. Una casa intera: 1. Il tuo piano include ${quota.incluse} unità in tutto; le altre tue strutture ne usano ${Math.max(0, quota.usate - unitaSalvate)}.`
+              : 'Un B&B con 5 camere: 5. Una casa intera: 1.'
+          }
+        >
+          <input
+            type="number"
+            min="1"
+            max={quota && quota.incluse !== null ? Math.max(1, quota.incluse - Math.max(0, quota.usate - unitaSalvate)) : 999}
+            className={classeCampo}
+            value={dati.unita}
+            onChange={(e) => aggiorna('unita', e.target.value)}
+          />
+        </Campo>
 
         <Campo etichetta="Ospiti massimi">
           <input

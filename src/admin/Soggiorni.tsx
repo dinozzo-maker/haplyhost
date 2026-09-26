@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { Copy, Check, Trash2, MessageSquareText } from 'lucide-react'
+import { Copy, Check, Trash2, MessageSquareText, QrCode } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { oggiInItalia, statoSoggiorno } from '../../lib/soggiorni.js'
 import { MOMENTI, LINGUE_MESSAGGI, momentoConsigliato, costruisciMessaggio } from '../../lib/messaggi-ospiti.js'
 import type { MomentoMessaggio } from '../../lib/messaggi-ospiti.js'
 import type { ContestoHost } from './RichiedeLogin'
 import { PaginaAdmin, Sezione, Campo, classeCampo, Pulsante, Esito } from './ui'
+import QrSoggiorno from './QrSoggiorno'
 
 type Soggiorno = {
   id: string
@@ -54,6 +55,8 @@ export default function Soggiorni() {
   const [salvataggio, setSalvataggio] = useState(false)
   const [errore, setErrore] = useState('')
   const [copiato, setCopiato] = useState<string | null>(null)
+  // Soggiorno di cui si sta mostrando il codice QR (all'accoglienza di persona).
+  const [qrPer, setQrPer] = useState<Soggiorno | null>(null)
   // Messaggi pronti: lingua scelta, quale è stato appena copiato, dati della casa per riempirli.
   const [linguaMessaggi, setLinguaMessaggi] = useState('it')
   const [messaggioCopiato, setMessaggioCopiato] = useState<string | null>(null)
@@ -238,6 +241,13 @@ export default function Soggiorni() {
                   )
                 )}
                 <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setQrPer(s)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
+                  >
+                    <QrCode className="w-4 h-4" /> Mostra QR
+                  </button>
                   <button
                     onClick={() => copiaLink(s)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -245,6 +255,7 @@ export default function Soggiorni() {
                     {copiato === s.id ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                     {copiato === s.id ? 'Link copiato ✓' : 'Copia il link'}
                   </button>
+                  </div>
                   <button
                     onClick={() => elimina(s)}
                     className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700"
@@ -305,6 +316,14 @@ export default function Soggiorni() {
           })}
         </ul>
       </Sezione>
+      {qrPer && (
+        <QrSoggiorno
+          link={linkOspite(qrPer.token)}
+          nomeOspite={qrPer.nome}
+          nomeCasa={casa?.nome ?? struttura.nome}
+          onChiudi={() => setQrPer(null)}
+        />
+      )}
     </PaginaAdmin>
   )
 }

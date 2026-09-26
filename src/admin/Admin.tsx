@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Campo, classeCampo, Pulsante, Esito } from './ui'
 import { useUnita } from '../useUnita'
+import AdozioneGuida from './AdozioneGuida'
 
 const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase()
 
@@ -228,6 +229,8 @@ export default function Admin() {
           </div>
         )}
         {erroreStato && <Esito ok={false}>{erroreStato}</Esito>}
+
+        <AdozioneGuida key={struttura.id} strutturaId={struttura.id} />
 
         <UnitaUsate />
 

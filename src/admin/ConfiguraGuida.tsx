@@ -9,6 +9,9 @@ import { PaginaAdmin, Sezione, Pulsante, Esito } from './ui'
 import PassiConfigurazione from './PassiConfigurazione'
 import SceltaSezioni from './SceltaSezioni'
 import { possibileDuplicato } from '../../lib/identita-luoghi.js'
+import {
+  passiAllargamento, serveAllargare, quantiAncoraServono, messaggioPochiLuoghi, TETTO_LUOGHI, RAGGIO_MASSIMO_KM,
+} from '../../lib/allargamento-ricerca.js'
 
 type Ricerca = { sezione: string; stato: 'in_corso' | 'completata' | 'errore' }
 type Proposta = { id: string; sezione: string; nome: string; descrizione: string; distanza: string; verifica: { fonti?: { url: string; titolo: string }[] } | null }
@@ -43,6 +46,8 @@ function Percorso({ struttura, aggiornaSezioni }: { struttura: StrutturaHost; ag
   const [errore, setErrore] = useState('')
   const [messaggio, setMessaggio] = useState('')
   const [attuale, setAttuale] = useState('')
+  // Sezioni in cui, anche dopo aver allargato la ricerca, i luoghi verificati sono pochi (case isolate).
+  const [pochi, setPochi] = useState<string[]>([])
   const [online, setOnline] = useState(struttura.attivo)
   const blocco = useRef(false)
   const vivo = useRef(true)
@@ -110,21 +115,51 @@ function Percorso({ struttura, aggiornaSezioni }: { struttura: StrutturaHost; ag
     setPasso(3)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+  async function chiediRicerca(token: string, corpo: Record<string, unknown>) {
+    const risposta = await fetch('/api/scout', {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ struttura_id: struttura.id, configurazione: true, ...corpo }),
+    })
+    const risultato = await risposta.json().catch(() => ({}))
+    return { ok: risposta.ok, risultato }
+  }
   async function prepara() {
     const { data } = await supabase.auth.getSession()
     if (!data.session) throw new Error('Sessione scaduta. Accedi di nuovo.')
+    const token = data.session.access_token
+    const poveri: string[] = []
+    setPochi([])
     for (const sezione of daCercare) {
       if (!vivo.current) break
+      const raggioIniziale = RAGGI[sezione.chiave] || 5
       setAttuale(sezione.etichetta)
-      const risposta = await fetch('/api/scout', {
-        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session.access_token}` },
-        body: JSON.stringify({ struttura_id: struttura.id, sezione: sezione.chiave, raggio_km: RAGGI[sezione.chiave] || 5, configurazione: true }),
-      })
-      const risultato = await risposta.json()
+      // Fino a 10 luoghi per sezione (prima 5). I luoghi vengono sempre VERIFICATI sulle fonti: non si
+      // chiede mai all'AI «almeno N», si allarga il raggio (vedi lib/allargamento-ricerca.js).
+      const primo = await chiediRicerca(token, { sezione: sezione.chiave, raggio_km: raggioIniziale, limite: TETTO_LUOGHI })
       await caricaRiepilogo()
-      if (!risposta.ok) throw new Error(risultato.error || 'Ricerca interrotta. Le proposte già trovate sono salvate.')
+      if (!primo.ok) throw new Error(primo.risultato.error || 'Ricerca interrotta. Le proposte già trovate sono salvate.')
+      // Sezione già cercata in un giro precedente: non si allarga né si riparte (nessun costo a sorpresa).
+      if (primo.risultato.gia_eseguita) continue
+
+      let totale = Number(primo.risultato.trovati) || 0
+      let raggioFinale = raggioIniziale
+      // Casa isolata (es. un solo ristorante entro 5 km): sotto la soglia si riprova a 15 e poi a 30 km.
+      // Il database concede al massimo 2 allargamenti per sezione; un errore qui non blocca il resto.
+      for (const raggio of passiAllargamento(raggioIniziale)) {
+        if (!vivo.current || !serveAllargare(totale)) break
+        setAttuale(`${sezione.etichetta} · allargo a ${raggio} km`)
+        const giro = await chiediRicerca(token, { sezione: sezione.chiave, raggio_km: raggio, allargamento: true, limite: quantiAncoraServono(totale) })
+        if (!giro.ok || giro.risultato.limite_allargamenti) break
+        totale += Number(giro.risultato.trovati) || 0
+        raggioFinale = raggio
+        await caricaRiepilogo()
+      }
+      if (serveAllargare(totale)) poveri.push(messaggioPochiLuoghi({ etichetta: sezione.etichetta, trovati: totale, raggio: raggioFinale }))
     }
-    if (vivo.current) setMessaggio('Ricerca terminata. Seleziona i luoghi che vuoi inserire nella guida.')
+    if (vivo.current) {
+      setPochi(poveri)
+      setMessaggio('Ricerca terminata. Seleziona i luoghi che vuoi inserire nella guida.')
+    }
   }
   async function salvaScelte() {
     for (const sezione of elenchi) {
@@ -150,6 +185,12 @@ function Percorso({ struttura, aggiornaSezioni }: { struttura: StrutturaHost; ag
     <PassiConfigurazione passo={passo} />
     {errore && <div role="alert"><Esito ok={false}>{errore}</Esito></div>}
     {messaggio && <div role="status"><Esito ok>{messaggio}</Esito></div>}
+    {pochi.length > 0 && (
+      <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-900">
+        <p className="font-semibold">In alcune sezioni ci sono pochi luoghi</p>
+        {pochi.map(testo => <p key={testo} className="mt-1">{testo}</p>)}
+      </div>
+    )}
     <fieldset disabled={occupato} className="flex min-w-0 flex-col gap-6">
       {passo === 2 ? <>
         <SceltaSezioni tutte={tutte} attive={attive} onChange={setAttive} />
@@ -159,13 +200,13 @@ function Percorso({ struttura, aggiornaSezioni }: { struttura: StrutturaHost; ag
           <Pulsante onClick={() => void esegui(continua)}>Salva e continua</Pulsante>
         </div>
       </> : <>
-        {modalita === 'guidata' && <Sezione titolo="Una prima selezione per i tuoi ospiti" nota="Una ricerca per sezione, fino a 10 sezioni. I risultati restano da approvare; non avviamo ricerche periodiche.">
+        {modalita === 'guidata' && <Sezione titolo="Una prima selezione per i tuoi ospiti" nota="Una ricerca per sezione, fino a 10 sezioni, con al massimo 10 luoghi ciascuna. Se vicino a te ce ne sono pochi, allarghiamo la ricerca fino a 30 km. I risultati restano da approvare; non avviamo ricerche periodiche.">
           <ul className="flex flex-col gap-3">
             {elenchi.map(sezione => {
               const ricerca = ricerche.find(r => r.sezione === sezione.chiave)
               return <li key={sezione.chiave} className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-slate-700">{sezione.etichetta}<span className="block text-xs text-slate-400">{FASCE[RAGGI[sezione.chiave] || 5]}</span></span>
-                <span className="text-xs text-slate-500">{attuale === sezione.etichetta ? 'Cerco…' : ricerca?.stato === 'completata' ? 'Ricerca completata' : ricerca ? 'Da verificare' : 'Da cercare'}</span>
+                <span className="text-slate-700">{sezione.etichetta}<span className="block text-xs text-slate-400">{FASCE[RAGGI[sezione.chiave] || 5]}{passiAllargamento(RAGGI[sezione.chiave] || 5).length > 0 ? ` · fino a ${RAGGIO_MASSIMO_KM} km se ce ne sono pochi` : ''}</span></span>
+                <span className="text-xs text-slate-500">{attuale.startsWith(sezione.etichetta) ? (attuale.includes('allargo') ? 'Allargo la ricerca…' : 'Cerco…') : ricerca?.stato === 'completata' ? 'Ricerca completata' : ricerca ? 'Da verificare' : 'Da cercare'}</span>
               </li>
             })}
           </ul>

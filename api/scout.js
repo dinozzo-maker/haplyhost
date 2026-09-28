@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { possibileDuplicato } from '../lib/identita-luoghi.js'
+import { leggiLimite, raggioAllargamentoValido } from '../lib/allargamento-ricerca.js'
 import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm, chiaveUrl, verificaNomiProposte, nomePresenteNellaFonte } from '../lib/proposte-scout.js'
 import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions, usoOpenAICompatibile } from '../lib/consumi-ai.js'
 
@@ -132,14 +133,14 @@ function estraiArrayJson(testo) {
 }
 
 // ---- MOTORE GEMINI: Google Maps grounding (Interactions API) ----
-async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm, raggioCompleto }) {
+async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm, raggioCompleto, limite }) {
   const iniziata = Date.now()
   const haCoord = struttura?.lat != null && struttura?.lng != null
   const tool = haCoord
     ? { type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }
     : { type: 'google_maps' }
 
-  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto })
+  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto, limite })
 
   const risposta = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
@@ -182,7 +183,7 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm, rag
     url: fonte.url, nome: fonte.name, titolo: fonte.title,
   }))
   const verificati = verificaNomiProposte(aggiungiFontiMaps(candidati, dati), fontiNomi)
-  return normalizzaConDistanze(verificati, citazioniGemini(dati), struttura, daEscludere, raggioKm, raggioCompleto)
+  return normalizzaConDistanze(verificati, citazioniGemini(dati), struttura, daEscludere, raggioKm, raggioCompleto, limite)
 }
 
 function annotazioniGemini(dati) {
@@ -214,7 +215,7 @@ function aggiungiFontiMaps(candidati, dati) {
   })
 }
 
-async function normalizzaConDistanze(candidati, citazioni, struttura, daEscludere, raggioKm, raggioCompleto) {
+async function normalizzaConDistanze(candidati, citazioni, struttura, daEscludere, raggioKm, raggioCompleto, limite = 5) {
   const chiave = process.env.VITE_GEOAPIFY_API_KEY
   const latStruttura = Number(struttura?.lat)
   const lngStruttura = Number(struttura?.lng)
@@ -222,7 +223,7 @@ async function normalizzaConDistanze(candidati, citazioni, struttura, daEscluder
     throw new Error('Geoapify: coordinate della struttura o chiave non disponibili')
   }
 
-  const arricchiti = await Promise.all((Array.isArray(candidati) ? candidati : []).slice(0, 8).map(async (candidato) => {
+  const arricchiti = await Promise.all((Array.isArray(candidati) ? candidati : []).slice(0, Math.max(8, limite + 3)).map(async (candidato) => {
     const indirizzo = String(candidato?.indirizzo || '').trim()
     if (!indirizzo) return candidato
     try {
@@ -264,12 +265,12 @@ async function normalizzaConDistanze(candidati, citazioni, struttura, daEscluder
   }))
 
   const citazioniDistanza = arricchiti.map((c) => c?._citazioneDistanza).filter(Boolean)
-  return normalizzaProposte(arricchiti, [...citazioni, ...citazioniDistanza], daEscludere, raggioKm, raggioCompleto)
+  return normalizzaProposte(arricchiti, [...citazioni, ...citazioniDistanza], daEscludere, raggioKm, raggioCompleto, limite)
 }
 
 // ---- MOTORE CLAUDE: ricerca web (fallback, oggi non selezionato) ----
-async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm, raggioCompleto }) {
-  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto })
+async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm, raggioCompleto, limite }) {
+  const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto, limite })
 
   const messages = [{ role: 'user', content: prompt }]
 
@@ -326,7 +327,7 @@ async function cercaConClaude({ struttura, categoria, daEscludere, raggioKm, rag
     throw new Error('La ricerca non ha prodotto risultati leggibili, riprova')
   }
 
-  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioni, struttura, daEscludere, raggioKm, raggioCompleto)
+  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioni, struttura, daEscludere, raggioKm, raggioCompleto, limite)
 }
 
 function citazioniOpenRouter(dati) {
@@ -339,7 +340,7 @@ function citazioniOpenRouter(dati) {
 
 // OpenRouter usa Qwen gratuito per la sintesi e il proprio strumento server-side
 // di ricerca. È un fornitore separato da Gemini e Anthropic.
-async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm, raggioCompleto }) {
+async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm, raggioCompleto, limite }) {
   const iniziata = Date.now()
   const risposta = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -352,7 +353,7 @@ async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm,
     },
     body: JSON.stringify({
       model: MODELLO_OPENROUTER,
-      messages: [{ role: 'user', content: promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto }) }],
+      messages: [{ role: 'user', content: promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto, limite }) }],
       tools: [{ type: 'openrouter:web_search', parameters: { engine: 'exa', max_results: 6, max_total_results: 12 } }],
       max_tool_calls: 3,
       temperature: 0.1,
@@ -370,7 +371,7 @@ async function cercaConOpenRouter({ struttura, categoria, daEscludere, raggioKm,
     const fonte = annotazione.url_citation || annotazione
     return { url: fonte.url, titolo: fonte.title, testo: fonte.content }
   })
-  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioniOpenRouter(dati), struttura, daEscludere, raggioKm, raggioCompleto)
+  return normalizzaConDistanze(verificaNomiProposte(candidati, fontiNomi), citazioniOpenRouter(dati), struttura, daEscludere, raggioKm, raggioCompleto, limite)
 }
 
 function tipoLuogoGeoapify(categorie, sezione) {
@@ -472,7 +473,7 @@ async function descrizioniConExa(candidati, strutturaId, sezione) {
         model: 'exa', stream: false, text: false, userLocation: 'IT',
         outputSchema: {
           type: 'object', additionalProperties: false, required: ['descrizioni'],
-          properties: { descrizioni: { type: 'array', maxItems: 5, items: {
+          properties: { descrizioni: { type: 'array', maxItems: Math.max(5, candidati.length), items: {
             type: 'object', additionalProperties: false, required: ['indice', 'descrizione', 'fonti'],
             properties: {
               indice: { type: 'integer' }, descrizione: { type: 'string', maxLength: 200 },
@@ -526,7 +527,7 @@ async function descrizioniConExa(candidati, strutturaId, sezione) {
   }
 }
 
-async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm, raggioCompleto }) {
+async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm, raggioCompleto, limite = 5 }) {
   const categorieRichieste = CATEGORIE_GEOAPIFY[sezione]
   const chiave = process.env.VITE_GEOAPIFY_API_KEY?.trim()
   if (!categorieRichieste || !chiave) return []
@@ -578,7 +579,7 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm, rag
       non_verificato: ['Specialità, servizi, prezzi, voto e telefono non verificati.'],
       contraddizioni: [], domanda_host: '', _placeId: String(p.place_id || ''), _proprieta: p,
     }]
-  }).sort((a, b) => a.distanza_km - b.distanza_km).slice(0, 5)
+  }).sort((a, b) => a.distanza_km - b.distanza_km).slice(0, limite)
 
   const candidatiDettagliati = await Promise.all(candidatiBase.map(async (candidato) => {
     const proprieta = await dettagliGeoapify(candidato._placeId, candidato._proprieta)
@@ -602,7 +603,7 @@ async function cercaConGeoapify({ struttura, sezione, daEscludere, raggioKm, rag
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'geoapify', modello: 'places-v2', durata_ms: Date.now() - iniziata })
   const citazioni = candidati.flatMap((c) => [c.maps, ...c.fonti.map((fonte) => fonte.url)])
-  return normalizzaProposte(candidati, citazioni, daEscludere, raggioKm, raggioCompleto)
+  return normalizzaProposte(candidati, citazioni, daEscludere, raggioKm, raggioCompleto, limite)
 }
 
 async function cercaConFallback(parametri) {
@@ -648,7 +649,7 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Le ricerche online sono temporaneamente disattivate.' })
   }
 
-  const { struttura_id, sezione, raggio_km, configurazione } = req.body || {}
+  const { struttura_id, sezione, raggio_km, configurazione, limite, allargamento } = req.body || {}
   const tokenHeader = (req.headers.authorization || '').replace(/^Bearer /i, '')
   const access_token = tokenHeader || req.body?.access_token
   if (!struttura_id || !sezione || !access_token) {
@@ -663,6 +664,13 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Sessione non valida, rifai il login' })
   }
   const raggioKm = RAGGI_KM.includes(Number(raggio_km)) ? Number(raggio_km) : RAGGIO_DEFAULT_KM
+  // Quanti luoghi al massimo (1-10, predefinito 5 come la ricerca manuale). Il wizard chiede fino a 10.
+  const limiteRicerca = leggiLimite(limite)
+  // Un ALLARGAMENTO (secondo o terzo giro sulla stessa sezione, per le case isolate) esiste solo nel
+  // wizard e solo verso i raggi previsti (15 e 30 km): mai i 150 km, mai raggi a piacere.
+  if (allargamento === true && (configurazione !== true || !raggioAllargamentoValido(raggio_km))) {
+    return res.status(400).json({ error: 'Allargamento della ricerca non valido.' })
+  }
 
   const { data: struttura, error: erroreStruttura } = await supabase
     .from('strutture')
@@ -715,16 +723,23 @@ export default async function handler(req, res) {
         const { data: extra } = await supabase.from('sezioni_extra').select('tipo').eq('chiave', sezione).eq('archiviata', false).maybeSingle()
         if (extra?.tipo !== 'elenco') return res.status(400).json({ error: 'Sezione non ricercabile.' })
       }
-      const { data: prenotata, error } = await supabase.rpc('prenota_ricerca_configurazione', { p_struttura_id: struttura_id, p_sezione: sezione })
-      if (error) return res.status(409).json({ error: 'Ricerca iniziale non disponibile. Verifica le sezioni e il limite di 10 ricerche.' })
-      if (!prenotata) return res.status(200).json({ trovati: 0, gia_eseguita: true })
-      ricercaPrenotata = true
+      if (allargamento === true) {
+        // Tetto nel database: al massimo 2 allargamenti per sezione, solo dopo la ricerca iniziale completata.
+        const { data: consentito, error } = await supabase.rpc('prenota_allargamento_configurazione', { p_struttura_id: struttura_id, p_sezione: sezione })
+        if (error) return res.status(409).json({ error: 'Allargamento della ricerca non disponibile.' })
+        if (!consentito) return res.status(200).json({ trovati: 0, limite_allargamenti: true })
+      } else {
+        const { data: prenotata, error } = await supabase.rpc('prenota_ricerca_configurazione', { p_struttura_id: struttura_id, p_sezione: sezione })
+        if (error) return res.status(409).json({ error: 'Ricerca iniziale non disponibile. Verifica le sezioni e il limite di 10 ricerche.' })
+        if (!prenotata) return res.status(200).json({ trovati: 0, gia_eseguita: true })
+        ricercaPrenotata = true
+      }
     }
     // Le strutture create prima dell'autocompletamento possono non avere ancora
     // lat/lng. Le ricaviamo una volta dall'indirizzo e le salviamo: così fasce e
     // meteo funzionano anche per quelle righe storiche.
     const strutturaLocalizzata = await assicuraCoordinateStruttura(struttura)
-    const trovate = await cercaConFallback({ struttura: strutturaLocalizzata, sezione, categoria, daEscludere, raggioKm, raggioCompleto: configurazione === true })
+    const trovate = await cercaConFallback({ struttura: strutturaLocalizzata, sezione, categoria, daEscludere, raggioKm, raggioCompleto: configurazione === true, limite: limiteRicerca })
 
     const righe = trovate.map(c => ({
       struttura_id,
@@ -745,7 +760,7 @@ export default async function handler(req, res) {
     }
 
     if (ricercaPrenotata) await supabase.from('ricerche_configurazione').update({ stato: 'completata' }).eq('struttura_id', struttura_id).eq('sezione', sezione)
-    return res.status(200).json({ trovati: righe.length, avviso: righe.length ? '' : 'Nessuna nuova proposta con identità, descrizione e fonti sufficienti. Prova un’altra categoria o un raggio diverso.' })
+    return res.status(200).json({ trovati: righe.length, raggio_km: raggioKm, avviso: righe.length ? '' : 'Nessuna nuova proposta con identità, descrizione e fonti sufficienti. Prova un’altra categoria o un raggio diverso.' })
   } catch (err) {
     if (ricercaPrenotata) await supabase.from('ricerche_configurazione').update({ stato: 'errore' }).eq('struttura_id', struttura_id).eq('sezione', sezione)
     console.error('Scout error:', err)

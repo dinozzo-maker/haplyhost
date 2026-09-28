@@ -113,7 +113,7 @@ export default function Home() {
 
       <SelettoreLingua />
 
-      <Benvenuto slug={slug ?? ''} orarioCheckin={struttura.checkin} orarioCheckout={struttura.checkout} />
+      <Benvenuto slug={slug ?? ''} orarioCheckin={struttura.checkin} orarioCheckout={struttura.checkout} casaVisibile={visibili.some((s) => s.chiave === 'casa')} />
 
       <div className="g-quick">
         {visibili.some((s) => s.chiave === 'casa') && <>

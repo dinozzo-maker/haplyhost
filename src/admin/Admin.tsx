@@ -7,7 +7,7 @@ import type { ContestoHost } from './RichiedeLogin'
 import CreaStruttura from './CreaStruttura'
 import {
   Settings, NotebookPen, MessageCircleQuestion, BarChart3, LayoutGrid, Languages, Eye,
-  Layers, CircleCheck, Circle, ArrowRight, TriangleAlert, KeyRound,
+  Layers, CircleCheck, Circle, ArrowRight, TriangleAlert, KeyRound, DoorOpen,
 } from 'lucide-react'
 import { Campo, classeCampo, Pulsante, Esito } from './ui'
 import { useUnita } from '../useUnita'
@@ -285,6 +285,9 @@ export default function Admin() {
           </Scorciatoia>
           <Scorciatoia to="/admin/soggiorni">
             <KeyRound className="w-4 h-4 text-slate-400 shrink-0" /> Soggiorni e Wi-Fi
+          </Scorciatoia>
+          <Scorciatoia to="/admin/arrivo">
+            <DoorOpen className="w-4 h-4 text-slate-400 shrink-0" /> Come entrare (istruzioni di arrivo)
           </Scorciatoia>
           <Scorciatoia to="/admin/note">
             <NotebookPen className="w-4 h-4 text-slate-400 shrink-0" /> Note per Gennarino

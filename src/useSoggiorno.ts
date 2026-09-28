@@ -6,6 +6,8 @@ export type SoggiornoOspite = {
   nome: string
   checkin: string
   checkout: string
+  // Ci sono istruzioni di arrivo riservate da mostrare (solo il fatto, mai il testo). Vedi BloccoArrivo.tsx.
+  arrivo?: boolean
 }
 
 // Il soggiorno dell'ospite che ha aperto la guida dal suo link personale (vedi

@@ -60,6 +60,7 @@ export default function Soggiorni() {
   // Messaggi pronti: lingua scelta, quale è stato appena copiato, dati della casa per riempirli.
   const [linguaMessaggi, setLinguaMessaggi] = useState('it')
   const [messaggioCopiato, setMessaggioCopiato] = useState<string | null>(null)
+  const [haArrivo, setHaArrivo] = useState(false)
   const [casa, setCasa] = useState<{ nome: string; host_nome: string | null; checkin: string | null; checkout: string | null } | null>(null)
 
   const carica = useCallback(async () => {
@@ -102,6 +103,9 @@ export default function Soggiorni() {
     let attivo = true
     void supabase.from('strutture').select('nome, host_nome, checkin, checkout').eq('id', struttura.id).maybeSingle()
       .then(({ data }) => { if (attivo && data) setCasa(data) })
+    // Ci sono istruzioni di arrivo? (solo il fatto: i messaggi dicono che nella guida si trova «come entrare»)
+    void supabase.from('strutture_segreti').select('info_arrivo').eq('struttura_id', struttura.id).maybeSingle()
+      .then(({ data }) => { if (attivo) setHaArrivo(!!String(data?.info_arrivo ?? '').trim()) })
     return () => { attivo = false }
   }, [struttura])
 
@@ -279,6 +283,7 @@ export default function Soggiorni() {
                         orarioCheckin: casa?.checkin,
                         orarioCheckout: casa?.checkout,
                         host: casa?.host_nome,
+                        conArrivo: haArrivo,
                       })
                       const consigliato = momentoConsigliato(s.checkin, s.checkout, oggi) === momento
                       return (

@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+import { KeyRound } from 'lucide-react'
 import { useLingua, saluto, T } from './lingua'
 import { TESTI_BENVENUTO } from './testiBenvenuto'
 import { useSoggiorno } from './useSoggiorno'
@@ -11,10 +13,13 @@ export default function Benvenuto({
   slug,
   orarioCheckin,
   orarioCheckout,
+  casaVisibile,
 }: {
   slug: string
   orarioCheckin: string | null
   orarioCheckout: string | null
+  // La pagina «Casa & Wi-Fi» (dove stanno le istruzioni di arrivo) è tra le sezioni visibili della guida.
+  casaVisibile: boolean
 }) {
   const { lingua } = useLingua()
   const { soggiorno, caricamento } = useSoggiorno(slug)
@@ -66,6 +71,11 @@ export default function Benvenuto({
           {oraOut && <span className="b-ora">{oraOut}</span>}
         </div>
       </div>
+      {soggiorno.arrivo && casaVisibile && (
+        <Link to={`/${slug}/casa#arrivo`} className="b-arrivo">
+          <KeyRound size={16} aria-hidden="true" /> {t.istruzioniArrivo}
+        </Link>
+      )}
     </div>
   )
 }

@@ -14,5 +14,7 @@ export function costruisciMessaggio(
     orarioCheckin?: string | null
     orarioCheckout?: string | null
     host?: string | null
+    // L'host ha scritto le istruzioni di arrivo riservate ("come entrare"): i messaggi lo menzionano.
+    conArrivo?: boolean
   }
 ): string

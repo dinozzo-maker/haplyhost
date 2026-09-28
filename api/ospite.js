@@ -12,6 +12,8 @@ const supabase = createClient(
 //   ?azione=verifica-slug&slug=...  → { esiste }
 //   ?azione=wifi&slug=...&s=<token> → reti Wi-Fi, solo nei giorni del soggiorno
 //   ?azione=soggiorno&slug=...&s=<token> → nome e date del soggiorno, per il benvenuto in home
+//   ?azione=arrivo&slug=...&s=<token> → istruzioni di arrivo riservate (codice porta, parcheggio…),
+//     solo nei giorni del soggiorno, come il Wi-Fi
 //   (le azioni con token segnano anche un'apertura della guida per quel soggiorno, vedi registraApertura)
 // Prima erano api/verifica-slug.js e api/wifi.js: stessa logica, stesse risposte.
 export default async function handler(req, res) {
@@ -22,6 +24,7 @@ export default async function handler(req, res) {
   if (azione === 'verifica-slug') return verificaSlug(req, res)
   if (azione === 'wifi') return wifi(req, res)
   if (azione === 'soggiorno') return benvenuto(req, res)
+  if (azione === 'arrivo') return arrivo(req, res)
   return res.status(400).json({ error: 'Azione non valida' })
 }
 
@@ -86,7 +89,50 @@ async function benvenuto(req, res) {
   if (!trovato) return res.status(404).json({ stato: 'non_valido' })
   await registraApertura(trovato.soggiorno.id)
   const { nome, checkin, checkout } = trovato.soggiorno
-  return res.status(200).json({ stato: statoSoggiorno(checkin, checkout), nome, checkin, checkout })
+  const stato = statoSoggiorno(checkin, checkout)
+  // `arrivo` = ci sono istruzioni di arrivo da mostrare (serve alla home per il pulsante). Il TESTO
+  // non esce mai da qui: si legge solo dall'azione `arrivo`, e solo nei giorni del soggiorno.
+  let arrivo = false
+  if (stato !== 'scaduto') {
+    const { data: segreti } = await supabase
+      .from('strutture_segreti')
+      .select('info_arrivo')
+      .eq('struttura_id', trovato.struttura.id)
+      .maybeSingle()
+    arrivo = !!String(segreti?.info_arrivo ?? '').trim()
+  }
+  return res.status(200).json({ stato, nome, checkin, checkout, arrivo })
+}
+
+// Istruzioni di arrivo riservate. Stessa regola del Wi-Fi: il testo esce SOLO se il token esiste per
+// quella struttura E oggi (fuso italiano) è tra il check-in e il check-out. Prima del check-in si dice
+// solo la data d'arrivo; dopo il check-out niente.
+async function arrivo(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+
+  const trovato = await trovaSoggiorno(req, 'checkin, checkout')
+  if (!trovato) return res.status(404).json({ stato: 'non_valido' })
+  await registraApertura(trovato.soggiorno.id)
+  const { struttura, soggiorno } = trovato
+
+  const stato = statoSoggiorno(soggiorno.checkin, soggiorno.checkout)
+  if (stato === 'scaduto') return res.status(200).json({ stato })
+
+  const { data: segreti, error } = await supabase
+    .from('strutture_segreti')
+    .select('info_arrivo')
+    .eq('struttura_id', struttura.id)
+    .maybeSingle()
+  if (error) {
+    console.error('arrivo:', error.message)
+    return res.status(500).json({ error: 'Errore nel leggere le istruzioni' })
+  }
+  const testo = String(segreti?.info_arrivo ?? '').trim()
+
+  // Prima del check-in si dice SOLO se le istruzioni esistono (e la data d'arrivo), mai il testo:
+  // così la pagina non promette nulla quando l'host non ha scritto niente.
+  if (stato === 'presto') return res.status(200).json({ stato, checkin: soggiorno.checkin, presente: !!testo })
+  return res.status(200).json({ stato, testo })
 }
 
 // Protetto dal token del soggiorno. È l'unico punto da cui una password Wi-Fi arriva a un

@@ -14,6 +14,7 @@ const CHIAVI_SISTEMA = [
 const CHIAVI_RISERVATE = [
   'modifica-casa', 'note', 'domande', 'traduzioni', 'sezioni-guida',
   'sezioni-extra', 'invita-host', 'nuova-struttura', 'statistiche', 'privacy', 'configurazione',
+  'soggiorni', 'arrivo',
 ]
 
 async function superadmin(req) {

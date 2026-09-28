@@ -9,6 +9,7 @@ type TestiBenvenuto = {
   inCorso: (data: string) => string
   graziePerIlSoggiorno: (nome: string) => string
   graziePerIlSoggiornoSub: string
+  istruzioniArrivo: string
 }
 
 export const TESTI_BENVENUTO: Record<Lingua, TestiBenvenuto> = {
@@ -19,6 +20,7 @@ export const TESTI_BENVENUTO: Record<Lingua, TestiBenvenuto> = {
     inCorso: (data) => `Buon soggiorno! Il check-out è ${data}.`,
     graziePerIlSoggiorno: (nome) => `Grazie, ${nome}!`,
     graziePerIlSoggiornoSub: 'Speriamo che il soggiorno sia stato bello. Tornate a trovarci!',
+    istruzioniArrivo: 'Istruzioni di arrivo',
   },
   en: {
     checkin: 'Check-in',
@@ -27,6 +29,7 @@ export const TESTI_BENVENUTO: Record<Lingua, TestiBenvenuto> = {
     inCorso: (data) => `Enjoy your stay! Check-out is on ${data}.`,
     graziePerIlSoggiorno: (nome) => `Thank you, ${nome}!`,
     graziePerIlSoggiornoSub: 'We hope you enjoyed your stay. Come back soon!',
+    istruzioniArrivo: 'Arrival instructions',
   },
   fr: {
     checkin: 'Arrivée',
@@ -35,6 +38,7 @@ export const TESTI_BENVENUTO: Record<Lingua, TestiBenvenuto> = {
     inCorso: (data) => `Bon séjour ! Le départ est le ${data}.`,
     graziePerIlSoggiorno: (nome) => `Merci, ${nome} !`,
     graziePerIlSoggiornoSub: 'Nous espérons que votre séjour s’est bien passé. À bientôt !',
+    istruzioniArrivo: 'Instructions d’arrivée',
   },
   de: {
     checkin: 'Check-in',
@@ -43,6 +47,7 @@ export const TESTI_BENVENUTO: Record<Lingua, TestiBenvenuto> = {
     inCorso: (data) => `Schönen Aufenthalt! Check-out ist am ${data}.`,
     graziePerIlSoggiorno: (nome) => `Danke, ${nome}!`,
     graziePerIlSoggiornoSub: 'Wir hoffen, dein Aufenthalt hat dir gefallen. Bis bald!',
+    istruzioniArrivo: 'Anreiseinformationen',
   },
   es: {
     checkin: 'Llegada',
@@ -51,5 +56,6 @@ export const TESTI_BENVENUTO: Record<Lingua, TestiBenvenuto> = {
     inCorso: (data) => `¡Buena estancia! La salida es el ${data}.`,
     graziePerIlSoggiorno: (nome) => `¡Gracias, ${nome}!`,
     graziePerIlSoggiornoSub: 'Esperamos que hayas disfrutado de tu estancia. ¡Hasta pronto!',
+    istruzioniArrivo: 'Instrucciones de llegada',
   },
 }

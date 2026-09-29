@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { possibileDuplicato } from '../lib/identita-luoghi.js'
 import { leggiLimite, raggioAllargamentoValido } from '../lib/allargamento-ricerca.js'
-import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm, chiaveUrl, verificaNomiProposte, nomePresenteNellaFonte } from '../lib/proposte-scout.js'
+import { promptScout, normalizzaProposte, citazioniGemini, citazioniClaude, distanzaGeograficaKm, chiaveUrl, verificaNomiProposte, nomePresenteNellaFonte, urlGoogleAffidabile } from '../lib/proposte-scout.js'
 import { registraConsumoAI, tipoErroreAI, usoAnthropic, usoGeminiInteractions, usoOpenAICompatibile } from '../lib/consumi-ai.js'
 
 const supabase = createClient(
@@ -136,9 +136,14 @@ function estraiArrayJson(testo) {
 async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm, raggioCompleto, limite }) {
   const iniziata = Date.now()
   const haCoord = struttura?.lat != null && struttura?.lng != null
-  const tool = haCoord
-    ? { type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }
-    : { type: 'google_maps' }
+  // Google non accetta più google_maps e google_search nella stessa richiesta: risponde 400
+  // "cannot be combined" (scoperto il 28-29/09/2026, prima l'errore restava nascosto dietro la
+  // quota esaurita dell'account). Con le coordinate — il caso normale, assicuraCoordinateStruttura
+  // le geocodifica prima di arrivare qui — si usa SOLO google_maps, il grounding più preciso per
+  // "luoghi vicino a un indirizzo"; senza coordinate si ripiega su google_search da solo.
+  const tools = haCoord
+    ? [{ type: 'google_maps', latitude: Number(struttura.lat), longitude: Number(struttura.lng) }]
+    : [{ type: 'google_search' }]
 
   const prompt = promptScout({ struttura, categoria, daEscludere, raggioKm, raggioCompleto, limite })
 
@@ -152,7 +157,7 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm, rag
     body: JSON.stringify({
       model: MODELLO_GEMINI,
       input: prompt,
-      tools: [tool, { type: 'google_search' }],
+      tools,
     }),
   })
 
@@ -179,11 +184,18 @@ async function cercaConGemini({ struttura, categoria, daEscludere, raggioKm, rag
   await registraConsumoAI({ struttura_id: struttura.id, servizio: 'scout', operazione: 'ricerca luoghi',
     fornitore: 'google', modello: MODELLO_GEMINI, durata_ms: Date.now() - iniziata,
     utilizzo: usoGeminiInteractions(dati) })
-  const fontiNomi = annotazioniGemini(dati).map(fonte => ({
-    url: fonte.url, nome: fonte.name, titolo: fonte.title,
-  }))
+  // Le annotazioni (url_citation/place_citation) restano il canale preferito quando Google le
+  // manda; nel frattempo si accettano anche i link che il modello scrive DENTRO al JSON, ma solo
+  // se nel formato Google riconosciuto (urlGoogleAffidabile) — vedi il commento lì per il perché.
+  const fontiAffidabili = candidati.flatMap(c => (Array.isArray(c?.fonti) ? c.fonti : [])
+    .filter(f => urlGoogleAffidabile(f?.url)))
+  const fontiNomi = [
+    ...annotazioniGemini(dati).map(fonte => ({ url: fonte.url, nome: fonte.name, titolo: fonte.title })),
+    ...fontiAffidabili.map(fonte => ({ url: fonte.url, titolo: fonte.titolo })),
+  ]
   const verificati = verificaNomiProposte(aggiungiFontiMaps(candidati, dati), fontiNomi)
-  return normalizzaConDistanze(verificati, citazioniGemini(dati), struttura, daEscludere, raggioKm, raggioCompleto, limite)
+  const citazioni = [...citazioniGemini(dati), ...fontiAffidabili.map(fonte => fonte.url)]
+  return normalizzaConDistanze(verificati, citazioni, struttura, daEscludere, raggioKm, raggioCompleto, limite)
 }
 
 function annotazioniGemini(dati) {
